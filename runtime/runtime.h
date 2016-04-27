@@ -383,7 +383,6 @@ class Runtime {
     return imt_conflict_method_ != nullptr;
   }
 
-  void FixupConflictTables();
   void SetImtConflictMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
   void SetImtUnimplementedMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
 

@@ -169,10 +169,6 @@ class ImageWriter FINAL {
     // ArtMethods may be dirty if the class has native methods or a declaring class that isn't
     // initialized.
     kBinArtMethodDirty,
-    // Conflict tables (clean).
-    kBinIMTConflictTable,
-    // Runtime methods (always clean, do not have a length prefix array).
-    kBinRuntimeMethod,
     // Dex cache arrays have a special slot for PC-relative addressing. Since they are
     // huge, and as such their dirtiness is not important for the clean/dirty separation,
     // we arbitrarily keep them at the end of the native data.
@@ -190,8 +186,6 @@ class ImageWriter FINAL {
     kNativeObjectRelocationTypeArtMethodArrayClean,
     kNativeObjectRelocationTypeArtMethodDirty,
     kNativeObjectRelocationTypeArtMethodArrayDirty,
-    kNativeObjectRelocationTypeRuntimeMethod,
-    kNativeObjectRelocationTypeIMTConflictTable,
     kNativeObjectRelocationTypeDexCacheArray,
   };
   friend std::ostream& operator<<(std::ostream& stream, const NativeObjectRelocationType& type);
@@ -246,7 +240,7 @@ class ImageWriter FINAL {
 
     // Create the image sections into the out sections variable, returns the size of the image
     // excluding the bitmap.
-    size_t CreateImageSections(ImageSection* out_sections) const;
+    size_t CreateImageSections(size_t target_ptr_size, ImageSection* out_sections) const;
 
     std::unique_ptr<MemMap> image_;  // Memory mapped for generating the image.
 
@@ -401,8 +395,6 @@ class ImageWriter FINAL {
   void CopyAndFixupObject(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
   void CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy, const ImageInfo& image_info)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  void CopyAndFixupImtConflictTable(ImtConflictTable* orig, ImtConflictTable* copy)
-      SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupClass(mirror::Class* orig, mirror::Class* copy)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupObject(mirror::Object* orig, mirror::Object* copy)
@@ -431,11 +423,6 @@ class ImageWriter FINAL {
   void AssignMethodOffset(ArtMethod* method,
                           NativeObjectRelocationType type,
                           size_t oat_index)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Assign the offset for an IMT conflict table. Does nothing if the table already has a native
-  // relocation.
-  void TryAssignConflictTableOffset(ImtConflictTable* table, size_t oat_index)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Return true if klass is loaded by the boot class loader but not in the boot image.
@@ -494,9 +481,6 @@ class ImageWriter FINAL {
   // remove duplicates in the multi image and app image case.
   mirror::String* FindInternedString(mirror::String* string) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Return true if there already exists a native allocation for an object.
-  bool NativeRelocationAssigned(void* ptr) const;
-
   const CompilerDriver& compiler_driver_;
 
   // Beginning target image address for the first image.
@@ -533,14 +517,16 @@ class ImageWriter FINAL {
 
     bool IsArtMethodRelocation() const {
       return type == kNativeObjectRelocationTypeArtMethodClean ||
-          type == kNativeObjectRelocationTypeArtMethodDirty ||
-          type == kNativeObjectRelocationTypeRuntimeMethod;
+          type == kNativeObjectRelocationTypeArtMethodDirty;
     }
   };
   std::unordered_map<void*, NativeObjectRelocation> native_object_relocations_;
 
   // Runtime ArtMethods which aren't reachable from any Class but need to be copied into the image.
   ArtMethod* image_methods_[ImageHeader::kImageMethodsCount];
+  // Fake length prefixed array for image methods. This array does not contain the actual
+  // ArtMethods. We only use it for the header and relocation addresses.
+  LengthPrefixedArray<ArtMethod> image_method_array_;
 
   // Counters for measurements, used for logging only.
   uint64_t dirty_methods_;

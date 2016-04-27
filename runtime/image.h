@@ -64,6 +64,12 @@ class PACKED(4) ImageSection {
     return offset - offset_ < size_;
   }
 
+  // Visit ArtMethods in the section starting at base.
+  void VisitPackedArtMethods(ArtMethodVisitor* visitor, uint8_t* base, size_t pointer_size) const;
+
+  // Visit ArtMethods in the section starting at base.
+  void VisitPackedArtFields(ArtFieldVisitor* visitor, uint8_t* base) const;
+
  private:
   uint32_t offset_;
   uint32_t size_;
@@ -194,8 +200,6 @@ class PACKED(4) ImageHeader {
     kSectionObjects,
     kSectionArtFields,
     kSectionArtMethods,
-    kSectionRuntimeMethods,
-    kSectionIMTConflictTables,
     kSectionDexCacheArrays,
     kSectionInternedStrings,
     kSectionClassTable,
@@ -207,17 +211,8 @@ class PACKED(4) ImageHeader {
   void SetImageMethod(ImageMethod index, ArtMethod* method);
 
   const ImageSection& GetImageSection(ImageSections index) const;
-
   const ImageSection& GetMethodsSection() const {
     return GetImageSection(kSectionArtMethods);
-  }
-
-  const ImageSection& GetRuntimeMethodsSection() const {
-    return GetImageSection(kSectionRuntimeMethods);
-  }
-
-  const ImageSection& GetFieldsSection() const {
-    return GetImageSection(ImageHeader::kSectionArtFields);
   }
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
@@ -269,19 +264,6 @@ class PACKED(4) ImageHeader {
     // header.
     return boot_image_size_ != 0u;
   }
-
-  // Visit ArtMethods in the section starting at base. Includes runtime methods.
-  // TODO: Delete base parameter if it is always equal to GetImageBegin.
-  void VisitPackedArtMethods(ArtMethodVisitor* visitor, uint8_t* base, size_t pointer_size) const;
-
-  // Visit ArtMethods in the section starting at base.
-  // TODO: Delete base parameter if it is always equal to GetImageBegin.
-  void VisitPackedArtFields(ArtFieldVisitor* visitor, uint8_t* base) const;
-
-  template <typename Visitor>
-  void VisitPackedImtConflictTables(const Visitor& visitor,
-                                    uint8_t* base,
-                                    size_t pointer_size) const;
 
  private:
   static const uint8_t kImageMagic[4];

@@ -1624,19 +1624,18 @@ void Runtime::VisitImageRoots(RootVisitor* visitor) {
   }
 }
 
+static ImtConflictTable::Entry empty_entry = { nullptr, nullptr };
+
 ArtMethod* Runtime::CreateImtConflictMethod(LinearAlloc* linear_alloc) {
-  ClassLinker* const class_linker = GetClassLinker();
-  ArtMethod* method = class_linker->CreateRuntimeMethod(linear_alloc);
+  auto* method = Runtime::Current()->GetClassLinker()->CreateRuntimeMethod(linear_alloc);
   // When compiling, the code pointer will get set later when the image is loaded.
-  const size_t pointer_size = GetInstructionSetPointerSize(instruction_set_);
   if (IsAotCompiler()) {
+    size_t pointer_size = GetInstructionSetPointerSize(instruction_set_);
     method->SetEntryPointFromQuickCompiledCodePtrSize(nullptr, pointer_size);
   } else {
     method->SetEntryPointFromQuickCompiledCode(GetQuickImtConflictStub());
+    method->SetImtConflictTable(reinterpret_cast<ImtConflictTable*>(&empty_entry));
   }
-  // Create empty conflict table.
-  method->SetImtConflictTable(class_linker->CreateImtConflictTable(/*count*/0u, linear_alloc),
-                              pointer_size);
   return method;
 }
 
@@ -1644,6 +1643,9 @@ void Runtime::SetImtConflictMethod(ArtMethod* method) {
   CHECK(method != nullptr);
   CHECK(method->IsRuntimeMethod());
   imt_conflict_method_ = method;
+  if (!IsAotCompiler()) {
+    method->SetImtConflictTable(reinterpret_cast<ImtConflictTable*>(&empty_entry));
+  }
 }
 
 ArtMethod* Runtime::CreateResolutionMethod() {
@@ -1953,21 +1955,8 @@ void Runtime::SetImtUnimplementedMethod(ArtMethod* method) {
   CHECK(method != nullptr);
   CHECK(method->IsRuntimeMethod());
   imt_unimplemented_method_ = method;
-}
-
-void Runtime::FixupConflictTables() {
-  // We can only do this after the class linker is created.
-  const size_t pointer_size = GetClassLinker()->GetImagePointerSize();
-  // Ones in image wont have correct tables. TODO: Fix.
-  if (imt_unimplemented_method_->GetImtConflictTable(pointer_size) == nullptr || (true)) {
-    imt_unimplemented_method_->SetImtConflictTable(
-        ClassLinker::CreateImtConflictTable(/*count*/0u, GetLinearAlloc(), pointer_size),
-        pointer_size);
-  }
-  if (imt_conflict_method_->GetImtConflictTable(pointer_size) == nullptr || (true)) {
-    imt_conflict_method_->SetImtConflictTable(
-          ClassLinker::CreateImtConflictTable(/*count*/0u, GetLinearAlloc(), pointer_size),
-          pointer_size);
+  if (!IsAotCompiler()) {
+    method->SetImtConflictTable(reinterpret_cast<ImtConflictTable*>(&empty_entry));
   }
 }
 

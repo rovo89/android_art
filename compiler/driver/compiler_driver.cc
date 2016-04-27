@@ -2440,7 +2440,7 @@ void CompilerDriver::InitializeClasses(jobject jni_class_loader,
   context.ForAll(0, dex_file.NumClassDefs(), &visitor, init_thread_count);
 }
 
-class InitializeArrayClassesAndCreateConflictTablesVisitor : public ClassVisitor {
+class InitializeArrayClassVisitor : public ClassVisitor {
  public:
   virtual bool operator()(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     if (klass->IsArrayClass()) {
@@ -2449,10 +2449,6 @@ class InitializeArrayClassesAndCreateConflictTablesVisitor : public ClassVisitor
                                                               hs.NewHandle(klass),
                                                               true,
                                                               true);
-    }
-    // Create the conflict tables.
-    if (klass->ShouldHaveEmbeddedImtAndVTable()) {
-      Runtime::Current()->GetClassLinker()->FillIMTAndConflictTables(klass);
     }
     return true;
   }
@@ -2466,15 +2462,13 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
     CHECK(dex_file != nullptr);
     InitializeClasses(class_loader, *dex_file, dex_files, timings);
   }
-  if (image_classes_ != nullptr) {
+  {
     // Make sure that we call EnsureIntiailized on all the array classes to call
     // SetVerificationAttempted so that the access flags are set. If we do not do this they get
     // changed at runtime resulting in more dirty image pages.
-    // Also create conflict tables.
-    // Only useful if we are compiling an image (image_classes_ is not null).
     ScopedObjectAccess soa(Thread::Current());
-    InitializeArrayClassesAndCreateConflictTablesVisitor visitor;
-    Runtime::Current()->GetClassLinker()->VisitClassesWithoutClassesLock(&visitor);
+    InitializeArrayClassVisitor visitor;
+    Runtime::Current()->GetClassLinker()->VisitClasses(&visitor);
   }
   if (IsBootImage()) {
     // Prune garbage objects created during aborted transactions.

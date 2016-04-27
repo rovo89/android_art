@@ -678,10 +678,8 @@ void StackVisitor::SanityCheckFrame() const {
           if (space->IsImageSpace()) {
             auto* image_space = space->AsImageSpace();
             const auto& header = image_space->GetImageHeader();
-            const ImageSection& methods = header.GetMethodsSection();
-            const ImageSection& runtime_methods = header.GetRuntimeMethodsSection();
-            const size_t offset =  reinterpret_cast<const uint8_t*>(method) - image_space->Begin();
-            if (methods.Contains(offset) || runtime_methods.Contains(offset)) {
+            const auto* methods = &header.GetMethodsSection();
+            if (methods->Contains(reinterpret_cast<const uint8_t*>(method) - image_space->Begin())) {
               in_image = true;
               break;
             }

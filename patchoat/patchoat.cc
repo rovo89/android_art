@@ -472,7 +472,8 @@ class PatchOatArtFieldVisitor : public ArtFieldVisitor {
 
 void PatchOat::PatchArtFields(const ImageHeader* image_header) {
   PatchOatArtFieldVisitor visitor(this);
-  image_header->VisitPackedArtFields(&visitor, heap_->Begin());
+  const auto& section = image_header->GetImageSection(ImageHeader::kSectionArtFields);
+  section.VisitPackedArtFields(&visitor, heap_->Begin());
 }
 
 class PatchOatArtMethodVisitor : public ArtMethodVisitor {
@@ -489,20 +490,10 @@ class PatchOatArtMethodVisitor : public ArtMethodVisitor {
 };
 
 void PatchOat::PatchArtMethods(const ImageHeader* image_header) {
+  const auto& section = image_header->GetMethodsSection();
   const size_t pointer_size = InstructionSetPointerSize(isa_);
   PatchOatArtMethodVisitor visitor(this);
-  image_header->VisitPackedArtMethods(&visitor, heap_->Begin(), pointer_size);
-}
-
-void PatchOat::PatchImtConflictTables(const ImageHeader* image_header) {
-  const size_t pointer_size = InstructionSetPointerSize(isa_);
-  // We can safely walk target image since the conflict tables are independent.
-  image_header->VisitPackedImtConflictTables(
-      [this](ArtMethod* method) {
-        return RelocatedAddressOfPointer(method);
-      },
-      image_->Begin(),
-      pointer_size);
+  section.VisitPackedArtMethods(&visitor, heap_->Begin(), pointer_size);
 }
 
 class FixupRootVisitor : public RootVisitor {
@@ -636,7 +627,6 @@ bool PatchOat::PatchImage(bool primary_image) {
 
   PatchArtFields(image_header);
   PatchArtMethods(image_header);
-  PatchImtConflictTables(image_header);
   PatchInternedStrings(image_header);
   PatchClassTable(image_header);
   // Patch dex file int/long arrays which point to ArtFields.
@@ -735,7 +725,6 @@ void PatchOat::FixupMethod(ArtMethod* object, ArtMethod* copy) {
       RelocatedAddressOfPointer(object->GetDexCacheResolvedTypes(pointer_size)), pointer_size);
   copy->SetEntryPointFromQuickCompiledCodePtrSize(RelocatedAddressOfPointer(
       object->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size)), pointer_size);
-  // No special handling for IMT conflict table since all pointers are moved by the same offset.
   copy->SetEntryPointFromJniPtrSize(RelocatedAddressOfPointer(
       object->GetEntryPointFromJniPtrSize(pointer_size)), pointer_size);
 }
