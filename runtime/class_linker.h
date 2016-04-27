@@ -560,7 +560,7 @@ class ClassLinker {
 
   // Creates a GlobalRef PathClassLoader that can be used to load classes from the given dex files.
   // Note: the objects are not completely set up. Do not use this outside of tests and the compiler.
-  jobject CreatePathClassLoader(Thread* self, std::vector<const DexFile*>& dex_files)
+  jobject CreatePathClassLoader(Thread* self, const std::vector<const DexFile*>& dex_files)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
@@ -610,6 +610,10 @@ class ClassLinker {
   std::unordered_set<std::string> GetClassDescriptorsForProfileKeys(
       const std::set<DexCacheResolvedClasses>& classes)
       REQUIRES(!dex_lock_);
+
+  static bool IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
+                                mirror::ClassLoader* class_loader)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* AddMethodToConflictTable(mirror::Class* klass,
                                       ArtMethod* conflict_method,
