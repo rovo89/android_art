@@ -44,7 +44,7 @@ class Jit {
   static constexpr bool kStressMode = kIsDebugBuild;
   static constexpr size_t kDefaultCompileThreshold = kStressMode ? 2 : 10000;
   static constexpr size_t kDefaultPriorityThreadWeightRatio = 1000;
-  static constexpr size_t kDefaultTransitionRatio = 100;
+  static constexpr size_t kDefaultInvokeTransitionWeightRatio = 100;
 
   virtual ~Jit();
   static Jit* Create(JitOptions* options, std::string* error_msg);
@@ -115,12 +115,12 @@ class Jit {
 
   void NotifyInterpreterToCompiledCodeTransition(Thread* self, ArtMethod* caller)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    AddSamples(self, caller, transition_weight_, false);
+    AddSamples(self, caller, invoke_transition_weight_, false);
   }
 
   void NotifyCompiledCodeToInterpreterTransition(Thread* self, ArtMethod* callee)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    AddSamples(self, callee, transition_weight_, false);
+    AddSamples(self, callee, invoke_transition_weight_, false);
   }
 
   // Starts the profile saver if the config options allow profile recording.
@@ -195,7 +195,7 @@ class Jit {
   uint16_t warm_method_threshold_;
   uint16_t osr_method_threshold_;
   uint16_t priority_thread_weight_;
-  uint16_t transition_weight_;
+  uint16_t invoke_transition_weight_;
   std::unique_ptr<ThreadPool> thread_pool_;
 
   DISALLOW_COPY_AND_ASSIGN(Jit);
@@ -215,6 +215,9 @@ class JitOptions {
   }
   uint16_t GetPriorityThreadWeight() const {
     return priority_thread_weight_;
+  }
+  size_t GetInvokeTransitionWeight() const {
+    return invoke_transition_weight_;
   }
   size_t GetCodeCacheInitialCapacity() const {
     return code_cache_initial_capacity_;
@@ -250,6 +253,7 @@ class JitOptions {
   size_t warmup_threshold_;
   size_t osr_threshold_;
   uint16_t priority_thread_weight_;
+  size_t invoke_transition_weight_;
   bool dump_info_on_shutdown_;
   bool save_profiling_info_;
 
