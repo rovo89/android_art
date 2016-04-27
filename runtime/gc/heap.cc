@@ -2687,8 +2687,8 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
     concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
   }
 
-  if ((gc_type == collector::kGcTypeFull) && runtime->UseJit()) {
-    // It's time to clear all inline caches, in case some classes can be unloaded.
+  // It's time to clear all inline caches, in case some classes can be unloaded.
+  if ((gc_type == collector::kGcTypeFull) && (runtime->GetJit() != nullptr)) {
     runtime->GetJit()->GetCodeCache()->ClearGcRootsInInlineCaches(self);
   }
 

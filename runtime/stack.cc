@@ -637,8 +637,8 @@ static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
 
   // If we are the JIT then we may have just compiled the method after the
   // IsQuickToInterpreterBridge check.
-  jit::Jit* const jit = Runtime::Current()->GetJit();
-  if (jit != nullptr && jit->GetCodeCache()->ContainsPc(code)) {
+  Runtime* runtime = Runtime::Current();
+  if (runtime->UseJitCompilation() && runtime->GetJit()->GetCodeCache()->ContainsPc(code)) {
     return;
   }
 

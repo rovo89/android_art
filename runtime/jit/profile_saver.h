@@ -49,6 +49,12 @@ class ProfileSaver {
   // If the profile saver is running, dumps statistics to the `os`. Otherwise it does nothing.
   static void DumpInstanceInfo(std::ostream& os);
 
+  // Just for testing purpose.
+  static void ForceProcessProfiles();
+  static bool HasSeenMethod(const std::string& profile,
+                            const DexFile* dex_file,
+                            uint16_t method_idx);
+
  private:
   ProfileSaver(const std::string& output_filename,
                jit::JitCodeCache* jit_code_cache,
@@ -65,7 +71,10 @@ class ProfileSaver {
   void Run() REQUIRES(!Locks::profiler_lock_, !wait_lock_);
   // Processes the existing profiling info from the jit code cache and returns
   // true if it needed to be saved to disk.
-  bool ProcessProfilingInfo();
+  bool ProcessProfilingInfo()
+    REQUIRES(!Locks::profiler_lock_)
+    REQUIRES(!Locks::mutator_lock_);
+
   // Returns true if the saver is shutting down (ProfileSaver::Stop() has been called).
   bool ShuttingDown(Thread* self) REQUIRES(!Locks::profiler_lock_);
 

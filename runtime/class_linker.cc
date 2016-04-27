@@ -2044,6 +2044,7 @@ void ClassLinker::DeleteClassLoader(Thread* self, const ClassLoaderData& data) {
   Runtime* const runtime = Runtime::Current();
   JavaVMExt* const vm = runtime->GetJavaVM();
   vm->DeleteWeakGlobalRef(self, data.weak_root);
+  // Notify the JIT that we need to remove the methods and/or profiling info.
   if (runtime->GetJit() != nullptr) {
     jit::JitCodeCache* code_cache = runtime->GetJit()->GetCodeCache();
     if (code_cache != nullptr) {
@@ -2761,7 +2762,7 @@ bool ClassLinker::ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* 
   }
 
   if (runtime->IsNativeDebuggable()) {
-    DCHECK(runtime->UseJit() && runtime->GetJit()->JitAtFirstUse());
+    DCHECK(runtime->UseJitCompilation() && runtime->GetJit()->JitAtFirstUse());
     // If we are doing native debugging, ignore application's AOT code,
     // since we want to JIT it with extra stackmaps for native debugging.
     // On the other hand, keep all AOT code from the boot image, since the

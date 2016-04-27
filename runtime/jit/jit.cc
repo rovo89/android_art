@@ -51,7 +51,7 @@ bool Jit::generate_debug_info_ = false;
 
 JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& options) {
   auto* jit_options = new JitOptions;
-  jit_options->use_jit_ = options.GetOrDefault(RuntimeArgumentMap::UseJIT);
+  jit_options->use_jit_compilation_ = options.GetOrDefault(RuntimeArgumentMap::UseJitCompilation);
 
   jit_options->code_cache_initial_capacity_ =
       options.GetOrDefault(RuntimeArgumentMap::JITCodeCacheInitialCapacity);
@@ -130,9 +130,11 @@ Jit::Jit() : dump_info_on_shutdown_(false),
              cumulative_timings_("JIT timings"),
              memory_use_("Memory used for compilation", 16),
              lock_("JIT memory use lock"),
+             use_jit_compilation_(true),
              save_profiling_info_(false) {}
 
 Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
+  DCHECK(options->UseJitCompilation() || options->GetSaveProfilingInfo());
   std::unique_ptr<Jit> jit(new Jit);
   jit->dump_info_on_shutdown_ = options->DumpJitInfoOnShutdown();
   if (jit_compiler_handle_ == nullptr && !LoadCompiler(error_msg)) {
@@ -146,6 +148,7 @@ Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
   if (jit->GetCodeCache() == nullptr) {
     return nullptr;
   }
+  jit->use_jit_compilation_ = options->UseJitCompilation();
   jit->save_profiling_info_ = options->GetSaveProfilingInfo();
   VLOG(jit) << "JIT created with initial_capacity="
       << PrettySize(options->GetCodeCacheInitialCapacity())
@@ -225,6 +228,7 @@ bool Jit::LoadCompiler(std::string* error_msg) {
 }
 
 bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
+  DCHECK(Runtime::Current()->UseJitCompilation());
   DCHECK(!method->IsRuntimeMethod());
 
   // Don't compile the method if it has breakpoints.
@@ -329,8 +333,12 @@ Jit::~Jit() {
 }
 
 void Jit::NewTypeLoadedIfUsingJit(mirror::Class* type) {
+  if (!Runtime::Current()->UseJitCompilation()) {
+    // No need to notify if we only use the JIT to save profiles.
+    return;
+  }
   jit::Jit* jit = Runtime::Current()->GetJit();
-  if (jit != nullptr && jit->generate_debug_info_) {
+  if (jit->generate_debug_info_) {
     DCHECK(jit->jit_types_loaded_ != nullptr);
     jit->jit_types_loaded_(jit->jit_compiler_handle_, &type, 1);
   }
@@ -604,22 +612,24 @@ void Jit::AddSamples(Thread* self, ArtMethod* method, uint16_t count, bool with_
     }
     // Avoid jumping more than one state at a time.
     new_count = std::min(new_count, hot_method_threshold_ - 1);
-  } else if (starting_count < hot_method_threshold_) {
-    if ((new_count >= hot_method_threshold_) &&
-        !code_cache_->ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
-      DCHECK(thread_pool_ != nullptr);
-      thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompile));
-    }
-    // Avoid jumping more than one state at a time.
-    new_count = std::min(new_count, osr_method_threshold_ - 1);
-  } else if (starting_count < osr_method_threshold_) {
-    if (!with_backedges) {
-      // If the samples don't contain any back edge, we don't increment the hotness.
-      return;
-    }
-    if ((new_count >= osr_method_threshold_) &&  !code_cache_->IsOsrCompiled(method)) {
-      DCHECK(thread_pool_ != nullptr);
-      thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompileOsr));
+  } else if (use_jit_compilation_) {
+    if (starting_count < hot_method_threshold_) {
+      if ((new_count >= hot_method_threshold_) &&
+          !code_cache_->ContainsPc(method->GetEntryPointFromQuickCompiledCode())) {
+        DCHECK(thread_pool_ != nullptr);
+        thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompile));
+      }
+      // Avoid jumping more than one state at a time.
+      new_count = std::min(new_count, osr_method_threshold_ - 1);
+    } else if (starting_count < osr_method_threshold_) {
+      if (!with_backedges) {
+        // If the samples don't contain any back edge, we don't increment the hotness.
+        return;
+      }
+      if ((new_count >= osr_method_threshold_) &&  !code_cache_->IsOsrCompiled(method)) {
+        DCHECK(thread_pool_ != nullptr);
+        thread_pool_->AddTask(self, new JitCompileTask(method, JitCompileTask::kCompileOsr));
+      }
     }
   }
   // Update hotness counter
@@ -627,7 +637,8 @@ void Jit::AddSamples(Thread* self, ArtMethod* method, uint16_t count, bool with_
 }
 
 void Jit::MethodEntered(Thread* thread, ArtMethod* method) {
-  if (UNLIKELY(Runtime::Current()->GetJit()->JitAtFirstUse())) {
+  Runtime* runtime = Runtime::Current();
+  if (UNLIKELY(runtime->UseJitCompilation() && runtime->GetJit()->JitAtFirstUse())) {
     // The compiler requires a ProfilingInfo object.
     ProfilingInfo::Create(thread, method, /* retry_allocation */ true);
     JitCompileTask compile_task(method, JitCompileTask::kCompile);

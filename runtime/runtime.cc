@@ -558,15 +558,21 @@ bool Runtime::Start() {
 
   started_ = true;
 
-  if (jit_options_->UseJIT()) {
+  // Create the JIT either if we have to use JIT compilation or save profiling info.
+  // TODO(calin): We use the JIT class as a proxy for JIT compilation and for
+  // recoding profiles. Maybe we should consider changing the name to be more clear it's
+  // not only about compiling. b/28295073.
+  if (jit_options_->UseJitCompilation() || jit_options_->GetSaveProfilingInfo()) {
     std::string error_msg;
     if (!IsZygote()) {
     // If we are the zygote then we need to wait until after forking to create the code cache
     // due to SELinux restrictions on r/w/x memory regions.
       CreateJit();
-    } else if (!jit::Jit::LoadCompilerLibrary(&error_msg)) {
-      // Try to load compiler pre zygote to reduce PSS. b/27744947
-      LOG(WARNING) << "Failed to load JIT compiler with error " << error_msg;
+    } else if (jit_options_->UseJitCompilation()) {
+      if (!jit::Jit::LoadCompilerLibrary(&error_msg)) {
+        // Try to load compiler pre zygote to reduce PSS. b/27744947
+        LOG(WARNING) << "Failed to load JIT compiler with error " << error_msg;
+      }
     }
   }
 
@@ -713,7 +719,11 @@ void Runtime::InitNonZygoteOrPostFork(
   // before fork aren't attributed to an app.
   heap_->ResetGcPerformanceInfo();
 
-  if (!is_system_server && !safe_mode_ && jit_options_->UseJIT() && jit_.get() == nullptr) {
+
+  if (!is_system_server &&
+      !safe_mode_ &&
+      (jit_options_->UseJitCompilation() || jit_options_->GetSaveProfilingInfo()) &&
+      jit_.get() == nullptr) {
     // Note that when running ART standalone (not zygote, nor zygote fork),
     // the jit may have already been created.
     CreateJit();
@@ -1016,7 +1026,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
     // this case.
     // If runtime_options doesn't have UseJIT set to true then CreateFromRuntimeArguments returns
     // null and we don't create the jit.
-    jit_options_->SetUseJIT(false);
+    jit_options_->SetUseJitCompilation(false);
+    jit_options_->SetSaveProfilingInfo(false);
   }
 
   // Allocate a global table of boxed lambda objects <-> closures.
@@ -1983,6 +1994,16 @@ void Runtime::UpdateProcessState(ProcessState process_state) {
 
 void Runtime::RegisterSensitiveThread() const {
   Thread::SetJitSensitiveThread();
+}
+
+// Returns true if JIT compilations are enabled. GetJit() will be not null in this case.
+bool Runtime::UseJitCompilation() const {
+  return (jit_ != nullptr) && jit_->UseJitCompilation();
+}
+
+// Returns true if profile saving is enabled. GetJit() will be not null in this case.
+bool Runtime::SaveProfileInfo() const {
+  return (jit_ != nullptr) && jit_->SaveProfilingInfo();
 }
 
 }  // namespace art

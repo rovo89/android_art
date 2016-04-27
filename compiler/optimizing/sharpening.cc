@@ -99,7 +99,7 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
     if (direct_method != 0u) {  // Should we use a direct pointer to the method?
       // Note: For JIT, kDirectAddressWithFixup doesn't make sense at all and while
       // kDirectAddress would be fine for image methods, we don't support it at the moment.
-      DCHECK(!Runtime::Current()->UseJit());
+      DCHECK(!Runtime::Current()->UseJitCompilation());
       if (direct_method != static_cast<uintptr_t>(-1)) {  // Is the method pointer known now?
         method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDirectAddress;
         method_load_data = direct_method;
@@ -109,7 +109,7 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
     } else {  // Use dex cache.
       DCHECK_EQ(target_method.dex_file, &graph_->GetDexFile());
       if (use_pc_relative_instructions) {  // Can we use PC-relative access to the dex cache arrays?
-        DCHECK(!Runtime::Current()->UseJit());
+        DCHECK(!Runtime::Current()->UseJitCompilation());
         method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative;
         DexCacheArraysLayout layout(GetInstructionSetPointerSize(codegen_->GetInstructionSet()),
                                     &graph_->GetDexFile());
@@ -121,7 +121,7 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
     if (direct_code != 0u) {  // Should we use a direct pointer to the code?
       // Note: For JIT, kCallPCRelative and kCallDirectWithFixup don't make sense at all and
       // while kCallDirect would be fine for image methods, we don't support it at the moment.
-      DCHECK(!Runtime::Current()->UseJit());
+      DCHECK(!Runtime::Current()->UseJitCompilation());
       if (direct_code != static_cast<uintptr_t>(-1)) {  // Is the code pointer known now?
         code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallDirect;
         direct_code_ptr = direct_code;
@@ -174,7 +174,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
 
     if (compiler_driver_->IsBootImage()) {
       // Compiling boot image. Resolve the string and allocate it if needed.
-      DCHECK(!runtime->UseJit());
+      DCHECK(!runtime->UseJitCompilation());
       mirror::String* string = class_linker->ResolveString(dex_file, string_index, dex_cache);
       CHECK(string != nullptr);
       if (!compiler_driver_->GetSupportBootImageFixup()) {
@@ -187,7 +187,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
             ? HLoadString::LoadKind::kBootImageLinkTimePcRelative
             : HLoadString::LoadKind::kBootImageLinkTimeAddress;
       }
-    } else if (runtime->UseJit()) {
+    } else if (runtime->UseJitCompilation()) {
       // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
       // DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
       mirror::String* string = dex_cache->GetResolvedString(string_index);

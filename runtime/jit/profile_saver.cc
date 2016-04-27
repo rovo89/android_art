@@ -285,7 +285,7 @@ void ProfileSaver::Start(const std::string& output_filename,
                          const std::vector<std::string>& code_paths,
                          const std::string& foreign_dex_profile_path,
                          const std::string& app_data_dir) {
-  DCHECK(Runtime::Current()->UseJit());
+  DCHECK(Runtime::Current()->SaveProfileInfo());
   DCHECK(!output_filename.empty());
   DCHECK(jit_code_cache != nullptr);
 
@@ -518,6 +518,34 @@ void ProfileSaver::DumpInfo(std::ostream& os) {
      << total_number_of_foreign_dex_marks_ << '\n'
      << "ProfileSaver max_number_profile_entries_cached="
     << max_number_of_profile_entries_cached_ << '\n';
+}
+
+
+void ProfileSaver::ForceProcessProfiles() {
+  ProfileSaver* saver = nullptr;
+  {
+    MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
+    saver = instance_;
+  }
+  // TODO(calin): this is not actually thread safe as the instance_ may have been deleted,
+  // but we only use this in testing when we now this won't happen.
+  // Refactor the way we handle the instance so that we don't end up in this situation.
+  if (saver != nullptr) {
+    saver->ProcessProfilingInfo();
+  }
+}
+
+bool ProfileSaver::HasSeenMethod(const std::string& profile,
+                                 const DexFile* dex_file,
+                                 uint16_t method_idx) {
+  MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
+  if (instance_ != nullptr) {
+    ProfileCompilationInfo* info = instance_->GetCachedProfiledInfo(profile);
+    if (info != nullptr) {
+      return info->ContainsMethod(MethodReference(dex_file, method_idx));
+    }
+  }
+  return false;
 }
 
 }   // namespace art

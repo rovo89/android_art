@@ -461,8 +461,8 @@ TEST_F(CmdlineParserTest, TestJitOptions) {
   * Test successes
   */
   {
-    EXPECT_SINGLE_PARSE_VALUE(true, "-Xusejit:true", M::UseJIT);
-    EXPECT_SINGLE_PARSE_VALUE(false, "-Xusejit:false", M::UseJIT);
+    EXPECT_SINGLE_PARSE_VALUE(true, "-Xusejit:true", M::UseJitCompilation);
+    EXPECT_SINGLE_PARSE_VALUE(false, "-Xusejit:false", M::UseJitCompilation);
   }
   {
     EXPECT_SINGLE_PARSE_VALUE(
