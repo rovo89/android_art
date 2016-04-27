@@ -2010,14 +2010,14 @@ TEST_F(StubTest, DISABLED_IMT) {
   // that will create it: the runtime stub expects to be called by compiled code.
   LinearAlloc* linear_alloc = Runtime::Current()->GetLinearAlloc();
   ArtMethod* conflict_method = Runtime::Current()->CreateImtConflictMethod(linear_alloc);
-  ImtConflictTable* empty_conflict_table =
-      Runtime::Current()->GetClassLinker()->CreateImtConflictTable(/*count*/0u, linear_alloc);
+  static ImtConflictTable::Entry empty_entry = { nullptr, nullptr };
+  ImtConflictTable* empty_conflict_table = reinterpret_cast<ImtConflictTable*>(&empty_entry);
   void* data = linear_alloc->Alloc(
       self,
-      ImtConflictTable::ComputeSizeWithOneMoreEntry(empty_conflict_table, sizeof(void*)));
+      ImtConflictTable::ComputeSizeWithOneMoreEntry(empty_conflict_table));
   ImtConflictTable* new_table = new (data) ImtConflictTable(
-      empty_conflict_table, inf_contains, contains_amethod, sizeof(void*));
-  conflict_method->SetImtConflictTable(new_table, sizeof(void*));
+      empty_conflict_table, inf_contains, contains_amethod);
+  conflict_method->SetImtConflictTable(new_table);
 
   size_t result =
       Invoke3WithReferrerAndHidden(reinterpret_cast<size_t>(conflict_method),

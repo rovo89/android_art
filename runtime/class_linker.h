@@ -53,7 +53,6 @@ namespace mirror {
   class StackTraceElement;
 }  // namespace mirror
 
-class ImtConflictTable;
 template<class T> class Handle;
 template<class T> class MutableHandle;
 class InternTable;
@@ -618,19 +617,6 @@ class ClassLinker {
                                       bool force_new_conflict_method)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Create a conflict table with a specified capacity.
-  ImtConflictTable* CreateImtConflictTable(size_t count, LinearAlloc* linear_alloc);
-
-  // Static version for when the class linker is not yet created.
-  static ImtConflictTable* CreateImtConflictTable(size_t count,
-                                                  LinearAlloc* linear_alloc,
-                                                  size_t pointer_size);
-
-
-  // Create the IMT and conflict tables for a class.
-  void FillIMTAndConflictTables(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
-
-
   struct DexCacheData {
     // Weak root to the DexCache. Note: Do not decode this unnecessarily or else class unloading may
     // not work properly.
@@ -1087,18 +1073,18 @@ class ClassLinker {
                  ArtMethod* current_method,
                  /*out*/ArtMethod** imt_ref) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void FillIMTFromIfTable(mirror::IfTable* if_table,
-                          ArtMethod* unimplemented_method,
-                          ArtMethod* imt_conflict_method,
-                          mirror::Class* klass,
-                          bool create_conflict_tables,
-                          bool ignore_copied_methods,
-                          ArtMethod** imt) SHARED_REQUIRES(Locks::mutator_lock_);
+  void ConstructIMTFromIfTable(mirror::IfTable* if_table,
+                               ArtMethod* unimplemented_method,
+                               ArtMethod* imt_conflict_method,
+                               mirror::Class* klass,
+                               bool create_conflict_tables,
+                               bool ignore_copied_methods,
+                               ArtMethod** out_imt) SHARED_REQUIRES(Locks::mutator_lock_);
 
   void FillImtFromSuperClass(Handle<mirror::Class> klass,
                              ArtMethod* unimplemented_method,
                              ArtMethod* imt_conflict_method,
-                             ArtMethod** imt) SHARED_REQUIRES(Locks::mutator_lock_);
+                             ArtMethod** out_imt) SHARED_REQUIRES(Locks::mutator_lock_);
 
   std::vector<const DexFile*> boot_class_path_;
   std::vector<std::unique_ptr<const DexFile>> boot_dex_files_;
