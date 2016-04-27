@@ -1063,9 +1063,8 @@ bool ClassLinker::InitFromBootImage(std::string* error_msg) {
   return true;
 }
 
-static bool IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
-                              mirror::ClassLoader* class_loader)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+bool ClassLinker::IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
+                                    mirror::ClassLoader* class_loader) {
   return class_loader == nullptr ||
       class_loader->GetClass() ==
           soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader);
@@ -1106,7 +1105,7 @@ static bool FlattenPathClassLoader(mirror::ClassLoader* class_loader,
       soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements);
   CHECK(dex_path_list_field != nullptr);
   CHECK(dex_elements_field != nullptr);
-  while (!IsBootClassLoader(soa, class_loader)) {
+  while (!ClassLinker::IsBootClassLoader(soa, class_loader)) {
     if (class_loader->GetClass() !=
         soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_system_PathClassLoader)) {
       *error_msg = StringPrintf("Unknown class loader type %s", PrettyTypeOf(class_loader).c_str());
@@ -7803,7 +7802,8 @@ const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
   return descriptor;
 }
 
-jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFile*>& dex_files) {
+jobject ClassLinker::CreatePathClassLoader(Thread* self,
+                                           const std::vector<const DexFile*>& dex_files) {
   // SOAAlreadyRunnable is protected, and we need something to add a global reference.
   // We could move the jobject to the callers, but all call-sites do this...
   ScopedObjectAccessUnchecked soa(self);

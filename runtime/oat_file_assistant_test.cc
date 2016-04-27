@@ -1256,8 +1256,7 @@ TEST_F(OatFileAssistantTest, LongDexExtension) {
 class RaceGenerateTask : public Task {
  public:
   explicit RaceGenerateTask(const std::string& dex_location, const std::string& oat_location)
-    : dex_location_(dex_location), oat_location_(oat_location),
-      loaded_oat_file_(nullptr)
+    : dex_location_(dex_location), oat_location_(oat_location), loaded_oat_file_(nullptr)
   {}
 
   void Run(Thread* self ATTRIBUTE_UNUSED) {
