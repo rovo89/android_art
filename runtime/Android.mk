@@ -99,6 +99,7 @@ LIBART_COMMON_SRC_FILES := \
   jit/jit_instrumentation.cc \
   jni_internal.cc \
   jobject_comparator.cc \
+  lgalmond.cc \
   linear_alloc.cc \
   mem_map.cc \
   memory_region.cc \

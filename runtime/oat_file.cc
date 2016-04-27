@@ -37,6 +37,7 @@
 #include "base/unix_file/fd_file.h"
 #include "elf_file.h"
 #include "elf_utils.h"
+#include "lgalmond.h"
 #include "oat.h"
 #include "mem_map.h"
 #include "mirror/class.h"
@@ -95,8 +96,9 @@ OatFile* OatFile::OpenWithElfFile(ElfFile* elf_file,
   CHECK(has_section);
   oat_file->begin_ = elf_file->Begin() + offset;
   oat_file->end_ = elf_file->Begin() + size + offset;
+
   // Ignore the optional .bss section when opening non-executable.
-  return oat_file->Setup(abs_dex_location, error_msg) ? oat_file.release() : nullptr;
+  return oat_file->Setup(abs_dex_location, nullptr, error_msg) ? oat_file.release() : nullptr;
 }
 
 OatFile* OatFile::Open(const std::string& filename,
@@ -318,7 +320,7 @@ bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
     LOG(ERROR) << "File " << elf_filename << " loaded with dlopen but can not find its mmaps.";
   }
 
-  return Setup(abs_dex_location, error_msg);
+  return Setup(abs_dex_location, &elf_filename, error_msg);
 #endif  // __APPLE__
 }
 
@@ -374,10 +376,24 @@ bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file
     bss_end_ += sizeof(uint32_t);
   }
 
-  return Setup(abs_dex_location, error_msg);
+  return Setup(abs_dex_location, nullptr, error_msg);
 }
 
-bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
+bool OatFile::Setup(const char* abs_dex_location, const std::string* elf_filename, std::string* error_msg) {
+  if (UNLIKELY(LGAlmond::IsEncryptedOat(Begin()))) {
+    LOG(INFO) << "LG Almond Protected OAT";
+    bool success;
+    if (elf_file_ != nullptr) {
+      success = LGAlmond::DecryptOat(const_cast<uint8_t*>(Begin()), GetElfFile()->GetFile(), error_msg);
+    } else {
+      std::unique_ptr<File> file(OS::OpenFileForReading(elf_filename->c_str()));
+      success = LGAlmond::DecryptOat(const_cast<uint8_t*>(Begin()), *file.get(), error_msg);
+    }
+    if (!success) {
+      return nullptr;
+    }
+  }
+
   if (!GetOatHeader().IsValid()) {
     std::string cause = GetOatHeader().GetValidationErrorMessage();
     *error_msg = StringPrintf("Invalid oat header for '%s': %s", GetLocation().c_str(),

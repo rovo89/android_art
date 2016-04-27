@@ -74,6 +74,7 @@
 #include "interpreter/interpreter.h"
 #include "jit/jit.h"
 #include "jni_internal.h"
+#include "lgalmond.h"
 #include "linear_alloc.h"
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
@@ -963,6 +964,8 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
       new JavaStackTraceHandler(&fault_manager);
     }
   }
+
+  LGAlmond::Init();
 
   java_vm_ = new JavaVMExt(this, runtime_options);
 

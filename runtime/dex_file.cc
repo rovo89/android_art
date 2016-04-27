@@ -38,6 +38,7 @@
 #include "elf_file.h"
 #include "globals.h"
 #include "leb128.h"
+#include "lgalmond.h"
 #include "mirror/string.h"
 #include "os.h"
 #include "safe_map.h"
@@ -412,6 +413,19 @@ std::unique_ptr<const DexFile> DexFile::OpenMemory(const uint8_t* base,
                                                    const OatDexFile* oat_dex_file,
                                                    std::string* error_msg) {
   CHECK_ALIGNED(base, 4);  // various dex file structures must be word aligned
+
+  if (UNLIKELY(LGAlmond::IsEncryptedDex(base, size))) {
+    if ((mem_map->GetProtect() & PROT_WRITE) == 0) {
+      LOG(ERROR) << "Could not decrypt " << location << " because it's in read-only memory";
+      return nullptr;
+    }
+
+    if (!LGAlmond::DecryptDex(const_cast<uint8_t*>(base), &size)) {
+      LOG(ERROR) << "Failed to decrypt " << location << " with LG Almond";
+      return nullptr;
+    }
+  }
+
   std::unique_ptr<DexFile> dex_file(
       new DexFile(base, size, location, location_checksum, mem_map, oat_dex_file));
   if (!dex_file->Init(error_msg)) {

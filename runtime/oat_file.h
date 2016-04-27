@@ -290,7 +290,7 @@ class OatFile FINAL {
                    const char* abs_dex_location,
                    std::string* error_msg);
 
-  bool Setup(const char* abs_dex_location, std::string* error_msg);
+  bool Setup(const char* abs_dex_location, const std::string* elf_filename, std::string* error_msg);
 
   // The oat file name.
   //

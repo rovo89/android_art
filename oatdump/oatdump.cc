@@ -41,6 +41,7 @@
 #include "gc/space/space-inl.h"
 #include "image.h"
 #include "indenter.h"
+#include "lgalmond.h"
 #include "mapping_table.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
@@ -2473,6 +2474,7 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
     CHECK(args_->oat_filename_ != nullptr);
 
     MemMap::Init();
+    LGAlmond::Init();
 
     if (args_->symbolize_) {
       return SymbolizeOat(args_->oat_filename_, args_->output_name_) == EXIT_SUCCESS;
