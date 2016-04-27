@@ -852,7 +852,7 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
     if (index == 0) {
       // First file. See if this is a multi-image environment, and if so, enqueue the other images.
       const OatHeader& boot_oat_header = oat_file->GetOatHeader();
-      const char* boot_cp = boot_oat_header.GetStoreValueByKey(OatHeader::kBootClassPath);
+      const char* boot_cp = boot_oat_header.GetStoreValueByKey(OatHeader::kBootClassPathKey);
       if (boot_cp != nullptr) {
         gc::space::ImageSpace::CreateMultiImageLocations(image_locations[0],
                                                          boot_cp,

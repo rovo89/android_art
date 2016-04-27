@@ -121,9 +121,16 @@ class OatFileManager {
   }
 
  private:
-  // Check for duplicate class definitions of the given oat file against all open oat files.
+  // Check that the shared libraries in the given oat file match those in the given class loader and
+  // dex elements. If the class loader is null or we do not support one of the class loaders in the
+  // chain, compare against all non-boot oat files instead. If the shared libraries are not ok,
+  // check for duplicate class definitions of the given oat file against the oat files (either from
+  // the class loader and dex elements if possible or all non-boot oat files otherwise).
   // Return true if there are any class definition collisions in the oat_file.
-  bool HasCollisions(const OatFile* oat_file, /*out*/std::string* error_msg) const
+  bool HasCollisions(const OatFile* oat_file,
+                     jobject class_loader,
+                     jobjectArray dex_elements,
+                     /*out*/ std::string* error_msg) const
       REQUIRES(!Locks::oat_file_manager_lock_);
 
   const OatFile* FindOpenedOatFileFromOatLocationLocked(const std::string& oat_location) const

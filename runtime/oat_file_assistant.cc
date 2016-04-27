@@ -713,7 +713,11 @@ bool OatFileAssistant::Dex2Oat(const std::vector<std::string>& args,
   argv.push_back("--runtime-arg");
   argv.push_back("-classpath");
   argv.push_back("--runtime-arg");
-  argv.push_back(runtime->GetClassPathString());
+  std::string class_path = runtime->GetClassPathString();
+  if (class_path == "") {
+    class_path = OatFile::kSpecialSharedLibrary;
+  }
+  argv.push_back(class_path);
   if (runtime->IsDebuggable()) {
     argv.push_back("--debuggable");
   }
