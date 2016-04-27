@@ -2174,8 +2174,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
         imt_index % mirror::Class::kImtSize, sizeof(void*));
     if (LIKELY(conflict_method->IsRuntimeMethod())) {
       ImtConflictTable* current_table = conflict_method->GetImtConflictTable(sizeof(void*));
-      DCHECK(current_table != nullptr);
-      method = current_table->Lookup(interface_method, sizeof(void*));
+      method = current_table->Lookup(interface_method);
     } else {
       // It seems we aren't really a conflict method!
       method = cls->FindVirtualMethodForInterface(interface_method, sizeof(void*));

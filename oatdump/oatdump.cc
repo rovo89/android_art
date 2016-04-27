@@ -1416,10 +1416,11 @@ class ImageDumper {
       indent_os << "\n";
       // TODO: Dump fields.
       // Dump methods after.
+      const auto& methods_section = image_header_.GetMethodsSection();
       DumpArtMethodVisitor visitor(this);
-      image_header_.VisitPackedArtMethods(&visitor,
-                                          image_space_.Begin(),
-                                          image_header_.GetPointerSize());
+      methods_section.VisitPackedArtMethods(&visitor,
+                                            image_space_.Begin(),
+                                            image_header_.GetPointerSize());
       // Dump the large objects separately.
       heap->GetLargeObjectsSpace()->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
       indent_os << "\n";
@@ -1778,7 +1779,6 @@ class ImageDumper {
     DCHECK(method != nullptr);
     const void* quick_oat_code_begin = GetQuickOatCodeBegin(method);
     const void* quick_oat_code_end = GetQuickOatCodeEnd(method);
-    const size_t pointer_size = image_header_.GetPointerSize();
     OatQuickMethodHeader* method_header = reinterpret_cast<OatQuickMethodHeader*>(
         reinterpret_cast<uintptr_t>(quick_oat_code_begin) - sizeof(OatQuickMethodHeader));
     if (method->IsNative()) {
@@ -1792,16 +1792,13 @@ class ImageDumper {
           image_header_.GetPointerSize())) {
         indent_os << StringPrintf("OAT CODE: %p\n", quick_oat_code_begin);
       }
-    } else if (method->IsAbstract() || method->IsClassInitializer()) {
+    } else if (method->IsAbstract() ||
+               method->IsCalleeSaveMethod() ||
+               method->IsResolutionMethod() ||
+               (method == Runtime::Current()->GetImtConflictMethod()) ||
+               method->IsImtUnimplementedMethod() ||
+               method->IsClassInitializer()) {
       // Don't print information for these.
-    } else if (method->IsRuntimeMethod()) {
-      ImtConflictTable* table = method->GetImtConflictTable(image_header_.GetPointerSize());
-      if (table != nullptr) {
-        indent_os << "IMT conflict table " << table << " method: ";
-        for (size_t i = 0, count = table->NumEntries(pointer_size); i < count; ++i) {
-          indent_os << PrettyMethod(table->GetImplementationMethod(i, pointer_size)) << " ";
-        }
-      }
     } else {
       const DexFile::CodeItem* code_item = method->GetCodeItem();
       size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
