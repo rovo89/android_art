@@ -102,6 +102,20 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
         static_cast<size_t>(1));
   }
 
+  if (options.Exists(RuntimeArgumentMap::JITInvokeTransitionWeight)) {
+    if (jit_options->invoke_transition_weight_ > jit_options->warmup_threshold_) {
+      LOG(FATAL) << "Invoke transition weight is above the warmup threshold.";
+    } else if (jit_options->invoke_transition_weight_  == 0) {
+      LOG(FATAL) << "Invoke transition ratio cannot be 0.";
+    }
+    jit_options->invoke_transition_weight_ =
+        *options.Get(RuntimeArgumentMap::JITInvokeTransitionWeight);
+  } else {
+    jit_options->invoke_transition_weight_ = std::max(
+        jit_options->warmup_threshold_ / Jit::kDefaultInvokeTransitionWeightRatio,
+        static_cast<size_t>(1));;
+  }
+
   return jit_options;
 }
 
@@ -161,8 +175,7 @@ Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
   jit->warm_method_threshold_ = options->GetWarmupThreshold();
   jit->osr_method_threshold_ = options->GetOsrThreshold();
   jit->priority_thread_weight_ = options->GetPriorityThreadWeight();
-  jit->transition_weight_ = std::max(
-      jit->warm_method_threshold_ / kDefaultTransitionRatio, static_cast<size_t>(1));
+  jit->invoke_transition_weight_ = options->GetInvokeTransitionWeight();
 
   jit->CreateThreadPool();
 
