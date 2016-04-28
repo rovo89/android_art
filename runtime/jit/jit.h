@@ -44,7 +44,7 @@ class Jit {
   static constexpr bool kStressMode = kIsDebugBuild;
   static constexpr size_t kDefaultCompileThreshold = kStressMode ? 2 : 10000;
   static constexpr size_t kDefaultPriorityThreadWeightRatio = 1000;
-  static constexpr size_t kDefaultInvokeTransitionWeightRatio = 100;
+  static constexpr size_t kDefaultInvokeTransitionWeightRatio = 500;
 
   virtual ~Jit();
   static Jit* Create(JitOptions* options, std::string* error_msg);
