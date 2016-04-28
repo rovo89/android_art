@@ -67,3 +67,57 @@
    return p3
 
 .end method
+
+## CHECK-START: int IrreducibleLoop.liveness2(boolean, boolean, boolean, int) builder (after)
+## CHECK-DAG:     Mul loop:<<Loop:B\d+>>
+## CHECK-DAG:     Not loop:<<Loop>>
+
+## CHECK-START: int IrreducibleLoop.liveness2(boolean, boolean, boolean, int) liveness (after)
+## CHECK-DAG:     Mul liveness:<<LPreEntry2:\d+>>
+## CHECK-DAG:     Not liveness:<<LBackEdge1:\d+>>
+## CHECK-EVAL:    <<LBackEdge1>> < <<LPreEntry2>>
+
+.method public liveness2(ZZZI)I
+    .registers 10
+
+    const v1, 1
+
+    :header1
+    if-eqz p0, :body1
+
+    :exit
+    return p3
+
+    :body1
+    # The test will generate an incorrect linear order when the following IF swaps
+    # its successors. To do that, load a boolean value and compare NotEqual to 1.
+    sget-boolean v2, LIrreducibleLoop;->f:Z
+    const v3, 1
+    if-ne v2, v3, :pre_header2
+
+    :pre_entry2
+    # This constant has a use in a phi in :back_edge2 and a back edge use in
+    # :back_edge1. Because the linear order is wrong, the back edge use has
+    # a lower liveness than the phi use.
+    const v0, 42
+    mul-int/2addr p3, p3
+    goto :back_edge2
+
+    :back_edge2
+    add-int/2addr p3, v0
+    add-int/2addr v0, v1
+    goto :header2
+
+    :header2
+    if-eqz p2, :back_edge2
+
+    :back_edge1
+    not-int p3, p3
+    goto :header1
+
+    :pre_header2
+    const v0, 42
+    goto :header2
+.end method
+
+.field public static f:Z
