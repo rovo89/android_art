@@ -258,6 +258,15 @@ void GraphChecker::VisitBoundsCheck(HBoundsCheck* check) {
   VisitInstruction(check);
 }
 
+void GraphChecker::VisitDeoptimize(HDeoptimize* deopt) {
+  if (GetGraph()->IsCompilingOsr()) {
+    AddError(StringPrintf("A graph compiled OSR cannot have a HDeoptimize instruction"));
+  }
+
+  // Perform the instruction base checks too.
+  VisitInstruction(deopt);
+}
+
 void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
   ArrayRef<HBasicBlock* const> handlers = try_boundary->GetExceptionHandlers();
 

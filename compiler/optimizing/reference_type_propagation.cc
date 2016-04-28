@@ -666,12 +666,6 @@ void ReferenceTypePropagation::VisitPhi(HPhi* phi) {
   }
 
   if (phi->GetBlock()->IsLoopHeader()) {
-    if (!is_first_run_ && graph_->IsCompilingOsr()) {
-      // Don't update the type of a loop phi when compiling OSR: we may have done
-      // speculative optimizations dominating that phi, that do not hold at the
-      // point the interpreter jumps to that loop header.
-      return;
-    }
     // Set the initial type for the phi. Use the non back edge input for reaching
     // a fixed point faster.
     HInstruction* first_input = phi->InputAt(0);

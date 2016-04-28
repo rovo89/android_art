@@ -61,6 +61,18 @@ public class Main {
       throw new Error("Unexpected return value");
     }
 
+    $noinline$inlineCache2(new Main(), /* isSecondInvocation */ false);
+    if ($noinline$inlineCache2(new SubMain(), /* isSecondInvocation */ true) != SubMain.class) {
+      throw new Error("Unexpected return value");
+    }
+
+    // Test polymorphic inline cache to the same target (inlineCache3).
+    $noinline$inlineCache3(new Main(), /* isSecondInvocation */ false);
+    $noinline$inlineCache3(new SubMain(), /* isSecondInvocation */ false);
+    if ($noinline$inlineCache3(new SubMain(), /* isSecondInvocation */ true) != null) {
+      throw new Error("Unexpected return value");
+    }
+
     $noinline$stackOverflow(new Main(), /* isSecondInvocation */ false);
     $noinline$stackOverflow(new SubMain(), /* isSecondInvocation */ true);
 
@@ -147,8 +159,74 @@ public class Main {
     return other.returnClass();
   }
 
+  public static Class $noinline$inlineCache2(Main m, boolean isSecondInvocation) {
+    // If we are running in non-JIT mode, or were unlucky enough to get this method
+    // already JITted, just return the expected value.
+    if (!isInInterpreter("$noinline$inlineCache2")) {
+      return SubMain.class;
+    }
+
+    ensureHasProfilingInfo("$noinline$inlineCache2");
+
+    // Ensure that we have OSR code to jump to.
+    if (isSecondInvocation) {
+      ensureHasOsrCode("$noinline$inlineCache2");
+    }
+
+    // This call will be optimized in the OSR compiled code
+    // to check and deoptimize if m is not of type 'Main'.
+    Main other = m.inlineCache2();
+
+    // Jump to OSR compiled code. The second run
+    // of this method will have 'm' as a SubMain, and the compiled
+    // code we are jumping to will have wrongly optimize other as being null.
+    if (isSecondInvocation) {
+      while (!isInOsrCode("$noinline$inlineCache2")) {}
+    }
+
+    // We used to wrongly optimize this code and assume 'other' was always null.
+    return (other == null) ? null : other.returnClass();
+  }
+
+  public static Class $noinline$inlineCache3(Main m, boolean isSecondInvocation) {
+    // If we are running in non-JIT mode, or were unlucky enough to get this method
+    // already JITted, just return the expected value.
+    if (!isInInterpreter("$noinline$inlineCache3")) {
+      return null;
+    }
+
+    ensureHasProfilingInfo("$noinline$inlineCache3");
+
+    // Ensure that we have OSR code to jump to.
+    if (isSecondInvocation) {
+      ensureHasOsrCode("$noinline$inlineCache3");
+    }
+
+    // This call will be optimized in the OSR compiled code
+    // to check and deoptimize if m is not of type 'Main'.
+    Main other = m.inlineCache3();
+
+    // Jump to OSR compiled code. The second run
+    // of this method will have 'm' as a SubMain, and the compiled
+    // code we are jumping to will have wrongly optimize other as being null.
+    if (isSecondInvocation) {
+      while (!isInOsrCode("$noinline$inlineCache3")) {}
+    }
+
+    // We used to wrongly optimize this code and assume 'other' was always null.
+    return (other == null) ? null : other.returnClass();
+  }
+
   public Main inlineCache() {
     return new Main();
+  }
+
+  public Main inlineCache2() {
+    return null;
+  }
+
+  public Main inlineCache3() {
+    return null;
   }
 
   public Class returnClass() {
@@ -232,6 +310,10 @@ class SubMain extends Main {
   }
 
   public Main inlineCache() {
+    return new SubMain();
+  }
+
+  public Main inlineCache2() {
     return new SubMain();
   }
 

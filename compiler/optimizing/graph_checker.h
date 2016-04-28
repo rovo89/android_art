@@ -57,6 +57,7 @@ class GraphChecker : public HGraphDelegateVisitor {
   void VisitCheckCast(HCheckCast* check) OVERRIDE;
   void VisitCondition(HCondition* op) OVERRIDE;
   void VisitConstant(HConstant* instruction) OVERRIDE;
+  void VisitDeoptimize(HDeoptimize* instruction) OVERRIDE;
   void VisitIf(HIf* instruction) OVERRIDE;
   void VisitInstanceOf(HInstanceOf* check) OVERRIDE;
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE;

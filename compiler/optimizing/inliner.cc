@@ -322,7 +322,13 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
         return false;
       } else if (ic.IsMonomorphic()) {
         MaybeRecordStat(kMonomorphicCall);
-        return TryInlineMonomorphicCall(invoke_instruction, resolved_method, ic);
+        if (outermost_graph_->IsCompilingOsr()) {
+          // If we are compiling OSR, we pretend this call is polymorphic, as we may come from the
+          // interpreter and it may have seen different receiver types.
+          return TryInlinePolymorphicCall(invoke_instruction, resolved_method, ic);
+        } else {
+          return TryInlineMonomorphicCall(invoke_instruction, resolved_method, ic);
+        }
       } else if (ic.IsPolymorphic()) {
         MaybeRecordStat(kPolymorphicCall);
         return TryInlinePolymorphicCall(invoke_instruction, resolved_method, ic);
@@ -510,6 +516,11 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
       bool deoptimize = all_targets_inlined &&
           (i != InlineCache::kIndividualCacheSize - 1) &&
           (ic.GetTypeAt(i + 1) == nullptr);
+
+      if (outermost_graph_->IsCompilingOsr()) {
+        // We do not support HDeoptimize in OSR methods.
+        deoptimize = false;
+      }
       HInstruction* compare = AddTypeGuard(
           receiver, cursor, bb_cursor, class_index, is_referrer, invoke_instruction, deoptimize);
       if (deoptimize) {
@@ -672,7 +683,8 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
   HInstruction* cursor = invoke_instruction->GetPrevious();
   HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
 
-  if (!TryInlineAndReplace(invoke_instruction, actual_method, /* do_rtp */ false)) {
+  HInstruction* return_replacement = nullptr;
+  if (!TryBuildAndInline(invoke_instruction, actual_method, &return_replacement)) {
     return false;
   }
 
@@ -701,9 +713,6 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
   }
 
   HNotEqual* compare = new (graph_->GetArena()) HNotEqual(class_table_get, constant);
-  HDeoptimize* deoptimize = new (graph_->GetArena()) HDeoptimize(
-      compare, invoke_instruction->GetDexPc());
-  // TODO: Extend reference type propagation to understand the guard.
   if (cursor != nullptr) {
     bb_cursor->InsertInstructionAfter(receiver_class, cursor);
   } else {
@@ -711,8 +720,19 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
   }
   bb_cursor->InsertInstructionAfter(class_table_get, receiver_class);
   bb_cursor->InsertInstructionAfter(compare, class_table_get);
-  bb_cursor->InsertInstructionAfter(deoptimize, compare);
-  deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
+
+  if (outermost_graph_->IsCompilingOsr()) {
+    CreateDiamondPatternForPolymorphicInline(compare, return_replacement, invoke_instruction);
+  } else {
+    // TODO: Extend reference type propagation to understand the guard.
+    HDeoptimize* deoptimize = new (graph_->GetArena()) HDeoptimize(
+        compare, invoke_instruction->GetDexPc());
+    bb_cursor->InsertInstructionAfter(deoptimize, compare);
+    deoptimize->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
+    if (return_replacement != nullptr) {
+      invoke_instruction->ReplaceWith(return_replacement);
+    }
+  }
 
   // Run type propagation to get the guard typed.
   ReferenceTypePropagation rtp_fixup(graph_,
@@ -743,6 +763,12 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
                                  ArtMethod* method,
                                  HInstruction** return_replacement) {
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
+
+  if (method->IsProxyMethod()) {
+    VLOG(compiler) << "Method " << PrettyMethod(method)
+                   << " is not inlined because of unimplemented inline support for proxy methods.";
+    return false;
+  }
 
   // Check whether we're allowed to inline. The outermost compilation unit is the relevant
   // dex file here (though the transitivity of an inline chain would allow checking the calller).
@@ -1265,6 +1291,8 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
 size_t HInliner::RunOptimizations(HGraph* callee_graph,
                                   const DexFile::CodeItem* code_item,
                                   const DexCompilationUnit& dex_compilation_unit) {
+  // Note: if the outermost_graph_ is being compiled OSR, we should not run any
+  // optimization that could lead to a HDeoptimize. The following optimizations do not.
   HDeadCodeElimination dce(callee_graph, stats_);
   HConstantFolding fold(callee_graph);
   HSharpening sharpening(callee_graph, codegen_, dex_compilation_unit, compiler_driver_);
