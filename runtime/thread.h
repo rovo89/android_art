@@ -363,12 +363,7 @@ class Thread {
   void AssertNoPendingException() const;
   void AssertNoPendingExceptionForNewException(const char* msg) const;
 
-  void SetException(mirror::Throwable* new_exception)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
-    CHECK(new_exception != nullptr);
-    // TODO: DCHECK(!IsExceptionPending());
-    tlsPtr_.exception = new_exception;
-  }
+  void SetException(mirror::Throwable* new_exception) SHARED_REQUIRES(Locks::mutator_lock_);
 
   void ClearException() SHARED_REQUIRES(Locks::mutator_lock_) {
     tlsPtr_.exception = nullptr;

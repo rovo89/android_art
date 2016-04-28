@@ -341,6 +341,7 @@ CompilerDriver::CompilerDriver(
     InstructionSet instruction_set,
     const InstructionSetFeatures* instruction_set_features,
     bool boot_image,
+    bool app_image,
     std::unordered_set<std::string>* image_classes,
     std::unordered_set<std::string>* compiled_classes,
     std::unordered_set<std::string>* compiled_methods,
@@ -363,6 +364,7 @@ CompilerDriver::CompilerDriver(
       compiled_methods_(MethodTable::key_compare()),
       non_relative_linker_patch_count_(0u),
       boot_image_(boot_image),
+      app_image_(app_image),
       image_classes_(image_classes),
       classes_to_compile_(compiled_classes),
       methods_to_compile_(compiled_methods),
@@ -2440,15 +2442,22 @@ void CompilerDriver::InitializeClasses(jobject jni_class_loader,
   context.ForAll(0, dex_file.NumClassDefs(), &visitor, init_thread_count);
 }
 
-class InitializeArrayClassVisitor : public ClassVisitor {
+class InitializeArrayClassesAndCreateConflictTablesVisitor : public ClassVisitor {
  public:
   virtual bool operator()(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass)) {
+      return true;
+    }
     if (klass->IsArrayClass()) {
       StackHandleScope<1> hs(Thread::Current());
       Runtime::Current()->GetClassLinker()->EnsureInitialized(hs.Self(),
                                                               hs.NewHandle(klass),
                                                               true,
                                                               true);
+    }
+    // Create the conflict tables.
+    if (!klass->IsTemp() && klass->ShouldHaveEmbeddedImtAndVTable()) {
+      Runtime::Current()->GetClassLinker()->FillIMTAndConflictTables(klass);
     }
     return true;
   }
@@ -2462,13 +2471,15 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
     CHECK(dex_file != nullptr);
     InitializeClasses(class_loader, *dex_file, dex_files, timings);
   }
-  {
+  if (boot_image_ || app_image_) {
     // Make sure that we call EnsureIntiailized on all the array classes to call
     // SetVerificationAttempted so that the access flags are set. If we do not do this they get
     // changed at runtime resulting in more dirty image pages.
+    // Also create conflict tables.
+    // Only useful if we are compiling an image (image_classes_ is not null).
     ScopedObjectAccess soa(Thread::Current());
-    InitializeArrayClassVisitor visitor;
-    Runtime::Current()->GetClassLinker()->VisitClasses(&visitor);
+    InitializeArrayClassesAndCreateConflictTablesVisitor visitor;
+    Runtime::Current()->GetClassLinker()->VisitClassesWithoutClassesLock(&visitor);
   }
   if (IsBootImage()) {
     // Prune garbage objects created during aborted transactions.
