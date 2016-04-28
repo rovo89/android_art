@@ -41,6 +41,7 @@ class ShadowFrame;
 namespace mirror {
 class Array;
 class Class;
+class IfTable;
 class PointerArray;
 }  // namespace mirror
 
@@ -50,97 +51,151 @@ class PointerArray;
 // with the last entry being null to make an assembly implementation of a lookup
 // faster.
 class ImtConflictTable {
+  enum MethodIndex {
+    kMethodInterface,
+    kMethodImplementation,
+    kMethodCount,  // Number of elements in enum.
+  };
+
  public:
   // Build a new table copying `other` and adding the new entry formed of
   // the pair { `interface_method`, `implementation_method` }
   ImtConflictTable(ImtConflictTable* other,
                    ArtMethod* interface_method,
-                   ArtMethod* implementation_method) {
-    size_t index = 0;
-    while (other->entries_[index].interface_method != nullptr) {
-      entries_[index] = other->entries_[index];
-      index++;
+                   ArtMethod* implementation_method,
+                   size_t pointer_size) {
+    const size_t count = other->NumEntries(pointer_size);
+    for (size_t i = 0; i < count; ++i) {
+      SetInterfaceMethod(i, pointer_size, other->GetInterfaceMethod(i, pointer_size));
+      SetImplementationMethod(i, pointer_size, other->GetImplementationMethod(i, pointer_size));
     }
-    entries_[index].interface_method = interface_method;
-    entries_[index].implementation_method = implementation_method;
+    SetInterfaceMethod(count, pointer_size, interface_method);
+    SetImplementationMethod(count, pointer_size, implementation_method);
     // Add the null marker.
-    entries_[index + 1].interface_method = nullptr;
-    entries_[index + 1].implementation_method = nullptr;
+    SetInterfaceMethod(count + 1, pointer_size, nullptr);
+    SetImplementationMethod(count + 1, pointer_size, nullptr);
   }
 
   // num_entries excludes the header.
-  explicit ImtConflictTable(size_t num_entries) {
-    entries_[num_entries].interface_method = nullptr;
-    entries_[num_entries].implementation_method = nullptr;
+  ImtConflictTable(size_t num_entries, size_t pointer_size) {
+    SetInterfaceMethod(num_entries, pointer_size, nullptr);
+    SetImplementationMethod(num_entries, pointer_size, nullptr);
   }
 
   // Set an entry at an index.
-  void SetInterfaceMethod(size_t index, ArtMethod* method) {
-    entries_[index].interface_method = method;
+  void SetInterfaceMethod(size_t index, size_t pointer_size, ArtMethod* method) {
+    SetMethod(index * kMethodCount + kMethodInterface, pointer_size, method);
   }
 
-  void SetImplementationMethod(size_t index, ArtMethod* method) {
-    entries_[index].implementation_method = method;
+  void SetImplementationMethod(size_t index, size_t pointer_size, ArtMethod* method) {
+    SetMethod(index * kMethodCount + kMethodImplementation, pointer_size, method);
   }
 
-  ArtMethod* GetInterfaceMethod(size_t index) const {
-    return entries_[index].interface_method;
+  ArtMethod* GetInterfaceMethod(size_t index, size_t pointer_size) const {
+    return GetMethod(index * kMethodCount + kMethodInterface, pointer_size);
   }
 
-  ArtMethod* GetImplementationMethod(size_t index) const {
-    return entries_[index].implementation_method;
+  ArtMethod* GetImplementationMethod(size_t index, size_t pointer_size) const {
+    return GetMethod(index * kMethodCount + kMethodImplementation, pointer_size);
+  }
+
+  // Visit all of the entries.
+  // NO_THREAD_SAFETY_ANALYSIS for calling with held locks. Visitor is passed a pair of ArtMethod*
+  // and also returns one. The order is <interface, implementation>.
+  template<typename Visitor>
+  void Visit(const Visitor& visitor, size_t pointer_size) NO_THREAD_SAFETY_ANALYSIS {
+    uint32_t table_index = 0;
+    for (;;) {
+      ArtMethod* interface_method = GetInterfaceMethod(table_index, pointer_size);
+      if (interface_method == nullptr) {
+        break;
+      }
+      ArtMethod* implementation_method = GetImplementationMethod(table_index, pointer_size);
+      auto input = std::make_pair(interface_method, implementation_method);
+      std::pair<ArtMethod*, ArtMethod*> updated = visitor(input);
+      if (input.first != updated.first) {
+        SetInterfaceMethod(table_index, pointer_size, updated.first);
+      }
+      if (input.second != updated.second) {
+        SetImplementationMethod(table_index, pointer_size, updated.second);
+      }
+      ++table_index;
+    }
   }
 
   // Lookup the implementation ArtMethod associated to `interface_method`. Return null
   // if not found.
-  ArtMethod* Lookup(ArtMethod* interface_method) const {
+  ArtMethod* Lookup(ArtMethod* interface_method, size_t pointer_size) const {
     uint32_t table_index = 0;
-    ArtMethod* current_interface_method;
-    while ((current_interface_method = entries_[table_index].interface_method) != nullptr) {
-      if (current_interface_method == interface_method) {
-        return entries_[table_index].implementation_method;
+    for (;;) {
+      ArtMethod* current_interface_method = GetInterfaceMethod(table_index, pointer_size);
+      if (current_interface_method == nullptr) {
+        break;
       }
-      table_index++;
+      if (current_interface_method == interface_method) {
+        return GetImplementationMethod(table_index, pointer_size);
+      }
+      ++table_index;
     }
     return nullptr;
   }
 
   // Compute the number of entries in this table.
-  size_t NumEntries() const {
+  size_t NumEntries(size_t pointer_size) const {
     uint32_t table_index = 0;
-    while (entries_[table_index].interface_method != nullptr) {
-      table_index++;
+    while (GetInterfaceMethod(table_index, pointer_size) != nullptr) {
+      ++table_index;
     }
     return table_index;
   }
 
   // Compute the size in bytes taken by this table.
-  size_t ComputeSize() const {
+  size_t ComputeSize(size_t pointer_size) const {
     // Add the end marker.
-    return ComputeSize(NumEntries());
+    return ComputeSize(NumEntries(pointer_size), pointer_size);
   }
 
   // Compute the size in bytes needed for copying the given `table` and add
   // one more entry.
-  static size_t ComputeSizeWithOneMoreEntry(ImtConflictTable* table) {
-    return table->ComputeSize() + sizeof(Entry);
+  static size_t ComputeSizeWithOneMoreEntry(ImtConflictTable* table, size_t pointer_size) {
+    return table->ComputeSize(pointer_size) + EntrySize(pointer_size);
   }
 
   // Compute size with a fixed number of entries.
-  static size_t ComputeSize(size_t num_entries) {
-    return (num_entries + 1) * sizeof(Entry);  // Add one for null terminator.
+  static size_t ComputeSize(size_t num_entries, size_t pointer_size) {
+    return (num_entries + 1) * EntrySize(pointer_size);  // Add one for null terminator.
   }
 
-  struct Entry {
-    ArtMethod* interface_method;
-    ArtMethod* implementation_method;
-  };
+  static size_t EntrySize(size_t pointer_size) {
+    return pointer_size * static_cast<size_t>(kMethodCount);
+  }
 
  private:
+  ArtMethod* GetMethod(size_t index, size_t pointer_size) const {
+    if (pointer_size == 8) {
+      return reinterpret_cast<ArtMethod*>(static_cast<uintptr_t>(data64_[index]));
+    } else {
+      DCHECK_EQ(pointer_size, 4u);
+      return reinterpret_cast<ArtMethod*>(static_cast<uintptr_t>(data32_[index]));
+    }
+  }
+
+  void SetMethod(size_t index, size_t pointer_size, ArtMethod* method) {
+    if (pointer_size == 8) {
+      data64_[index] = dchecked_integral_cast<uint64_t>(reinterpret_cast<uintptr_t>(method));
+    } else {
+      DCHECK_EQ(pointer_size, 4u);
+      data32_[index] = dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(method));
+    }
+  }
+
   // Array of entries that the assembly stubs will iterate over. Note that this is
   // not fixed size, and we allocate data prior to calling the constructor
   // of ImtConflictTable.
-  Entry entries_[0];
+  union {
+    uint32_t data32_[0];
+    uint64_t data64_[0];
+  };
 
   DISALLOW_COPY_AND_ASSIGN(ImtConflictTable);
 };
@@ -382,7 +437,6 @@ class ArtMethod FINAL {
 
   // Find the method that this method overrides.
   ArtMethod* FindOverriddenMethod(size_t pointer_size)
-      REQUIRES(Roles::uninterruptible_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Find the method index for this method within other_dexfile. If this method isn't present then
@@ -448,8 +502,8 @@ class ArtMethod FINAL {
     return reinterpret_cast<ImtConflictTable*>(GetEntryPointFromJniPtrSize(pointer_size));
   }
 
-  ALWAYS_INLINE void SetImtConflictTable(ImtConflictTable* table) {
-    SetEntryPointFromJniPtrSize(table, sizeof(void*));
+  ALWAYS_INLINE void SetImtConflictTable(ImtConflictTable* table, size_t pointer_size) {
+    SetEntryPointFromJniPtrSize(table, pointer_size);
   }
 
   ALWAYS_INLINE void SetProfilingInfo(ProfilingInfo* info) {

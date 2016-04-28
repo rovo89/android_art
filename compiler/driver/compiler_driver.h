@@ -92,6 +92,7 @@ class CompilerDriver {
                  InstructionSet instruction_set,
                  const InstructionSetFeatures* instruction_set_features,
                  bool boot_image,
+                 bool app_image,
                  std::unordered_set<std::string>* image_classes,
                  std::unordered_set<std::string>* compiled_classes,
                  std::unordered_set<std::string>* compiled_methods,
@@ -652,6 +653,7 @@ class CompilerDriver {
   size_t non_relative_linker_patch_count_ GUARDED_BY(compiled_methods_lock_);
 
   const bool boot_image_;
+  const bool app_image_;
 
   // If image_ is true, specifies the classes that will be included in the image.
   // Note if image_classes_ is null, all classes are included in the image.
