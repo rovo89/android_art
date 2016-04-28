@@ -948,7 +948,7 @@ int StackVisitor::GetVRegOffsetFromQuickCode(const DexFile::CodeItem* code_item,
   }
 }
 
-void LockCountData::AddMonitorInternal(Thread* self, mirror::Object* obj) {
+void LockCountData::AddMonitor(Thread* self, mirror::Object* obj) {
   if (obj == nullptr) {
     return;
   }
@@ -965,7 +965,7 @@ void LockCountData::AddMonitorInternal(Thread* self, mirror::Object* obj) {
   monitors_->push_back(obj);
 }
 
-void LockCountData::RemoveMonitorInternal(Thread* self, const mirror::Object* obj) {
+void LockCountData::RemoveMonitorOrThrow(Thread* self, const mirror::Object* obj) {
   if (obj == nullptr) {
     return;
   }
@@ -998,7 +998,7 @@ void MonitorExitHelper(Thread* self, mirror::Object* obj) NO_THREAD_SAFETY_ANALY
   obj->MonitorExit(self);
 }
 
-bool LockCountData::CheckAllMonitorsReleasedInternal(Thread* self) {
+bool LockCountData::CheckAllMonitorsReleasedOrThrow(Thread* self) {
   DCHECK(self != nullptr);
   if (monitors_ != nullptr) {
     if (!monitors_->empty()) {
