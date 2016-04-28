@@ -515,8 +515,24 @@ void EnterInterpreterFromDeoptimize(Thread* self,
       // instruction, as it already executed.
       // TODO: should be tested more once b/17586779 is fixed.
       const Instruction* instr = Instruction::At(&code_item->insns_[dex_pc]);
-      DCHECK(instr->IsInvoke());
-      new_dex_pc = dex_pc + instr->SizeInCodeUnits();
+      if (instr->IsInvoke()) {
+        new_dex_pc = dex_pc + instr->SizeInCodeUnits();
+      } else if (instr->Opcode() == Instruction::NEW_INSTANCE) {
+        // It's possible to deoptimize at a NEW_INSTANCE dex instruciton that's for a
+        // java string, which is turned into a call into StringFactory.newEmptyString();
+        if (kIsDebugBuild) {
+          ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+          mirror::Class* klass = class_linker->ResolveType(
+              instr->VRegB_21c(), shadow_frame->GetMethod());
+          DCHECK(klass->IsStringClass());
+        }
+        // Skip the dex instruction since we essentially come back from an invocation.
+        new_dex_pc = dex_pc + instr->SizeInCodeUnits();
+      } else {
+        DCHECK(false) << "Unexpected instruction opcode " << instr->Opcode()
+                      << " at dex_pc " << dex_pc
+                      << " of method: " << PrettyMethod(shadow_frame->GetMethod(), false);
+      }
     } else {
       // Nothing to do, the dex_pc is the one at which the code requested
       // the deoptimization.

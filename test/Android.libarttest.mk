@@ -42,7 +42,8 @@ LIBARTTEST_COMMON_SRC_FILES := \
   543-env-long-ref/env_long_ref.cc \
   566-polymorphic-inlining/polymorphic_inline.cc \
   570-checker-osr/osr.cc \
-  595-profile-saving/profile-saving.cc
+  595-profile-saving/profile-saving.cc \
+  597-deopt-new-string/deopt.cc
 
 ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
 ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttestd.so
