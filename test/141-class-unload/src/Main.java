@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 
 public class Main {
     static final String DEX_FILE = System.getenv("DEX_LOCATION") + "/141-class-unload-ex.jar";
+    static final String LIBRARY_SEARCH_PATH = System.getProperty("java.library.path");
     static String nativeLibraryName;
 
     public static void main(String[] args) throws Exception {
@@ -32,7 +33,7 @@ public class Main {
             throw new AssertionError("Couldn't find path class loader class");
         }
         Constructor constructor =
-            pathClassLoader.getDeclaredConstructor(String.class, ClassLoader.class);
+            pathClassLoader.getDeclaredConstructor(String.class, String.class, ClassLoader.class);
         try {
             testUnloadClass(constructor);
             testUnloadLoader(constructor);
@@ -49,7 +50,7 @@ public class Main {
             // Test that the oat files are unloaded.
             testOatFilesUnloaded(getPid());
         } catch (Exception e) {
-            System.out.println(e);
+            e.printStackTrace();
         }
     }
 
@@ -118,7 +119,7 @@ public class Main {
     private static void testNoUnloadInvoke(Constructor constructor) throws Exception {
         WeakReference<ClassLoader> loader =
             new WeakReference((ClassLoader) constructor.newInstance(
-                DEX_FILE, ClassLoader.getSystemClassLoader()));
+                DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader()));
         WeakReference<Class> intHolder = new WeakReference(loader.get().loadClass("IntHolder"));
         intHolder.get().getDeclaredMethod("runGC").invoke(intHolder.get());
         boolean isNull = loader.get() == null;
@@ -128,7 +129,7 @@ public class Main {
     private static void testNoUnloadInstance(Constructor constructor) throws Exception {
         WeakReference<ClassLoader> loader =
             new WeakReference((ClassLoader) constructor.newInstance(
-                DEX_FILE, ClassLoader.getSystemClassLoader()));
+                DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader()));
         WeakReference<Class> intHolder = new WeakReference(loader.get().loadClass("IntHolder"));
         Object o = intHolder.get().newInstance();
         Runtime.getRuntime().gc();
@@ -138,7 +139,7 @@ public class Main {
 
     private static WeakReference<Class> setUpUnloadClass(Constructor constructor) throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
-            DEX_FILE, ClassLoader.getSystemClassLoader());
+            DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
         Class intHolder = loader.loadClass("IntHolder");
         Method getValue = intHolder.getDeclaredMethod("getValue");
         Method setValue = intHolder.getDeclaredMethod("setValue", Integer.TYPE);
@@ -155,7 +156,7 @@ public class Main {
                                                                 boolean waitForCompilation)
         throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
-            DEX_FILE, ClassLoader.getSystemClassLoader());
+            DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
         Class intHolder = loader.loadClass("IntHolder");
         Method setValue = intHolder.getDeclaredMethod("setValue", Integer.TYPE);
         setValue.invoke(intHolder, 2);
@@ -177,7 +178,7 @@ public class Main {
     private static WeakReference<ClassLoader> setUpLoadLibrary(Constructor constructor)
         throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
-            DEX_FILE, ClassLoader.getSystemClassLoader());
+            DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
         Class intHolder = loader.loadClass("IntHolder");
         Method loadLibrary = intHolder.getDeclaredMethod("loadLibrary", String.class);
         loadLibrary.invoke(intHolder, nativeLibraryName);
