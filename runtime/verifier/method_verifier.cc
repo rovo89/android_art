@@ -401,8 +401,13 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
         method->SetAccessFlags(method->GetAccessFlags() | kAccCompileDontBother);
       }
     }
-    if (method != nullptr && verifier.HasInstructionThatWillThrow()) {
-      method->SetAccessFlags(method->GetAccessFlags() | kAccCompileDontBother);
+    if (method != nullptr) {
+      if (verifier.HasInstructionThatWillThrow()) {
+        method->SetAccessFlags(method->GetAccessFlags() | kAccCompileDontBother);
+      }
+      if ((verifier.encountered_failure_types_ & VerifyError::VERIFY_ERROR_LOCKING) != 0) {
+        method->SetAccessFlags(method->GetAccessFlags() | kAccMustCountLocks);
+      }
     }
   } else {
     // Bad method data.

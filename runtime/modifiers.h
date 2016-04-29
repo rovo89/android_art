@@ -60,10 +60,13 @@ static constexpr uint32_t kAccDefault =               0x00400000;  // method (ru
 // This is set by the class linker during LinkInterfaceMethods. Prior to that point we do not know
 // if any particular method needs to be a default conflict. Used to figure out at runtime if
 // invoking this method will throw an exception.
-static constexpr uint32_t kAccDefaultConflict =      0x00800000;  // method (runtime)
+static constexpr uint32_t kAccDefaultConflict =       0x00800000;  // method (runtime)
 
 // Set by the verifier for a method we do not want the compiler to compile.
-static constexpr uint32_t kAccCompileDontBother =    0x01000000;  // method (runtime)
+static constexpr uint32_t kAccCompileDontBother =     0x01000000;  // method (runtime)
+
+// Set by the verifier for a method that could not be verified to follow structured locking.
+static constexpr uint32_t kAccMustCountLocks =        0x02000000;  // method (runtime)
 
 // Special runtime-only flags.
 // Interface and all its super-interfaces with default methods have been recursively initialized.

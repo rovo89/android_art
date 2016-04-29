@@ -80,39 +80,18 @@ class LockCountData {
  public:
   // Add the given object to the list of monitors, that is, objects that have been locked. This
   // will not throw (but be skipped if there is an exception pending on entry).
-  template <bool kLockCounting>
-  void AddMonitor(Thread* self, mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(self != nullptr);
-    if (!kLockCounting) {
-      return;
-    }
-    AddMonitorInternal(self, obj);
-  }
+  void AddMonitor(Thread* self, mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Try to remove the given object from the monitor list, indicating an unlock operation.
   // This will throw an IllegalMonitorStateException (clearing any already pending exception), in
   // case that there wasn't a lock recorded for the object.
-  template <bool kLockCounting>
   void RemoveMonitorOrThrow(Thread* self,
-                            const mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(self != nullptr);
-    if (!kLockCounting) {
-      return;
-    }
-    RemoveMonitorInternal(self, obj);
-  }
+                            const mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Check whether all acquired monitors have been released. This will potentially throw an
   // IllegalMonitorStateException, clearing any already pending exception. Returns true if the
   // check shows that everything is OK wrt/ lock counting, false otherwise.
-  template <bool kLockCounting>
-  bool CheckAllMonitorsReleasedOrThrow(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(self != nullptr);
-    if (!kLockCounting) {
-      return true;
-    }
-    return CheckAllMonitorsReleasedInternal(self);
-  }
+  bool CheckAllMonitorsReleasedOrThrow(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
 
   template <typename T, typename... Args>
   void VisitMonitors(T visitor, Args&&... args) SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -125,12 +104,6 @@ class LockCountData {
   }
 
  private:
-  // Internal implementations.
-  void AddMonitorInternal(Thread* self, mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
-  void RemoveMonitorInternal(Thread* self, const mirror::Object* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  bool CheckAllMonitorsReleasedInternal(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
-
   // Stores references to the locked-on objects. As noted, this should be visited during thread
   // marking.
   std::unique_ptr<std::vector<mirror::Object*>> monitors_;
