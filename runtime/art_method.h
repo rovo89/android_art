@@ -351,6 +351,12 @@ class ArtMethod FINAL {
     SetAccessFlags(GetAccessFlags() | kAccSkipAccessChecks);
   }
 
+  // Should this method be run in the interpreter and count locks (e.g., failed structured-
+  // locking verification)?
+  bool MustCountLocks() {
+    return (GetAccessFlags() & kAccMustCountLocks) != 0;
+  }
+
   // Returns true if this method could be overridden by a default method.
   bool IsOverridableByDefaultMethod() SHARED_REQUIRES(Locks::mutator_lock_);
 

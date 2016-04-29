@@ -34,8 +34,7 @@ namespace interpreter {
                                                                   instrumentation);             \
     if (found_dex_pc == DexFile::kDexNoIndex) {                                                 \
       /* Structured locking is to be enforced for abnormal termination, too. */                 \
-      shadow_frame.GetLockCountData().                                                          \
-          CheckAllMonitorsReleasedOrThrow<do_assignability_check>(self);                        \
+      DoMonitorCheckOnExit<do_assignability_check>(self, &shadow_frame);                        \
       if (interpret_one_instruction) {                                                          \
         /* Signal mterp to return to caller */                                                  \
         shadow_frame.SetDexPC(DexFile::kDexNoIndex);                                            \
@@ -57,8 +56,7 @@ namespace interpreter {
   } while (false)
 
 #define HANDLE_MONITOR_CHECKS()                                                                   \
-  if (!shadow_frame.GetLockCountData().                                                           \
-          CheckAllMonitorsReleasedOrThrow<do_assignability_check>(self)) {                        \
+  if (!DoMonitorCheckOnExit<do_assignability_check>(self, &shadow_frame)) {                       \
     HANDLE_PENDING_EXCEPTION();                                                                   \
   }
 

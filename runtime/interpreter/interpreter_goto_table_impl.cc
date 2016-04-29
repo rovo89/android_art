@@ -104,8 +104,7 @@ namespace interpreter {
   } HANDLE_INSTRUCTION_END();
 
 #define HANDLE_MONITOR_CHECKS()                                                                   \
-  if (!shadow_frame.GetLockCountData().                                                           \
-          CheckAllMonitorsReleasedOrThrow<do_assignability_check>(self)) {                        \
+  if (!DoMonitorCheckOnExit<do_assignability_check>(self, &shadow_frame)) {                       \
     HANDLE_PENDING_EXCEPTION();                                                                   \
   }
 
@@ -2584,7 +2583,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
                                                                   instrumentation);
     if (found_dex_pc == DexFile::kDexNoIndex) {
       // Structured locking is to be enforced for abnormal termination, too.
-      shadow_frame.GetLockCountData().CheckAllMonitorsReleasedOrThrow<do_assignability_check>(self);
+      DoMonitorCheckOnExit<do_assignability_check>(self, &shadow_frame);
       return JValue(); /* Handled in caller. */
     } else {
       int32_t displacement = static_cast<int32_t>(found_dex_pc) - static_cast<int32_t>(dex_pc);

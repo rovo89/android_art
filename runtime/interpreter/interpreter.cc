@@ -303,8 +303,13 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
 
   shadow_frame.GetMethod()->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
 
+  // Lock counting is a special version of accessibility checks, and for simplicity and
+  // reduction of template parameters, we gate it behind access-checks mode.
+  ArtMethod* method = shadow_frame.GetMethod();
+  DCHECK(!method->SkipAccessChecks() || !method->MustCountLocks());
+
   bool transaction_active = Runtime::Current()->IsActiveTransaction();
-  if (LIKELY(shadow_frame.GetMethod()->SkipAccessChecks())) {
+  if (LIKELY(method->SkipAccessChecks())) {
     // Enter the "without access check" interpreter.
     if (kInterpreterImplKind == kMterpImplKind) {
       if (transaction_active) {
@@ -487,6 +492,10 @@ void EnterInterpreterFromDeoptimize(Thread* self,
   // Are we executing the first shadow frame?
   bool first = true;
   while (shadow_frame != nullptr) {
+    // We do not want to recover lock state for lock counting when deoptimizing. Currently,
+    // the compiler should not have compiled a method that failed structured-locking checks.
+    DCHECK(!shadow_frame->GetMethod()->MustCountLocks());
+
     self->SetTopOfShadowStack(shadow_frame);
     const DexFile::CodeItem* code_item = shadow_frame->GetMethod()->GetCodeItem();
     const uint32_t dex_pc = shadow_frame->GetDexPC();

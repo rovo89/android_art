@@ -95,7 +95,9 @@ static inline void DoMonitorEnter(Thread* self,
   StackHandleScope<1> hs(self);
   Handle<Object> h_ref(hs.NewHandle(ref));
   h_ref->MonitorEnter(self);
-  frame->GetLockCountData().AddMonitor<kMonitorCounting>(self, h_ref.Get());
+  if (kMonitorCounting && frame->GetMethod()->MustCountLocks()) {
+    frame->GetLockCountData().AddMonitor(self, h_ref.Get());
+  }
 }
 
 template <bool kMonitorCounting>
@@ -107,7 +109,19 @@ static inline void DoMonitorExit(Thread* self,
   StackHandleScope<1> hs(self);
   Handle<Object> h_ref(hs.NewHandle(ref));
   h_ref->MonitorExit(self);
-  frame->GetLockCountData().RemoveMonitorOrThrow<kMonitorCounting>(self, h_ref.Get());
+  if (kMonitorCounting && frame->GetMethod()->MustCountLocks()) {
+    frame->GetLockCountData().RemoveMonitorOrThrow(self, h_ref.Get());
+  }
+}
+
+template <bool kMonitorCounting>
+static inline bool DoMonitorCheckOnExit(Thread* self, ShadowFrame* frame)
+    NO_THREAD_SAFETY_ANALYSIS
+    REQUIRES(!Roles::uninterruptible_) {
+  if (kMonitorCounting && frame->GetMethod()->MustCountLocks()) {
+    return frame->GetLockCountData().CheckAllMonitorsReleasedOrThrow(self);
+  }
+  return true;
 }
 
 void AbortTransactionF(Thread* self, const char* fmt, ...)
