@@ -1028,6 +1028,9 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots(size_t oat_index) const {
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
       mirror::DexCache* dex_cache =
           down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
+      if (dex_cache == nullptr) {
+        continue;
+      }
       const DexFile* dex_file = dex_cache->GetDexFile();
       if (!IsInBootImage(dex_cache)) {
         dex_cache_count += image_dex_files.find(dex_file) != image_dex_files.end() ? 1u : 0u;
@@ -1044,6 +1047,9 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots(size_t oat_index) const {
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
       mirror::DexCache* dex_cache =
           down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
+      if (dex_cache == nullptr) {
+        continue;
+      }
       const DexFile* dex_file = dex_cache->GetDexFile();
       if (!IsInBootImage(dex_cache)) {
         non_image_dex_caches += image_dex_files.find(dex_file) != image_dex_files.end() ? 1u : 0u;
@@ -1055,6 +1061,9 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots(size_t oat_index) const {
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
       mirror::DexCache* dex_cache =
           down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
+      if (dex_cache == nullptr) {
+        continue;
+      }
       const DexFile* dex_file = dex_cache->GetDexFile();
       if (!IsInBootImage(dex_cache) && image_dex_files.find(dex_file) != image_dex_files.end()) {
         dex_caches->Set<false>(i, dex_cache);
