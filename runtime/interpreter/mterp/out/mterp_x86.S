@@ -12985,6 +12985,7 @@ MterpCommonTakenBranch:
  * not-taken path.  All Dalvik not-taken conditional branch offsets are 2.
  */
 .L_check_not_taken_osr:
+    EXPORT_PC
     movl    rSELF, %eax
     movl    %eax, OUT_ARG0(%esp)
     leal    OFF_FP_SHADOWFRAME(rFP), %ecx
