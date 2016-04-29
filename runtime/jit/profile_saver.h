@@ -49,6 +49,11 @@ class ProfileSaver {
   // If the profile saver is running, dumps statistics to the `os`. Otherwise it does nothing.
   static void DumpInstanceInfo(std::ostream& os);
 
+  // NO_THREAD_SAFETY_ANALYSIS for static function calling into member function with excludes lock.
+  static void NotifyJitActivity()
+      REQUIRES(!Locks::profiler_lock_, !wait_lock_)
+      NO_THREAD_SAFETY_ANALYSIS;
+
   // Just for testing purpose.
   static void ForceProcessProfiles();
   static bool HasSeenMethod(const std::string& profile,
@@ -71,9 +76,12 @@ class ProfileSaver {
   void Run() REQUIRES(!Locks::profiler_lock_, !wait_lock_);
   // Processes the existing profiling info from the jit code cache and returns
   // true if it needed to be saved to disk.
-  bool ProcessProfilingInfo()
+  bool ProcessProfilingInfo(uint16_t* new_methods)
     REQUIRES(!Locks::profiler_lock_)
     REQUIRES(!Locks::mutator_lock_);
+
+  void NotifyJitActivityInternal() REQUIRES(!wait_lock_);
+  void WakeUpSaver() REQUIRES(wait_lock_);
 
   // Returns true if the saver is shutting down (ProfileSaver::Stop() has been called).
   bool ShuttingDown(Thread* self) REQUIRES(!Locks::profiler_lock_);
@@ -121,6 +129,8 @@ class ProfileSaver {
   bool shutting_down_ GUARDED_BY(Locks::profiler_lock_);
   uint32_t last_save_number_of_methods_;
   uint32_t last_save_number_of_classes_;
+  uint64_t last_time_ns_saver_woke_up_ GUARDED_BY(wait_lock_);
+  uint32_t jit_activity_notifications_;
 
   // A local cache for the profile information. Maps each tracked file to its
   // profile information. The size of this cache is usually very small and tops
@@ -142,6 +152,8 @@ class ProfileSaver {
   uint64_t total_number_of_foreign_dex_marks_;
   // TODO(calin): replace with an actual size.
   uint64_t max_number_of_profile_entries_cached_;
+  uint64_t total_number_of_hot_spikes_;
+  uint64_t total_number_of_wake_ups_;
 
   DISALLOW_COPY_AND_ASSIGN(ProfileSaver);
 };

@@ -33,14 +33,15 @@ namespace art {
 // TODO: read the constants from ProfileOptions,
 // Add a random delay each time we go to sleep so that we don't hammer the CPU
 // with all profile savers running at the same time.
-static constexpr const uint64_t kRandomDelayMaxMs = 30 * 1000;  // 30 seconds
-static constexpr const uint64_t kMaxBackoffMs = 10 * 60 * 1000;  // 10 minutes
-static constexpr const uint64_t kSavePeriodMs = 20 * 1000;  // 20 seconds
+static constexpr const uint64_t kMinSavePeriodNs = MsToNs(20 * 1000);  // 20 seconds
 static constexpr const uint64_t kSaveResolvedClassesDelayMs = 2 * 1000;  // 2 seconds
-static constexpr const double kBackoffCoef = 2.0;
 
 static constexpr const uint32_t kMinimumNumberOfMethodsToSave = 10;
 static constexpr const uint32_t kMinimumNumberOfClassesToSave = 10;
+static constexpr const uint32_t kMinimumNumberOfNotificationBeforeWake =
+    kMinimumNumberOfMethodsToSave;
+static constexpr const uint32_t kMaximumNumberOfNotificationBeforeWake = 50;
+
 
 ProfileSaver* ProfileSaver::instance_ = nullptr;
 pthread_t ProfileSaver::profiler_pthread_ = 0U;
@@ -55,6 +56,8 @@ ProfileSaver::ProfileSaver(const std::string& output_filename,
       shutting_down_(false),
       last_save_number_of_methods_(0),
       last_save_number_of_classes_(0),
+      last_time_ns_saver_woke_up_(0),
+      jit_activity_notifications_(0),
       wait_lock_("ProfileSaver wait lock"),
       period_condition_("ProfileSaver period condition", wait_lock_),
       total_bytes_written_(0),
@@ -65,7 +68,9 @@ ProfileSaver::ProfileSaver(const std::string& output_filename,
       total_ms_of_sleep_(0),
       total_ns_of_work_(0),
       total_number_of_foreign_dex_marks_(0),
-      max_number_of_profile_entries_cached_(0) {
+      max_number_of_profile_entries_cached_(0),
+      total_number_of_hot_spikes_(0),
+      total_number_of_wake_ups_(0) {
   AddTrackedLocations(output_filename, app_data_dir, code_paths);
   if (!app_data_dir.empty()) {
     // The application directory is used to determine which dex files are owned by app.
@@ -83,55 +88,89 @@ ProfileSaver::ProfileSaver(const std::string& output_filename,
 }
 
 void ProfileSaver::Run() {
-  srand(MicroTime() * getpid());
   Thread* self = Thread::Current();
 
-  uint64_t save_period_ms = kSavePeriodMs;
-  VLOG(profiler) << "Save profiling information every " << save_period_ms << " ms";
-  bool cache_resolved_classes = true;
+  // Fetch the resolved classes for the app images after sleeping for
+  // kSaveResolvedClassesDelayMs.
+  // TODO(calin) This only considers the case of the primary profile file.
+  // Anything that gets loaded in the same VM will not have their resolved
+  // classes save (unless they started before the initial saving was done).
+  {
+    MutexLock mu(self, wait_lock_);
+    period_condition_.TimedWait(self, kSaveResolvedClassesDelayMs, 0);
+    total_ms_of_sleep_ += kSaveResolvedClassesDelayMs;
+  }
+  FetchAndCacheResolvedClasses();
+
+  // Loop for the profiled methods.
   while (!ShuttingDown(self)) {
-    uint64_t sleep_time_ms;
-    if (cache_resolved_classes) {
-      // Sleep less long for the first iteration since we want to record loaded classes shortly
-      // after app launch.
-      sleep_time_ms = kSaveResolvedClassesDelayMs;
-    } else {
-      const uint64_t random_sleep_delay_ms = rand() % kRandomDelayMaxMs;
-      sleep_time_ms = save_period_ms + random_sleep_delay_ms;
-    }
+    uint64_t sleep_start = NanoTime();
     {
       MutexLock mu(self, wait_lock_);
-      period_condition_.TimedWait(self, sleep_time_ms, 0);
+      period_condition_.Wait(self);
+      total_number_of_wake_ups_++;
+      // We might have been woken up by a huge number of notifications to guarantee saving.
+      // If we didn't meet the minimum saving period go back to sleep (only if missed by
+      // a reasonable margin).
+      uint64_t sleep_time = NanoTime() - last_time_ns_saver_woke_up_;
+      while (kMinSavePeriodNs - sleep_time > (kMinSavePeriodNs / 10)) {
+        period_condition_.TimedWait(self, NsToMs(kMinSavePeriodNs - sleep_time), 0);
+        total_number_of_wake_ups_++;
+        sleep_time = NanoTime() - last_time_ns_saver_woke_up_;
+      }
     }
-    total_ms_of_sleep_ += sleep_time_ms;
+    total_ms_of_sleep_ += NsToMs(NanoTime() - sleep_start);
+
     if (ShuttingDown(self)) {
       break;
     }
 
-    uint64_t start = NanoTime();
-    if (cache_resolved_classes) {
-      // TODO(calin) This only considers the case of the primary profile file.
-      // Anything that gets loaded in the same VM will not have their resolved
-      // classes save (unless they started before the initial saving was done).
-      FetchAndCacheResolvedClasses();
-    } else {
-      bool profile_saved_to_disk = ProcessProfilingInfo();
-      if (profile_saved_to_disk) {
-        // Reset the period to the initial value as it's highly likely to JIT again.
-        save_period_ms = kSavePeriodMs;
-        VLOG(profiler) << "Profile saver: saved something, period reset to: " << save_period_ms;
-      } else {
-        // If we don't need to save now it is less likely that we will need to do
-        // so in the future. Increase the time between saves according to the
-        // kBackoffCoef, but make it no larger than kMaxBackoffMs.
-        save_period_ms = std::min(kMaxBackoffMs,
-                                  static_cast<uint64_t>(kBackoffCoef * save_period_ms));
-        VLOG(profiler) << "Profile saver: nothing to save, delaying period to: " << save_period_ms;
-      }
+    uint16_t new_methods = 0;
+    uint64_t start_work = NanoTime();
+    bool profile_saved_to_disk = ProcessProfilingInfo(&new_methods);
+    // Update the notification counter based on result. Note that there might be contention on this
+    // but we don't care about to be 100% precise.
+    if (!profile_saved_to_disk) {
+      // If we didn't save to disk it may be because we didn't have enough new methods.
+      // Set the jit activity notifications to new_methods so we can wake up earlier if needed.
+      jit_activity_notifications_ = new_methods;
     }
-    cache_resolved_classes = false;
+    total_ns_of_work_ += NanoTime() - start_work;
+  }
+}
 
-    total_ns_of_work_ += (NanoTime() - start);
+void ProfileSaver::NotifyJitActivity() {
+  MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
+  if (instance_ == nullptr || instance_->shutting_down_) {
+    return;
+  }
+  instance_->NotifyJitActivityInternal();
+}
+
+void ProfileSaver::WakeUpSaver() {
+  jit_activity_notifications_ = 0;
+  last_time_ns_saver_woke_up_ = NanoTime();
+  period_condition_.Signal(Thread::Current());
+}
+
+void ProfileSaver::NotifyJitActivityInternal() {
+  // Unlikely to overflow but if it happens,
+  // we would have waken up the saver long before that.
+  jit_activity_notifications_++;
+  // Note that we are not as precise as we could be here but we don't want to wake the saver
+  // every time we see a hot method.
+  if (jit_activity_notifications_ > kMinimumNumberOfNotificationBeforeWake) {
+    MutexLock wait_mutex(Thread::Current(), wait_lock_);
+    if ((NanoTime() - last_time_ns_saver_woke_up_) > kMinSavePeriodNs) {
+      WakeUpSaver();
+    }
+  } else if (jit_activity_notifications_ > kMaximumNumberOfNotificationBeforeWake) {
+    // Make sure to wake up the saver if we see a spike in the number of notifications.
+    // This is a precaution to avoid "loosing" a big number of methods in case
+    // this is a spike with no jit after.
+    total_number_of_hot_spikes_++;
+    MutexLock wait_mutex(Thread::Current(), wait_lock_);
+    WakeUpSaver();
   }
 }
 
@@ -175,7 +214,7 @@ void ProfileSaver::FetchAndCacheResolvedClasses() {
       total_number_of_profile_entries_cached);
 }
 
-bool ProfileSaver::ProcessProfilingInfo() {
+bool ProfileSaver::ProcessProfilingInfo(uint16_t* new_methods) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
   SafeMap<std::string, std::set<std::string>> tracked_locations;
   {
@@ -186,6 +225,8 @@ bool ProfileSaver::ProcessProfilingInfo() {
 
   bool profile_file_saved = false;
   uint64_t total_number_of_profile_entries_cached = 0;
+  *new_methods = 0;
+
   for (const auto& it : tracked_locations) {
     if (ShuttingDown(Thread::Current())) {
       return true;
@@ -216,6 +257,7 @@ bool ProfileSaver::ProcessProfilingInfo() {
       total_number_of_skipped_writes_++;
       continue;
     }
+    *new_methods = std::max(static_cast<uint16_t>(delta_number_of_methods), *new_methods);
     uint64_t bytes_written;
     // Force the save. In case the profile data is corrupted or the the profile
     // has the wrong version this will "fix" the file to the correct format.
@@ -530,7 +572,9 @@ void ProfileSaver::DumpInfo(std::ostream& os) {
      << "ProfileSaver total_number_of_foreign_dex_marks="
      << total_number_of_foreign_dex_marks_ << '\n'
      << "ProfileSaver max_number_profile_entries_cached="
-    << max_number_of_profile_entries_cached_ << '\n';
+     << max_number_of_profile_entries_cached_ << '\n'
+     << "ProfileSaver total_number_of_hot_spikes=" << total_number_of_hot_spikes_ << '\n'
+     << "ProfileSaver total_number_of_wake_ups=" << total_number_of_wake_ups_ << '\n';
 }
 
 
@@ -544,7 +588,8 @@ void ProfileSaver::ForceProcessProfiles() {
   // but we only use this in testing when we now this won't happen.
   // Refactor the way we handle the instance so that we don't end up in this situation.
   if (saver != nullptr) {
-    saver->ProcessProfilingInfo();
+    uint16_t new_methods;
+    saver->ProcessProfilingInfo(&new_methods);
   }
 }
 
