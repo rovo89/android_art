@@ -17,6 +17,7 @@
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_default_externs.h"
+#include "entrypoints/quick/quick_default_init_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/math_entrypoints.h"
@@ -30,66 +31,11 @@ extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
                                             const mirror::Class* ref_class);
 
 void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
-  // JNI
-  jpoints->pDlsymLookup = art_jni_dlsym_lookup_stub;
-
-  // Alloc
-  ResetQuickAllocEntryPoints(qpoints);
+  DefaultInitEntryPoints(jpoints, qpoints);
 
   // Cast
   qpoints->pInstanceofNonTrivial = artIsAssignableFromCode;
   qpoints->pCheckCast = art_quick_check_cast;
-
-  // DexCache
-  qpoints->pInitializeStaticStorage = art_quick_initialize_static_storage;
-  qpoints->pInitializeTypeAndVerifyAccess = art_quick_initialize_type_and_verify_access;
-  qpoints->pInitializeType = art_quick_initialize_type;
-  qpoints->pResolveString = art_quick_resolve_string;
-
-  // Field
-  qpoints->pSet8Instance = art_quick_set8_instance;
-  qpoints->pSet8Static = art_quick_set8_static;
-  qpoints->pSet16Instance = art_quick_set16_instance;
-  qpoints->pSet16Static = art_quick_set16_static;
-  qpoints->pSet32Instance = art_quick_set32_instance;
-  qpoints->pSet32Static = art_quick_set32_static;
-  qpoints->pSet64Instance = art_quick_set64_instance;
-  qpoints->pSet64Static = art_quick_set64_static;
-  qpoints->pSetObjInstance = art_quick_set_obj_instance;
-  qpoints->pSetObjStatic = art_quick_set_obj_static;
-  qpoints->pGetBooleanInstance = art_quick_get_boolean_instance;
-  qpoints->pGetByteInstance = art_quick_get_byte_instance;
-  qpoints->pGetCharInstance = art_quick_get_char_instance;
-  qpoints->pGetShortInstance = art_quick_get_short_instance;
-  qpoints->pGet32Instance = art_quick_get32_instance;
-  qpoints->pGet64Instance = art_quick_get64_instance;
-  qpoints->pGetObjInstance = art_quick_get_obj_instance;
-  qpoints->pGetBooleanStatic = art_quick_get_boolean_static;
-  qpoints->pGetByteStatic = art_quick_get_byte_static;
-  qpoints->pGetCharStatic = art_quick_get_char_static;
-  qpoints->pGetShortStatic = art_quick_get_short_static;
-  qpoints->pGet32Static = art_quick_get32_static;
-  qpoints->pGet64Static = art_quick_get64_static;
-  qpoints->pGetObjStatic = art_quick_get_obj_static;
-
-  // Array
-  qpoints->pAputObjectWithNullAndBoundCheck = art_quick_aput_obj_with_null_and_bound_check;
-  qpoints->pAputObjectWithBoundCheck = art_quick_aput_obj_with_bound_check;
-  qpoints->pAputObject = art_quick_aput_obj;
-  qpoints->pHandleFillArrayData = art_quick_handle_fill_data;
-
-  // JNI
-  qpoints->pJniMethodStart = JniMethodStart;
-  qpoints->pJniMethodStartSynchronized = JniMethodStartSynchronized;
-  qpoints->pJniMethodEnd = JniMethodEnd;
-  qpoints->pJniMethodEndSynchronized = JniMethodEndSynchronized;
-  qpoints->pJniMethodEndWithReference = JniMethodEndWithReference;
-  qpoints->pJniMethodEndWithReferenceSynchronized = JniMethodEndWithReferenceSynchronized;
-  qpoints->pQuickGenericJniTrampoline = art_quick_generic_jni_trampoline;
-
-  // Locks
-  qpoints->pLockObject = art_quick_lock_object;
-  qpoints->pUnlockObject = art_quick_unlock_object;
 
   // Math
   // TODO null entrypoints not needed for ARM64 - generate inline.
@@ -136,35 +82,6 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pIndexOf = art_quick_indexof;
   qpoints->pStringCompareTo = art_quick_string_compareto;
   qpoints->pMemcpy = memcpy;
-
-  // Invocation
-  qpoints->pQuickImtConflictTrampoline = art_quick_imt_conflict_trampoline;
-  qpoints->pQuickResolutionTrampoline = art_quick_resolution_trampoline;
-  qpoints->pQuickToInterpreterBridge = art_quick_to_interpreter_bridge;
-  qpoints->pInvokeDirectTrampolineWithAccessCheck =
-      art_quick_invoke_direct_trampoline_with_access_check;
-  qpoints->pInvokeInterfaceTrampolineWithAccessCheck =
-      art_quick_invoke_interface_trampoline_with_access_check;
-  qpoints->pInvokeStaticTrampolineWithAccessCheck =
-      art_quick_invoke_static_trampoline_with_access_check;
-  qpoints->pInvokeSuperTrampolineWithAccessCheck =
-      art_quick_invoke_super_trampoline_with_access_check;
-  qpoints->pInvokeVirtualTrampolineWithAccessCheck =
-      art_quick_invoke_virtual_trampoline_with_access_check;
-
-  // Thread
-  qpoints->pTestSuspend = art_quick_test_suspend;
-
-  // Throws
-  qpoints->pDeliverException = art_quick_deliver_exception;
-  qpoints->pThrowArrayBounds = art_quick_throw_array_bounds;
-  qpoints->pThrowDivZero = art_quick_throw_div_zero;
-  qpoints->pThrowNoSuchMethod = art_quick_throw_no_such_method;
-  qpoints->pThrowNullPointer = art_quick_throw_null_pointer_exception;
-  qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
-
-  // Deoptimization from compiled code.
-  qpoints->pDeoptimize = art_quick_deoptimize_from_compiled_code;
 
   // Read barrier.
   qpoints->pReadBarrierJni = ReadBarrierJni;

@@ -994,6 +994,14 @@ DEFINE_FUNCTION art_quick_lock_object
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_lock_object
 
+DEFINE_FUNCTION art_quick_lock_object_no_inline
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+    movq %gs:THREAD_SELF_OFFSET, %rsi     // pass Thread::Current()
+    call SYMBOL(artLockObjectFromCode)    // artLockObjectFromCode(object, Thread*)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   // restore frame up to return address
+    RETURN_IF_EAX_ZERO
+END_FUNCTION art_quick_lock_object_no_inline
+
 DEFINE_FUNCTION art_quick_unlock_object
     testl %edi, %edi                      // null check object/edi
     jz   .Lslow_unlock
@@ -1036,6 +1044,14 @@ DEFINE_FUNCTION art_quick_unlock_object
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   // restore frame up to return address
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_unlock_object
+
+DEFINE_FUNCTION art_quick_unlock_object_no_inline
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+    movq %gs:THREAD_SELF_OFFSET, %rsi     // pass Thread::Current()
+    call SYMBOL(artUnlockObjectFromCode)  // artUnlockObjectFromCode(object, Thread*)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   // restore frame up to return address
+    RETURN_IF_EAX_ZERO
+END_FUNCTION art_quick_unlock_object_no_inline
 
 DEFINE_FUNCTION art_quick_check_cast
     PUSH rdi                          // Save args for exc

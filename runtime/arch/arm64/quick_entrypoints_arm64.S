@@ -1113,6 +1113,14 @@ ENTRY art_quick_lock_object
     RETURN_IF_W0_IS_ZERO_OR_DELIVER
 END art_quick_lock_object
 
+ENTRY art_quick_lock_object_no_inline
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case we block
+    mov    x1, xSELF                  // pass Thread::Current
+    bl     artLockObjectFromCode      // (Object* obj, Thread*)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_W0_IS_ZERO_OR_DELIVER
+END art_quick_lock_object_no_inline
+
     /*
      * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
      * x0 holds the possibly null object to lock.
@@ -1170,6 +1178,14 @@ ENTRY art_quick_unlock_object
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     RETURN_IF_W0_IS_ZERO_OR_DELIVER
 END art_quick_unlock_object
+
+ENTRY art_quick_unlock_object_no_inline
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case exception allocation triggers GC
+    mov    x1, xSELF                  // pass Thread::Current
+    bl     artUnlockObjectFromCode    // (Object* obj, Thread*)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_W0_IS_ZERO_OR_DELIVER
+END art_quick_unlock_object_no_inline
 
     /*
      * Entry from managed code that calls artIsAssignableFromCode and on failure calls
