@@ -740,7 +740,7 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
   {
     MutexLock mu(nullptr, *Locks::runtime_shutdown_lock_);
     if (runtime->IsShuttingDownLocked()) {
-      LOG(ERROR) << "Thread attaching while runtime is shutting down: " << thread_name;
+      LOG(WARNING) << "Thread attaching while runtime is shutting down: " << thread_name;
       return nullptr;
     } else {
       Runtime::Current()->StartThreadBirth();

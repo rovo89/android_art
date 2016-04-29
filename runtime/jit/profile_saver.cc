@@ -247,12 +247,17 @@ bool ProfileSaver::ProcessProfilingInfo() {
 
 void* ProfileSaver::RunProfileSaverThread(void* arg) {
   Runtime* runtime = Runtime::Current();
-  ProfileSaver* profile_saver = reinterpret_cast<ProfileSaver*>(arg);
 
-  CHECK(runtime->AttachCurrentThread("Profile Saver",
-                                     /*as_daemon*/true,
-                                     runtime->GetSystemThreadGroup(),
-                                     /*create_peer*/true));
+  bool attached = runtime->AttachCurrentThread("Profile Saver",
+                                               /*as_daemon*/true,
+                                               runtime->GetSystemThreadGroup(),
+                                               /*create_peer*/true);
+  if (!attached) {
+    CHECK(runtime->IsShuttingDown(Thread::Current()));
+    return nullptr;
+  }
+
+  ProfileSaver* profile_saver = reinterpret_cast<ProfileSaver*>(arg);
   profile_saver->Run();
 
   runtime->DetachCurrentThread();
