@@ -17,7 +17,9 @@
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_default_externs.h"
+#if !defined(__APPLE__)
 #include "entrypoints/quick/quick_default_init_entrypoints.h"
+#endif
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/math_entrypoints.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
