@@ -318,6 +318,7 @@ class JII {
     }
     JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
     delete raw_vm->GetRuntime();
+    android::ResetNativeLoader();
     return JNI_OK;
   }
 
