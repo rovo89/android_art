@@ -732,6 +732,7 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
     if (return_replacement != nullptr) {
       invoke_instruction->ReplaceWith(return_replacement);
     }
+    invoke_instruction->GetBlock()->RemoveInstruction(invoke_instruction);
   }
 
   // Run type propagation to get the guard typed.

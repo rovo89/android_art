@@ -25,6 +25,12 @@ public class Main implements Itf {
     }
   }
 
+  public static void assertEquals(int expected, int actual) {
+    if (expected != actual) {
+      throw new Error("Expected " + expected  + ", got " + actual);
+    }
+  }
+
   public static void main(String[] args) throws Exception {
     System.loadLibrary(args[0]);
     Main[] mains = new Main[3];
@@ -41,6 +47,8 @@ public class Main implements Itf {
       testInvokeVirtual(mains[1]);
       testInvokeInterface(itfs[0]);
       testInvokeInterface(itfs[1]);
+      $noinline$testInlineToSameTarget(mains[0]);
+      $noinline$testInlineToSameTarget(mains[1]);
     }
 
     ensureJittedAndPolymorphicInline();
@@ -56,6 +64,10 @@ public class Main implements Itf {
     // This will trigger a deoptimization of the compiled code.
     assertEquals(OtherSubclass.class, testInvokeVirtual(mains[2]));
     assertEquals(OtherSubclass.class, testInvokeInterface(itfs[2]));
+
+    // Run this once to make sure we execute the JITted code.
+    $noinline$testInlineToSameTarget(mains[0]);
+    assertEquals(20001, counter);
   }
 
   public Class sameInvokeVirtual() {
@@ -76,9 +88,20 @@ public class Main implements Itf {
     return m.sameInvokeVirtual();
   }
 
+  public static void $noinline$testInlineToSameTarget(Main m) {
+    if (doThrow) throw new Error("");
+    m.increment();
+  }
+
   public Object field = new Object();
 
   public static native void ensureJittedAndPolymorphicInline();
+
+  public void increment() {
+    counter++;
+  }
+  public static int counter = 0;
+  public static boolean doThrow = false;
 }
 
 class Subclass extends Main {
