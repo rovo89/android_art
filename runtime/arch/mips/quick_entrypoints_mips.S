@@ -906,6 +906,16 @@ ENTRY art_quick_lock_object
     RETURN_IF_ZERO
 END art_quick_lock_object
 
+ENTRY art_quick_lock_object_no_inline
+    beqz    $a0, .Lart_quick_throw_null_pointer_exception_gp_set
+    nop
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case we block
+    la      $t9, artLockObjectFromCode
+    jalr    $t9                           # (Object* obj, Thread*)
+    move    $a1, rSELF                    # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_lock_object_no_inline
+
     /*
      * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
      */
@@ -919,6 +929,16 @@ ENTRY art_quick_unlock_object
     move    $a1, rSELF                # pass Thread::Current
     RETURN_IF_ZERO
 END art_quick_unlock_object
+
+ENTRY art_quick_unlock_object_no_inline
+    beqz    $a0, .Lart_quick_throw_null_pointer_exception_gp_set
+    nop
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME # save callee saves in case exception allocation triggers GC
+    la      $t9, artUnlockObjectFromCode
+    jalr    $t9                       # (Object* obj, Thread*)
+    move    $a1, rSELF                # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_unlock_object_no_inline
 
     /*
      * Entry from managed code that calls artCheckCastFromCode and delivers exception on failure.

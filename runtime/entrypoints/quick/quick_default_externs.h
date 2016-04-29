@@ -77,6 +77,10 @@ extern "C" void art_quick_handle_fill_data(void*, void*);
 extern "C" void art_quick_lock_object(art::mirror::Object*);
 extern "C" void art_quick_unlock_object(art::mirror::Object*);
 
+// Lock entrypoints that do not inline any behavior (e.g., thin-locks).
+extern "C" void art_quick_lock_object_no_inline(art::mirror::Object*);
+extern "C" void art_quick_unlock_object_no_inline(art::mirror::Object*);
+
 // Math entrypoints.
 extern "C" int64_t art_quick_d2l(double);
 extern "C" int64_t art_quick_f2l(float);

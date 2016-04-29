@@ -544,6 +544,15 @@ ENTRY art_quick_lock_object
     DELIVER_PENDING_EXCEPTION
 END art_quick_lock_object
 
+ENTRY art_quick_lock_object_no_inline
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME r1, r2  @ save callee saves in case we block
+    mov    r1, r9                     @ pass Thread::Current
+    bl     artLockObjectFromCode      @ (Object* obj, Thread*)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_ZERO
+    DELIVER_PENDING_EXCEPTION
+END art_quick_lock_object_no_inline
+
     /*
      * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
      * r0 holds the possibly null object to lock.
@@ -600,6 +609,16 @@ ENTRY art_quick_unlock_object
     RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_unlock_object
+
+ENTRY art_quick_unlock_object_no_inline
+    @ save callee saves in case exception allocation triggers GC
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME r1, r2
+    mov    r1, r9                     @ pass Thread::Current
+    bl     artUnlockObjectFromCode    @ (Object* obj, Thread*)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_ZERO
+    DELIVER_PENDING_EXCEPTION
+END art_quick_unlock_object_no_inline
 
     /*
      * Entry from managed code that calls artIsAssignableFromCode and on failure calls

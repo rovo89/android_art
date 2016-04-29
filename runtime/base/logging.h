@@ -56,6 +56,7 @@ struct LogVerbosity {
   bool threads;
   bool verifier;
   bool image;
+  bool systrace_lock_logging;  // Enabled with "-verbose:sys-locks".
 };
 
 // Global log verbosity setting, initialized by InitLogging.
