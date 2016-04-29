@@ -228,8 +228,8 @@ std::string Monitor::PrettyContentionInfo(const std::string& owner_name,
   std::ostringstream oss;
   oss << "monitor contention with owner " << owner_name << " (" << owner_tid << ")";
   if (owners_method != nullptr) {
-    oss << " owner method=" << PrettyMethod(owners_method);
-    oss << " from " << owners_filename << ":" << owners_line_number;
+    oss << " at " << PrettyMethod(owners_method);
+    oss << "(" << owners_filename << ":" << owners_line_number << ")";
   }
   oss << " waiters=" << num_waiters;
   return oss.str();
@@ -284,8 +284,9 @@ void Monitor::Lock(Thread* self) {
             const char* filename;
             int32_t line_number;
             TranslateLocation(m, pc, &filename, &line_number);
-            oss << " blocking from " << (filename != nullptr ? filename : "null")
-                << ":" << line_number;
+            oss << " blocking from "
+                << PrettyMethod(m) << "(" << (filename != nullptr ? filename : "null") << ":"
+                << line_number << ")";
             ATRACE_BEGIN(oss.str().c_str());
           }
           monitor_contenders_.Wait(self);  // Still contended so wait.
@@ -318,6 +319,8 @@ void Monitor::Lock(Thread* self) {
             }
             if (sample_percent != 0 && (static_cast<uint32_t>(rand() % 100) < sample_percent)) {
               if (wait_ms > kLongWaitMs && owners_method != nullptr) {
+                uint32_t pc;
+                ArtMethod* m = self->GetCurrentMethod(&pc);
                 // TODO: We should maybe check that original_owner is still a live thread.
                 LOG(WARNING) << "Long "
                     << PrettyContentionInfo(original_owner_name,
@@ -325,7 +328,7 @@ void Monitor::Lock(Thread* self) {
                                             owners_method,
                                             owners_dex_pc,
                                             num_waiters)
-                    << " for " << PrettyDuration(MsToNs(wait_ms));
+                    << " in " << PrettyMethod(m) << " for " << PrettyDuration(MsToNs(wait_ms));
               }
               const char* owners_filename;
               int32_t owners_line_number;
