@@ -7987,6 +7987,7 @@ std::set<DexCacheResolvedClasses> ClassLinker::GetResolvedClasses(bool ignore_bo
     VLOG(class_linker) << "Collecting class profile for dex file " << location
                        << " types=" << num_types << " class_defs=" << num_class_defs;
     DexCacheResolvedClasses resolved_classes(dex_file->GetLocation(),
+                                             dex_file->GetBaseLocation(),
                                              dex_file->GetLocationChecksum());
     size_t num_resolved = 0;
     std::unordered_set<uint16_t> class_set;

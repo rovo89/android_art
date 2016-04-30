@@ -145,20 +145,25 @@ ProfileCompilationInfo* ProfileSaver::GetCachedProfiledInfo(const std::string& f
 
 void ProfileSaver::FetchAndCacheResolvedClasses() {
   ScopedTrace trace(__PRETTY_FUNCTION__);
-
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
   std::set<DexCacheResolvedClasses> resolved_classes =
       class_linker->GetResolvedClasses(/*ignore boot classes*/ true);
   MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
   uint64_t total_number_of_profile_entries_cached = 0;
+
   for (const auto& it : tracked_dex_base_locations_) {
-      std::set<DexCacheResolvedClasses> resolved_classes_for_location;
+    std::set<DexCacheResolvedClasses> resolved_classes_for_location;
     const std::string& filename = it.first;
     const std::set<std::string>& locations = it.second;
 
     for (const DexCacheResolvedClasses& classes : resolved_classes) {
-      if (locations.find(classes.GetDexLocation()) != locations.end()) {
+      if (locations.find(classes.GetBaseLocation()) != locations.end()) {
+        VLOG(profiler) << "Added classes for location " << classes.GetBaseLocation()
+                       << " (" << classes.GetDexLocation() << ")";
         resolved_classes_for_location.insert(classes);
+      } else {
+        VLOG(profiler) << "Location not found " << classes.GetBaseLocation()
+                       << " (" << classes.GetDexLocation() << ")";
       }
     }
     ProfileCompilationInfo* info = GetCachedProfiledInfo(filename);
