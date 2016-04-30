@@ -128,12 +128,17 @@ class MonitorPool {
   void ReleaseMonitorToPool(Thread* self, Monitor* monitor);
   void ReleaseMonitorsToPool(Thread* self, MonitorList::Monitors* monitors);
 
-  // Note: This is safe as we do not ever move chunks.
+  // Note: This is safe as we do not ever move chunks.  All needed entries in the monitor_chunks_
+  // data structure are read-only once we get here.  Updates happen-before this call because
+  // the lock word was stored with release semantics and we read it with acquire semantics to
+  // retrieve the id.
   Monitor* LookupMonitor(MonitorId mon_id) {
     size_t offset = MonitorIdToOffset(mon_id);
     size_t index = offset / kChunkSize;
+    size_t top_index = index / kMaxListSize;
+    size_t list_index = index % kMaxListSize;
     size_t offset_in_chunk = offset % kChunkSize;
-    uintptr_t base = *(monitor_chunks_.LoadRelaxed()+index);
+    uintptr_t base = monitor_chunks_[top_index][list_index];
     return reinterpret_cast<Monitor*>(base + offset_in_chunk);
   }
 
@@ -142,26 +147,35 @@ class MonitorPool {
     return base_addr <= mon_ptr && (mon_ptr - base_addr < kChunkSize);
   }
 
-  // Note: This is safe as we do not ever move chunks.
   MonitorId ComputeMonitorIdInPool(Monitor* mon, Thread* self) {
     MutexLock mu(self, *Locks::allocated_monitor_ids_lock_);
-    for (size_t index = 0; index < num_chunks_; ++index) {
-      uintptr_t chunk_addr = *(monitor_chunks_.LoadRelaxed() + index);
-      if (IsInChunk(chunk_addr, mon)) {
-        return OffsetToMonitorId(
-            reinterpret_cast<uintptr_t>(mon) - chunk_addr + index * kChunkSize);
+    for (size_t i = 0; i <= current_chunk_list_index_; ++i) {
+      for (size_t j = 0; j < ChunkListCapacity(i); ++j) {
+        if (j >= num_chunks_ && i == current_chunk_list_index_) {
+          break;
+        }
+        uintptr_t chunk_addr = monitor_chunks_[i][j];
+        if (IsInChunk(chunk_addr, mon)) {
+          return OffsetToMonitorId(
+              reinterpret_cast<uintptr_t>(mon) - chunk_addr
+              + i * (kMaxListSize * kChunkSize) + j * kChunkSize);
+        }
       }
     }
     LOG(FATAL) << "Did not find chunk that contains monitor.";
     return 0;
   }
 
-  static size_t MonitorIdToOffset(MonitorId id) {
+  static constexpr size_t MonitorIdToOffset(MonitorId id) {
     return id << 3;
   }
 
-  static MonitorId OffsetToMonitorId(size_t offset) {
+  static constexpr MonitorId OffsetToMonitorId(size_t offset) {
     return static_cast<MonitorId>(offset >> 3);
+  }
+
+  static constexpr size_t ChunkListCapacity(size_t index) {
+    return kInitialChunkStorage << index;
   }
 
   // TODO: There are assumptions in the code that monitor addresses are 8B aligned (>>3).
@@ -174,20 +188,47 @@ class MonitorPool {
   // Chunk size that is referenced in the id. We can collapse this to the actually used storage
   // in a chunk, i.e., kChunkCapacity * kAlignedMonitorSize, but this will mean proper divisions.
   static constexpr size_t kChunkSize = kPageSize;
-  // The number of initial chunks storable in monitor_chunks_. The number is large enough to make
-  // resizing unlikely, but small enough to not waste too much memory.
-  static constexpr size_t kInitialChunkStorage = 8U;
+  static_assert(IsPowerOfTwo(kChunkSize), "kChunkSize must be power of 2");
+  // The number of chunks of storage that can be referenced by the initial chunk list.
+  // The total number of usable monitor chunks is typically 255 times this number, so it
+  // should be large enough that we don't run out. We run out of address bits if it's > 512.
+  // Currently we set it a bit smaller, to save half a page per process.  We make it tiny in
+  // debug builds to catch growth errors. The only value we really expect to tune.
+  static constexpr size_t kInitialChunkStorage = kIsDebugBuild ? 1U : 256U;
+  static_assert(IsPowerOfTwo(kInitialChunkStorage), "kInitialChunkStorage must be power of 2");
+  // The number of lists, each containing pointers to storage chunks.
+  static constexpr size_t kMaxChunkLists = 8;  //  Dictated by 3 bit index. Don't increase above 8.
+  static_assert(IsPowerOfTwo(kMaxChunkLists), "kMaxChunkLists must be power of 2");
+  static constexpr size_t kMaxListSize = kInitialChunkStorage << (kMaxChunkLists - 1);
+  // We lose 3 bits in monitor id due to 3 bit monitor_chunks_ index, and gain it back from
+  // the 3 bit alignment constraint on monitors:
+  static_assert(kMaxListSize * kChunkSize < (1 << LockWord::kMonitorIdSize),
+      "Monitor id bits don't fit");
+  static_assert(IsPowerOfTwo(kMaxListSize), "kMaxListSize must be power of 2");
 
-  // List of memory chunks. Each chunk is kChunkSize.
-  Atomic<uintptr_t*> monitor_chunks_;
-  // Number of chunks stored.
+  // Array of pointers to lists (again arrays) of pointers to chunks containing monitors.
+  // Zeroth entry points to a list (array) of kInitialChunkStorage pointers to chunks.
+  // Each subsequent list as twice as large as the preceding one.
+  // Monitor Ids are interpreted as follows:
+  //     Top 3 bits (of 28): index into monitor_chunks_.
+  //     Next 16 bits: index into the chunk list, i.e. monitor_chunks_[i].
+  //     Last 9 bits: offset within chunk, expressed as multiple of kMonitorAlignment.
+  // If we set kInitialChunkStorage to 512, this would allow us to use roughly 128K chunks of
+  // monitors, which is 0.5GB of monitors.  With this maximum setting, the largest chunk list
+  // contains 64K entries, and we make full use of the available index space. With a
+  // kInitialChunkStorage value of 256, this is proportionately reduced to 0.25GB of monitors.
+  // Updates to monitor_chunks_ are guarded by allocated_monitor_ids_lock_ .
+  // No field in this entire data structure is ever updated once a monitor id whose lookup
+  // requires it has been made visible to another thread.  Thus readers never race with
+  // updates, in spite of the fact that they acquire no locks.
+  uintptr_t* monitor_chunks_[kMaxChunkLists];  //  uintptr_t is really a Monitor* .
+  // Highest currently used index in monitor_chunks_ . Used for newly allocated chunks.
+  size_t current_chunk_list_index_ GUARDED_BY(Locks::allocated_monitor_ids_lock_);
+  // Number of chunk pointers stored in monitor_chunks_[current_chunk_list_index_] so far.
   size_t num_chunks_ GUARDED_BY(Locks::allocated_monitor_ids_lock_);
-  // Number of chunks storable.
-  size_t capacity_ GUARDED_BY(Locks::allocated_monitor_ids_lock_);
-
-  // To avoid race issues when resizing, we keep all the previous arrays.
-  std::vector<std::unique_ptr<uintptr_t[]>> old_chunk_arrays_
-      GUARDED_BY(Locks::allocated_monitor_ids_lock_);
+  // After the initial allocation, this is always equal to
+  // ChunkListCapacity(current_chunk_list_index_).
+  size_t current_chunk_list_capacity_ GUARDED_BY(Locks::allocated_monitor_ids_lock_);
 
   typedef TrackingAllocator<uint8_t, kAllocatorTagMonitorPool> Allocator;
   Allocator allocator_;

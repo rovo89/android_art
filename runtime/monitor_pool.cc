@@ -28,7 +28,11 @@ namespace mirror {
 }  // namespace mirror
 
 MonitorPool::MonitorPool()
-    : num_chunks_(0), capacity_(0), first_free_(nullptr) {
+    : current_chunk_list_index_(0), num_chunks_(0), current_chunk_list_capacity_(0),
+    first_free_(nullptr) {
+  for (size_t i = 0; i < kMaxChunkLists; ++i) {
+    monitor_chunks_[i] = nullptr;  // Not absolutely required, but ...
+  }
   AllocateChunk();  // Get our first chunk.
 }
 
@@ -37,24 +41,19 @@ MonitorPool::MonitorPool()
 void MonitorPool::AllocateChunk() {
   DCHECK(first_free_ == nullptr);
 
-  // Do we need to resize?
-  if (num_chunks_ == capacity_) {
-    if (capacity_ == 0U) {
-      // Initialization.
-      capacity_ = kInitialChunkStorage;
-      uintptr_t* new_backing = new uintptr_t[capacity_]();
-      DCHECK(monitor_chunks_.LoadRelaxed() == nullptr);
-      monitor_chunks_.StoreRelaxed(new_backing);
-    } else {
-      size_t new_capacity = 2 * capacity_;
-      uintptr_t* new_backing = new uintptr_t[new_capacity]();
-      uintptr_t* old_backing = monitor_chunks_.LoadRelaxed();
-      memcpy(new_backing, old_backing, sizeof(uintptr_t) * capacity_);
-      monitor_chunks_.StoreRelaxed(new_backing);
-      capacity_ = new_capacity;
-      old_chunk_arrays_.push_back(std::unique_ptr<uintptr_t[]>(old_backing));
-      VLOG(monitor) << "Resizing to capacity " << capacity_;
-    }
+  // Do we need to allocate another chunk list?
+  if (num_chunks_ == current_chunk_list_capacity_) {
+    if (current_chunk_list_capacity_ != 0U) {
+      ++current_chunk_list_index_;
+      CHECK_LT(current_chunk_list_index_, kMaxChunkLists) << "Out of space for inflated monitors";
+      VLOG(monitor) << "Expanding to capacity "
+          << 2 * ChunkListCapacity(current_chunk_list_index_) - kInitialChunkStorage;
+    }  // else we're initializing
+    current_chunk_list_capacity_ = ChunkListCapacity(current_chunk_list_index_);
+    uintptr_t* new_list = new uintptr_t[current_chunk_list_capacity_]();
+    DCHECK(monitor_chunks_[current_chunk_list_index_] == nullptr);
+    monitor_chunks_[current_chunk_list_index_] = new_list;
+    num_chunks_ = 0;
   }
 
   // Allocate the chunk.
@@ -65,7 +64,7 @@ void MonitorPool::AllocateChunk() {
   CHECK_EQ(0U, reinterpret_cast<uintptr_t>(chunk) % kMonitorAlignment);
 
   // Add the chunk.
-  *(monitor_chunks_.LoadRelaxed() + num_chunks_) = reinterpret_cast<uintptr_t>(chunk);
+  monitor_chunks_[current_chunk_list_index_][num_chunks_] = reinterpret_cast<uintptr_t>(chunk);
   num_chunks_++;
 
   // Set up the free list
@@ -73,8 +72,8 @@ void MonitorPool::AllocateChunk() {
                                              (kChunkCapacity - 1) * kAlignedMonitorSize);
   last->next_free_ = nullptr;
   // Eagerly compute id.
-  last->monitor_id_ = OffsetToMonitorId((num_chunks_ - 1) * kChunkSize +
-                                        (kChunkCapacity - 1) * kAlignedMonitorSize);
+  last->monitor_id_ = OffsetToMonitorId(current_chunk_list_index_* (kMaxListSize * kChunkSize)
+      + (num_chunks_ - 1) * kChunkSize + (kChunkCapacity - 1) * kAlignedMonitorSize);
   for (size_t i = 0; i < kChunkCapacity - 1; ++i) {
     Monitor* before = reinterpret_cast<Monitor*>(reinterpret_cast<uintptr_t>(last) -
                                                  kAlignedMonitorSize);
@@ -91,21 +90,19 @@ void MonitorPool::AllocateChunk() {
 
 void MonitorPool::FreeInternal() {
   // This is on shutdown with NO_THREAD_SAFETY_ANALYSIS, can't/don't need to lock.
-  uintptr_t* backing = monitor_chunks_.LoadRelaxed();
-  DCHECK(backing != nullptr);
-  DCHECK_GT(capacity_, 0U);
-  DCHECK_GT(num_chunks_, 0U);
-
-  for (size_t i = 0; i < capacity_; ++i) {
-    if (i < num_chunks_) {
-      DCHECK_NE(backing[i], 0U);
-      allocator_.deallocate(reinterpret_cast<uint8_t*>(backing[i]), kChunkSize);
-    } else {
-      DCHECK_EQ(backing[i], 0U);
+  DCHECK_NE(current_chunk_list_capacity_, 0UL);
+  for (size_t i = 0; i <= current_chunk_list_index_; ++i) {
+    DCHECK_NE(monitor_chunks_[i], static_cast<uintptr_t*>(nullptr));
+    for (size_t j = 0; j < ChunkListCapacity(i); ++j) {
+      if (i < current_chunk_list_index_ || j < num_chunks_) {
+        DCHECK_NE(monitor_chunks_[i][j], 0U);
+        allocator_.deallocate(reinterpret_cast<uint8_t*>(monitor_chunks_[i][j]), kChunkSize);
+      } else {
+        DCHECK_EQ(monitor_chunks_[i][j], 0U);
+      }
     }
+    delete[] monitor_chunks_[i];
   }
-
-  delete[] backing;
 }
 
 Monitor* MonitorPool::CreateMonitorInPool(Thread* self, Thread* owner, mirror::Object* obj,
