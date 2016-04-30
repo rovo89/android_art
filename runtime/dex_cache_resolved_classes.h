@@ -26,8 +26,11 @@ namespace art {
 // Data structure for passing around which classes belonging to a dex cache / dex file are resolved.
 class DexCacheResolvedClasses {
  public:
-  DexCacheResolvedClasses(const std::string& dex_location, uint32_t location_checksum)
+  DexCacheResolvedClasses(const std::string& dex_location,
+                          const std::string& base_location,
+                          uint32_t location_checksum)
       : dex_location_(dex_location),
+        base_location_(base_location),
         location_checksum_(location_checksum) {}
 
   // Only compare the key elements, ignore the resolved classes.
@@ -35,6 +38,7 @@ class DexCacheResolvedClasses {
     if (location_checksum_ != other.location_checksum_) {
       return static_cast<int>(location_checksum_ - other.location_checksum_);
     }
+    // Don't need to compare base_location_ since dex_location_ has more info.
     return dex_location_.compare(other.dex_location_);
   }
 
@@ -47,6 +51,10 @@ class DexCacheResolvedClasses {
     return dex_location_;
   }
 
+  const std::string& GetBaseLocation() const {
+    return base_location_;
+  }
+
   uint32_t GetLocationChecksum() const {
     return location_checksum_;
   }
@@ -57,6 +65,7 @@ class DexCacheResolvedClasses {
 
  private:
   const std::string dex_location_;
+  const std::string base_location_;
   const uint32_t location_checksum_;
   // Array of resolved class def indexes.
   mutable std::unordered_set<uint16_t> classes_;

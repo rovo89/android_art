@@ -644,7 +644,8 @@ std::set<DexCacheResolvedClasses> ProfileCompilationInfo::GetResolvedClasses() c
   for (auto&& pair : info_) {
     const std::string& profile_key = pair.first;
     const DexFileData& data = pair.second;
-    DexCacheResolvedClasses classes(profile_key, data.checksum);
+    // TODO: Is it OK to use the same location for both base and dex location here?
+    DexCacheResolvedClasses classes(profile_key, profile_key, data.checksum);
     classes.AddClasses(data.class_set.begin(), data.class_set.end());
     ret.insert(classes);
   }
