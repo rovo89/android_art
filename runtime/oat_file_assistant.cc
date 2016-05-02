@@ -30,6 +30,7 @@
 
 #include "base/logging.h"
 #include "base/stringprintf.h"
+#include "compiler_filter.h"
 #include "class_linker.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
@@ -42,6 +43,24 @@
 #include "utils.h"
 
 namespace art {
+
+std::ostream& operator << (std::ostream& stream, const OatFileAssistant::OatStatus status) {
+  switch (status) {
+    case OatFileAssistant::kOatOutOfDate:
+      stream << "kOatOutOfDate";
+      break;
+    case OatFileAssistant::kOatUpToDate:
+      stream << "kOatUpToDate";
+      break;
+    case OatFileAssistant::kOatNeedsRelocation:
+      stream << "kOatNeedsRelocation";
+      break;
+    default:
+      UNREACHABLE();
+  }
+
+  return stream;
+}
 
 OatFileAssistant::OatFileAssistant(const char* dex_location,
                                    const InstructionSet isa,
@@ -350,6 +369,12 @@ bool OatFileAssistant::OdexFileIsUpToDate() {
   return cached_odex_file_is_up_to_date_;
 }
 
+CompilerFilter::Filter OatFileAssistant::OdexFileCompilerFilter() {
+  const OatFile* odex_file = GetOdexFile();
+  CHECK(odex_file != nullptr);
+
+  return odex_file->GetCompilerFilter();
+}
 std::string OatFileAssistant::ArtFileName(const OatFile* oat_file) const {
   const std::string oat_file_location = oat_file->GetLocation();
   // Replace extension with .art
@@ -426,6 +451,13 @@ bool OatFileAssistant::OatFileIsUpToDate() {
     }
   }
   return cached_oat_file_is_up_to_date_;
+}
+
+CompilerFilter::Filter OatFileAssistant::OatFileCompilerFilter() {
+  const OatFile* oat_file = GetOatFile();
+  CHECK(oat_file != nullptr);
+
+  return oat_file->GetCompilerFilter();
 }
 
 OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& file) {
