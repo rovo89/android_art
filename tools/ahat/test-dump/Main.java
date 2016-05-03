@@ -50,7 +50,8 @@ public class Main {
         bigArray[i] = (byte)((i*i) & 0xFF);
       }
 
-      NativeAllocationRegistry registry = new NativeAllocationRegistry(0x12345, 42);
+      NativeAllocationRegistry registry = new NativeAllocationRegistry(
+          Main.class.getClassLoader(), 0x12345, 42);
       registry.registerNativeAllocation(anObject, 0xABCDABCD);
     }
   }
