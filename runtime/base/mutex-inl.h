@@ -74,9 +74,7 @@ static inline void CheckUnattachedThread(LockLevel level) NO_THREAD_SAFETY_ANALY
           // Ignore logging which may or may not have set up thread data structures.
           level == kLoggingLock ||
           // Avoid recursive death.
-          level == kAbortLock ||
-          // A MemMap may be created for thread objects
-          level == kMemMapsLock) << level;
+          level == kAbortLock) << level;
   }
 }
 
