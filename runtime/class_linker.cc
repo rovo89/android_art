@@ -6635,6 +6635,15 @@ bool ClassLinker::LinkInterfaceMethods(
             // The method is not overridable by a default method (i.e. it is directly implemented
             // in some class). Therefore move onto the next interface method.
             continue;
+          } else {
+            // If the super-classes method is override-able by a default method we need to keep
+            // track of it since though it is override-able it is not guaranteed to be 'overridden'.
+            // If it turns out not to be overridden and we did not keep track of it we might add it
+            // to the vtable twice, causing corruption in this class and possibly any subclasses.
+            DCHECK(vtable_impl == nullptr || vtable_impl == supers_method)
+                << "vtable_impl was " << PrettyMethod(vtable_impl) << " and not 'nullptr' or "
+                << PrettyMethod(supers_method) << " as expected. IFTable appears to be corrupt!";
+            vtable_impl = supers_method;
           }
         }
         // If we haven't found it yet we should search through the interfaces for default methods.
