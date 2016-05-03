@@ -564,6 +564,13 @@ endif
 TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS :=
 TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS :=
 
+TEST_ART_BROKEN_NPIC_RUN_TESTS := 596-app-images
+ifneq (,$(filter npictest,$(PICTEST_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      ${COMPILER_TYPES},$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),npictest,$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_NPIC_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
 # Tests that should fail in the heap poisoning configuration with the Optimizing compiler.
 # 055: Exceeds run time limits due to heap poisoning instrumentation (on ARM and ARM64 devices).
 TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS := \
