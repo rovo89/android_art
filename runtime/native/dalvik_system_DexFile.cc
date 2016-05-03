@@ -16,6 +16,8 @@
 
 #include "dalvik_system_DexFile.h"
 
+#include <sstream>
+
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
@@ -27,6 +29,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
+#include "oat_file.h"
 #include "oat_file_assistant.h"
 #include "oat_file_manager.h"
 #include "os.h"
@@ -387,6 +390,61 @@ static jint GetDexOptNeeded(JNIEnv* env,
   return oat_file_assistant.GetDexOptNeeded(filter);
 }
 
+static jstring DexFile_getDexFileStatus(JNIEnv* env,
+                                        jclass,
+                                        jstring javaFilename,
+                                        jstring javaInstructionSet) {
+  ScopedUtfChars filename(env, javaFilename);
+  if (env->ExceptionCheck()) {
+    return nullptr;
+  }
+
+  ScopedUtfChars instruction_set(env, javaInstructionSet);
+  if (env->ExceptionCheck()) {
+    return nullptr;
+  }
+
+  const InstructionSet target_instruction_set = GetInstructionSetFromString(
+      instruction_set.c_str());
+  if (target_instruction_set == kNone) {
+    ScopedLocalRef<jclass> iae(env, env->FindClass("java/lang/IllegalArgumentException"));
+    std::string message(StringPrintf("Instruction set %s is invalid.", instruction_set.c_str()));
+    env->ThrowNew(iae.get(), message.c_str());
+    return nullptr;
+  }
+
+  OatFileAssistant oat_file_assistant(filename.c_str(), target_instruction_set,
+                                      false /* profile_changed */,
+                                      false /* load_executable */);
+
+  std::ostringstream status;
+  bool oat_file_exists = false;
+  bool odex_file_exists = false;
+  if (oat_file_assistant.OatFileExists()) {
+    oat_file_exists = true;
+    status << *oat_file_assistant.OatFileName() << " [compilation_filter=";
+    status << CompilerFilter::NameOfFilter(oat_file_assistant.OatFileCompilerFilter());
+    status << ", status=" << oat_file_assistant.OatFileStatus();
+  }
+
+  if (oat_file_assistant.OdexFileExists()) {
+    odex_file_exists = true;
+    if (oat_file_exists) {
+      status << "] ";
+    }
+    status << *oat_file_assistant.OdexFileName() << " [compilation_filter=";
+    status << CompilerFilter::NameOfFilter(oat_file_assistant.OdexFileCompilerFilter());
+    status << ", status=" << oat_file_assistant.OdexFileStatus();
+  }
+
+  if (!oat_file_exists && !odex_file_exists) {
+    status << "invalid[";
+  }
+
+  status << "]";
+  return env->NewStringUTF(status.str().c_str());
+}
+
 static jint DexFile_getDexOptNeeded(JNIEnv* env,
                                     jclass,
                                     jstring javaFilename,
@@ -517,6 +575,8 @@ static JNINativeMethod gMethods[] = {
                 getNonProfileGuidedCompilerFilter,
                 "(Ljava/lang/String;)Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isBackedByOatFile, "(Ljava/lang/Object;)Z"),
+  NATIVE_METHOD(DexFile, getDexFileStatus,
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;")
 };
 
 void register_dalvik_system_DexFile(JNIEnv* env) {
