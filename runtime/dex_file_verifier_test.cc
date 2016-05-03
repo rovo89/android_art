@@ -64,7 +64,7 @@ static void MakeDexVersion37(DexFile* dex_file) {
   *(const_cast<uint8_t*>(dex_file->Begin()) + offset) = '7';
 }
 
-static inline uint8_t* DecodeBase64(const char* src, size_t* dst_size) {
+static inline std::unique_ptr<uint8_t[]> DecodeBase64(const char* src, size_t* dst_size) {
   std::vector<uint8_t> tmp;
   uint32_t t = 0, y = 0;
   int g = 3;
@@ -107,7 +107,7 @@ static inline uint8_t* DecodeBase64(const char* src, size_t* dst_size) {
     *dst_size = 0;
   }
   std::copy(tmp.begin(), tmp.end(), dst.get());
-  return dst.release();
+  return dst;
 }
 
 static void FixUpChecksum(uint8_t* dex_file) {
@@ -120,25 +120,18 @@ static void FixUpChecksum(uint8_t* dex_file) {
   header->checksum_ = adler_checksum;
 }
 
-// Custom deleter. Necessary to clean up the memory we use (to be able to mutate).
-struct DexFileDeleter {
-  void operator()(DexFile* in) {
-    if (in != nullptr) {
-      delete[] in->Begin();
-      delete in;
-    }
-  }
-};
-
-using DexFileUniquePtr = std::unique_ptr<DexFile, DexFileDeleter>;
-
 class DexFileVerifierTest : public CommonRuntimeTest {
  protected:
   void VerifyModification(const char* dex_file_base64_content,
                           const char* location,
                           std::function<void(DexFile*)> f,
                           const char* expected_error) {
-    DexFileUniquePtr dex_file(WrapAsDexFile(dex_file_base64_content));
+    size_t length;
+    std::unique_ptr<uint8_t[]> dex_bytes = DecodeBase64(dex_file_base64_content, &length);
+    CHECK(dex_bytes != nullptr);
+    // Note: `dex_file` will be destroyed before `dex_bytes`.
+    std::unique_ptr<DexFile> dex_file(
+        new DexFile(dex_bytes.get(), length, "tmp", 0, nullptr, nullptr));
     f(dex_file.get());
     FixUpChecksum(const_cast<uint8_t*>(dex_file->Begin()));
 
@@ -156,15 +149,6 @@ class DexFileVerifierTest : public CommonRuntimeTest {
         EXPECT_NE(error_msg.find(expected_error), std::string::npos) << error_msg;
       }
     }
-  }
-
- private:
-  static DexFile* WrapAsDexFile(const char* dex_file_content_in_base_64) {
-    // Decode base64.
-    size_t length;
-    uint8_t* dex_bytes = DecodeBase64(dex_file_content_in_base_64, &length);
-    CHECK(dex_bytes != nullptr);
-    return new DexFile(dex_bytes, length, "tmp", 0, nullptr, nullptr);
   }
 };
 
@@ -297,7 +281,9 @@ static const char kMethodFlagsTestDex[] =
 // Find the method data for the first method with the given name (from class 0). Note: the pointer
 // is to the access flags, so that the caller doesn't have to handle the leb128-encoded method-index
 // delta.
-static const uint8_t* FindMethodData(const DexFile* dex_file, const char* name) {
+static const uint8_t* FindMethodData(const DexFile* dex_file,
+                                     const char* name,
+                                     /*out*/ uint32_t* method_idx = nullptr) {
   const DexFile::ClassDef& class_def = dex_file->GetClassDef(0);
   const uint8_t* class_data = dex_file->GetClassData(class_def);
 
@@ -323,6 +309,9 @@ static const uint8_t* FindMethodData(const DexFile* dex_file, const char* name) 
     const DexFile::StringId& string_id = dex_file->GetStringId(name_index);
     const char* str = dex_file->GetStringData(string_id);
     if (strcmp(name, str) == 0) {
+      if (method_idx != nullptr) {
+        *method_idx = method_index;
+      }
       DecodeUnsignedLeb128(&trailing);
       return trailing;
     }
@@ -691,6 +680,22 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsIgnoredOK) {
         },
         nullptr);
   }
+}
+
+TEST_F(DexFileVerifierTest, B28552165) {
+  // Regression test for bad error string retrieval in different situations.
+  // Using invalid access flags to trigger the error.
+  VerifyModification(
+      kMethodFlagsTestDex,
+      "b28552165",
+      [](DexFile* dex_file) {
+        OrMaskToMethodFlags(dex_file, "foo", kAccPublic | kAccProtected);
+        uint32_t method_idx;
+        FindMethodData(dex_file, "foo", &method_idx);
+        auto* method_id = const_cast<DexFile::MethodId*>(&dex_file->GetMethodId(method_idx));
+        method_id->name_idx_ = dex_file->NumStringIds();
+      },
+      "Method may have only one of public/protected/private, LMethodFlags;.(error)");
 }
 
 // Set of dex files for interface method tests. As it's not as easy to mutate method names, it's
