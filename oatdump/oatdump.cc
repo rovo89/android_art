@@ -59,6 +59,7 @@
 #include "stack_map.h"
 #include "ScopedLocalRef.h"
 #include "thread_list.h"
+#include "type_lookup_table.h"
 #include "verifier/method_verifier.h"
 #include "well_known_classes.h"
 
@@ -573,14 +574,31 @@ class OatDumper {
     os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
     os << StringPrintf("checksum: 0x%08x\n", oat_dex_file.GetDexFileLocationChecksum());
 
-    // Create the verifier early.
+    // Print embedded dex file data range.
+    const uint8_t* const oat_file_begin = oat_dex_file.GetOatFile()->Begin();
+    const uint8_t* const dex_file_pointer = oat_dex_file.GetDexFilePointer();
+    uint32_t dex_offset = dchecked_integral_cast<uint32_t>(dex_file_pointer - oat_file_begin);
+    os << StringPrintf("dex-file: 0x%08x..0x%08x\n",
+                       dex_offset,
+                       dchecked_integral_cast<uint32_t>(dex_offset + oat_dex_file.FileSize() - 1));
 
+    // Create the dex file early. A lot of print-out things depend on it.
     std::string error_msg;
     const DexFile* const dex_file = OpenDexFile(&oat_dex_file, &error_msg);
     if (dex_file == nullptr) {
       os << "NOT FOUND: " << error_msg << "\n\n";
       os << std::flush;
       return false;
+    }
+
+    // Print lookup table, if it exists.
+    if (oat_dex_file.GetLookupTableData() != nullptr) {
+      uint32_t table_offset = dchecked_integral_cast<uint32_t>(
+          oat_dex_file.GetLookupTableData() - oat_file_begin);
+      uint32_t table_size = TypeLookupTable::RawDataLength(*dex_file);
+      os << StringPrintf("type-table: 0x%08x..0x%08x\n",
+                         table_offset,
+                         table_offset + table_size - 1);
     }
 
     VariableIndentationOutputStream vios(&os);
