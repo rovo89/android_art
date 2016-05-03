@@ -82,3 +82,19 @@ J-virtual           A.SayHiTwice()='Hi Hi '
 J-interface   Greeter.SayHiTwice()='Hi Hi '
 J-virtual           J.SayHiTwice()='Hi Hi '
 End testing for type J
+Testing for type K
+K-interface       Foo.bar()='foobar'
+K-virtual           K.bar()='foobar'
+End testing for type K
+Testing for type L
+L-interface       Foo.bar()='foobar'
+L-virtual           K.bar()='foobar'
+L-virtual           L.bar()='foobar'
+End testing for type L
+Testing for type M
+M-interface       Foo.bar()='BAZ!'
+M-interface     Fooer.bar()='BAZ!'
+M-virtual           K.bar()='BAZ!'
+M-virtual           L.bar()='BAZ!'
+M-virtual           M.bar()='BAZ!'
+End testing for type M
