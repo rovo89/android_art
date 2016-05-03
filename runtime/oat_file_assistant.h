@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <sstream>
 #include <string>
 
 #include "arch/instruction_set.h"
@@ -214,6 +215,9 @@ class OatFileAssistant {
   bool OdexFileIsOutOfDate();
   bool OdexFileNeedsRelocation();
   bool OdexFileIsUpToDate();
+  // Must only be called if the associated odex file exists, i.e, if
+  // |OdexFileExists() == true|.
+  CompilerFilter::Filter OdexFileCompilerFilter();
 
   // When the dex files is compiled on the target device, the oat file is the
   // result. The oat file will have been relocated to some
@@ -230,6 +234,9 @@ class OatFileAssistant {
   bool OatFileIsOutOfDate();
   bool OatFileNeedsRelocation();
   bool OatFileIsUpToDate();
+  // Must only be called if the associated oat file exists, i.e, if
+  // |OatFileExists() == true|.
+  CompilerFilter::Filter OatFileCompilerFilter();
 
   // Return image file name. Does not cache since it relies on the oat file.
   std::string ArtFileName(const OatFile* oat_file) const;
@@ -437,6 +444,8 @@ class OatFileAssistant {
 
   DISALLOW_COPY_AND_ASSIGN(OatFileAssistant);
 };
+
+std::ostream& operator << (std::ostream& stream, const OatFileAssistant::OatStatus status);
 
 }  // namespace art
 
