@@ -251,6 +251,14 @@ bool DexFileVerifier::CheckValidOffsetAndSize(uint32_t offset,
   return true;
 }
 
+bool DexFileVerifier::CheckSizeLimit(uint32_t size, uint32_t limit, const char* label) {
+  if (size > limit) {
+    ErrorStringPrintf("Size(%u) should not exceed limit(%u) for %s.", size, limit, label);
+    return false;
+  }
+  return true;
+}
+
 bool DexFileVerifier::CheckHeader() {
   // Check file size from the header.
   uint32_t expected_size = header_->file_size_;
@@ -298,10 +306,12 @@ bool DexFileVerifier::CheckHeader() {
                               header_->type_ids_size_,
                               4,
                               "type-ids") &&
+      CheckSizeLimit(header_->type_ids_size_, DexFile::kDexNoIndex16, "type-ids") &&
       CheckValidOffsetAndSize(header_->proto_ids_off_,
                               header_->proto_ids_size_,
                               4,
                               "proto-ids") &&
+      CheckSizeLimit(header_->proto_ids_size_, DexFile::kDexNoIndex16, "proto-ids") &&
       CheckValidOffsetAndSize(header_->field_ids_off_,
                               header_->field_ids_size_,
                               4,
@@ -1786,13 +1796,8 @@ bool DexFileVerifier::CheckInterProtoIdItem() {
       while (curr_it.HasNext() && prev_it.HasNext()) {
         uint16_t prev_idx = prev_it.GetTypeIdx();
         uint16_t curr_idx = curr_it.GetTypeIdx();
-        if (prev_idx == DexFile::kDexNoIndex16) {
-          break;
-        }
-        if (UNLIKELY(curr_idx == DexFile::kDexNoIndex16)) {
-          ErrorStringPrintf("Out-of-order proto_id arguments");
-          return false;
-        }
+        DCHECK_NE(prev_idx, DexFile::kDexNoIndex16);
+        DCHECK_NE(curr_idx, DexFile::kDexNoIndex16);
 
         if (prev_idx < curr_idx) {
           break;
@@ -1803,6 +1808,12 @@ bool DexFileVerifier::CheckInterProtoIdItem() {
 
         prev_it.Next();
         curr_it.Next();
+      }
+      if (!curr_it.HasNext()) {
+        // Either a duplicate ProtoId or a ProtoId with a shorter argument list follows
+        // a ProtoId with a longer one. Both cases are forbidden by the specification.
+        ErrorStringPrintf("Out-of-order proto_id arguments");
+        return false;
       }
     }
   }
