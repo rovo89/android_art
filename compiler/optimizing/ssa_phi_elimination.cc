@@ -139,8 +139,9 @@ void SsaRedundantPhiElimination::Run() {
       continue;
     }
 
-    if (phi->InputCount() == 0) {
-      DCHECK(phi->IsDead());
+    // If the phi is dead, we know we won't revive it and it will be removed,
+    // so don't process it.
+    if (phi->IsDead()) {
       continue;
     }
 
