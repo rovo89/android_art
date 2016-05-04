@@ -732,19 +732,14 @@ class LSEVisitor : public HGraphVisitor {
       if (Primitive::PrimitiveKind(heap_value->GetType())
               != Primitive::PrimitiveKind(instruction->GetType())) {
         // The only situation where the same heap location has different type is when
-        // we do an array get from a null constant. In order to stay properly typed
-        // we do not merge the array gets.
+        // we do an array get on an instruction that originates from the null constant
+        // (the null could be behind a field access, an array access, a null check or
+        // a bound type).
+        // In order to stay properly typed on primitive types, we do not eliminate
+        // the array gets.
         if (kIsDebugBuild) {
           DCHECK(heap_value->IsArrayGet()) << heap_value->DebugName();
           DCHECK(instruction->IsArrayGet()) << instruction->DebugName();
-          HInstruction* array = instruction->AsArrayGet()->GetArray();
-          DCHECK(array->IsNullCheck()) << array->DebugName();
-          HInstruction* input = HuntForOriginalReference(array->InputAt(0));
-          DCHECK(input->IsNullConstant()) << input->DebugName();
-          array = heap_value->AsArrayGet()->GetArray();
-          DCHECK(array->IsNullCheck()) << array->DebugName();
-          input = HuntForOriginalReference(array->InputAt(0));
-          DCHECK(input->IsNullConstant()) << input->DebugName();
         }
         return;
       }
