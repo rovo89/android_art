@@ -238,12 +238,13 @@ static mirror::Field* GetPublicFieldRecursive(
   DCHECK(name != nullptr);
   DCHECK(self != nullptr);
 
-  StackHandleScope<1> hs(self);
+  StackHandleScope<2> hs(self);
   MutableHandle<mirror::Class> h_clazz(hs.NewHandle(clazz));
+  Handle<mirror::String> h_name(hs.NewHandle(name));
 
   // We search the current class, its direct interfaces then its superclass.
   while (h_clazz.Get() != nullptr) {
-    mirror::Field* result = GetDeclaredField(self, h_clazz.Get(), name);
+    mirror::Field* result = GetDeclaredField(self, h_clazz.Get(), h_name.Get());
     if ((result != nullptr) && (result->GetAccessFlags() & kAccPublic)) {
       return result;
     } else if (UNLIKELY(self->IsExceptionPending())) {
@@ -258,7 +259,7 @@ static mirror::Field* GetPublicFieldRecursive(
         self->AssertPendingException();
         return nullptr;
       }
-      result = GetPublicFieldRecursive(self, iface, name);
+      result = GetPublicFieldRecursive(self, iface, h_name.Get());
       if (result != nullptr) {
         DCHECK(result->GetAccessFlags() & kAccPublic);
         return result;
