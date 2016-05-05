@@ -215,7 +215,10 @@ class ProfMan FINAL {
   }
 
   void LogCompletionTime() {
-    LOG(INFO) << "profman took " << PrettyDuration(NanoTime() - start_ns_);
+    static constexpr uint64_t kLogThresholdTime = MsToNs(100);  // 100ms
+    uint64_t time_taken = NanoTime() - start_ns_;
+    if (time_taken > kLogThresholdTime)
+      LOG(WARNING) << "profman took " << PrettyDuration(NanoTime() - start_ns_);
   }
 
   std::vector<std::string> profile_files_;
