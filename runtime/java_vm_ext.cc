@@ -74,10 +74,6 @@ class SharedLibrary {
     if (self != nullptr) {
       self->GetJniEnv()->DeleteWeakGlobalRef(class_loader_);
     }
-
-    if (!needs_native_bridge_) {
-      android::CloseNativeLibrary(handle_);
-    }
   }
 
   jweak GetClassLoader() const {
@@ -275,7 +271,8 @@ class Libraries {
       REQUIRES(!Locks::jni_libraries_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     ScopedObjectAccessUnchecked soa(Thread::Current());
-    std::vector<SharedLibrary*> unload_libraries;
+    typedef void (*JNI_OnUnloadFn)(JavaVM*, void*);
+    std::vector<JNI_OnUnloadFn> unload_functions;
     {
       MutexLock mu(soa.Self(), *Locks::jni_libraries_lock_);
       for (auto it = libraries_.begin(); it != libraries_.end(); ) {
@@ -286,7 +283,15 @@ class Libraries {
         // the native libraries of the boot class loader.
         if (class_loader != nullptr &&
             soa.Self()->IsJWeakCleared(class_loader)) {
-          unload_libraries.push_back(library);
+          void* const sym = library->FindSymbol("JNI_OnUnload", nullptr);
+          if (sym == nullptr) {
+            VLOG(jni) << "[No JNI_OnUnload found in \"" << library->GetPath() << "\"]";
+          } else {
+            VLOG(jni) << "[JNI_OnUnload found for \"" << library->GetPath() << "\"]";
+            JNI_OnUnloadFn jni_on_unload = reinterpret_cast<JNI_OnUnloadFn>(sym);
+            unload_functions.push_back(jni_on_unload);
+          }
+          delete library;
           it = libraries_.erase(it);
         } else {
           ++it;
@@ -294,17 +299,9 @@ class Libraries {
       }
     }
     // Do this without holding the jni libraries lock to prevent possible deadlocks.
-    typedef void (*JNI_OnUnloadFn)(JavaVM*, void*);
-    for (auto library : unload_libraries) {
-      void* const sym = library->FindSymbol("JNI_OnUnload", nullptr);
-      if (sym == nullptr) {
-        VLOG(jni) << "[No JNI_OnUnload found in \"" << library->GetPath() << "\"]";
-      } else {
-        VLOG(jni) << "[JNI_OnUnload found for \"" << library->GetPath() << "\"]: Calling...";
-        JNI_OnUnloadFn jni_on_unload = reinterpret_cast<JNI_OnUnloadFn>(sym);
-        jni_on_unload(soa.Vm(), nullptr);
-      }
-      delete library;
+    for (JNI_OnUnloadFn fn : unload_functions) {
+      VLOG(jni) << "Calling JNI_OnUnload";
+      (*fn)(soa.Vm(), nullptr);
     }
   }
 
