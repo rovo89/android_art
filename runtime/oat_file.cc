@@ -390,7 +390,7 @@ bool OatFile::Setup(const char* abs_dex_location, const std::string* elf_filenam
       success = LGAlmond::DecryptOat(const_cast<uint8_t*>(Begin()), *file.get(), error_msg);
     }
     if (!success) {
-      return nullptr;
+      return false;
     }
   }
 
