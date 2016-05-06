@@ -725,6 +725,8 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
     blocks_.ClearAllBits();
   }
 
+  bool HasBackEdgeNotDominatedByHeader() const;
+
  private:
   // Internal recursive implementation of `Populate`.
   void PopulateRecursive(HBasicBlock* block);
