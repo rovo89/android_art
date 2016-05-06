@@ -476,11 +476,14 @@ if [ "$HOST" = "n" ]; then
       LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBRARY_DIRECTORY
     fi
 
+    PUBLIC_LIBS=libart.so:libartd.so
+
     # Create a script with the command. The command can get longer than the longest
     # allowed adb command and there is no way to get the exit status from a adb shell
     # command.
     cmdline="cd $DEX_LOCATION && \
              export ANDROID_DATA=$DEX_LOCATION && \
+             export ANDROID_ADDITIONAL_PUBLIC_LIBRARIES=$PUBLIC_LIBS && \
              export DEX_LOCATION=$DEX_LOCATION && \
              export ANDROID_ROOT=$ANDROID_ROOT && \
              $mkdir_cmdline && \

@@ -467,7 +467,7 @@ elif [ "$runtime" = "art" ]; then
         run_args="${run_args} --runtime-option -Djava.library.path=${ANDROID_HOST_OUT}/lib${suffix64}"
     else
         guess_target_arch_name
-        run_args="${run_args} --runtime-option -Djava.library.path=/data/art-test/${target_arch_name}"
+        run_args="${run_args} --runtime-option -Djava.library.path=/data/art-test/${target_arch_name}:/system/lib${suffix64}"
         run_args="${run_args} --boot /data/art-test/core${image_suffix}${pic_image_suffix}${multi_image_suffix}.art"
     fi
     if [ "$relocate" = "yes" ]; then
