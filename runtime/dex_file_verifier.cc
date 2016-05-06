@@ -2608,7 +2608,13 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
       *error_msg = StringPrintf("Constructor %" PRIu32 "(%s) is not flagged correctly wrt/ static.",
                                 method_index,
                                 GetMethodDescriptionOrError(begin_, header_, method_index).c_str());
-      return false;
+      if (header_->GetVersion() >= DexFile::kDefaultMethodsVersion) {
+        return false;
+      } else {
+        // Allow in older versions, but warn.
+        LOG(WARNING) << "This dex file is invalid and will be rejected in the future. Error is: "
+                     << *error_msg;
+      }
     }
   }
   // Check that static and private methods, as well as constructors, are in the direct methods list,
@@ -2662,7 +2668,13 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
       *error_msg = StringPrintf("Constructor %u(%s) must not be abstract or native",
                                 method_index,
                                 GetMethodDescriptionOrError(begin_, header_, method_index).c_str());
-      return false;
+      if (header_->GetVersion() >= DexFile::kDefaultMethodsVersion) {
+        return false;
+      } else {
+        // Allow in older versions, but warn.
+        LOG(WARNING) << "This dex file is invalid and will be rejected in the future. Error is: "
+                      << *error_msg;
+      }
     }
     if ((method_access_flags & kAccAbstract) != 0) {
       // Abstract methods are not allowed to have the following flags.
