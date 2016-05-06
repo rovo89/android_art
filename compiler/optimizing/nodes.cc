@@ -609,6 +609,9 @@ void HLoopInformation::Populate() {
                            graph->GetBlocks().size(),
                            /* expandable */ false,
                            kArenaAllocGraphBuilder);
+    // Stop marking blocks at the loop header.
+    visited.SetBit(header_->GetBlockId());
+
     for (HBasicBlock* back_edge : GetBackEdges()) {
       PopulateIrreducibleRecursive(back_edge, &visited);
     }
