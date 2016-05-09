@@ -23,7 +23,7 @@
 namespace art {
 
 static void MarkReachableBlocks(HGraph* graph, ArenaBitVector* visited) {
-  ArenaVector<HBasicBlock*> worklist(graph->GetArena()->Adapter());
+  ArenaVector<HBasicBlock*> worklist(graph->GetArena()->Adapter(kArenaAllocDCE));
   constexpr size_t kDefaultWorlistSize = 8;
   worklist.reserve(kDefaultWorlistSize);
   visited->SetBit(graph->GetEntryBlock()->GetBlockId());
