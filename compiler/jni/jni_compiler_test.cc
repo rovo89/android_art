@@ -98,8 +98,8 @@ class JniCompilerTest : public CommonCompilerTest {
       CompileForTest(class_loader_, direct, method_name, method_sig);
       // Start runtime.
       Thread::Current()->TransitionFromSuspendedToRunnable();
-      bool started = runtime_->Start();
       android::InitializeNativeLoader();
+      bool started = runtime_->Start();
       CHECK(started);
     }
     // JNI operations after runtime start.
