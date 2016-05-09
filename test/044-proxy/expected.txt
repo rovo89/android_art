@@ -95,3 +95,5 @@ Proxy narrowed invocation return type passed
 5.8
 JNI_OnLoad called
 callback
+Found constructor.
+Found constructors with 0 exceptions

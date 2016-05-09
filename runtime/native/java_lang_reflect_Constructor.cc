@@ -47,7 +47,8 @@ static jobjectArray Constructor_getDeclaredAnnotations(JNIEnv* env, jobject java
 
 static jobjectArray Constructor_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
-  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod)
+      ->GetInterfaceMethodIfProxy(sizeof(void*));
   mirror::ObjectArray<mirror::Class>* result_array =
       method->GetDexFile()->GetExceptionTypesForMethod(method);
   if (result_array == nullptr) {
