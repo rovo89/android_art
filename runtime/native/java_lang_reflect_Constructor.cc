@@ -34,15 +34,32 @@ static jobject Constructor_getAnnotationNative(JNIEnv* env, jobject javaMethod,
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
-  return soa.AddLocalReference<jobject>(
-      method->GetDexFile()->GetAnnotationForMethod(method, klass));
+  if (method->IsProxyMethod()) {
+    return nullptr;
+  } else {
+    Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
+    return soa.AddLocalReference<jobject>(
+        method->GetDexFile()->GetAnnotationForMethod(method, klass));
+  }
 }
 
 static jobjectArray Constructor_getDeclaredAnnotations(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  return soa.AddLocalReference<jobjectArray>(method->GetDexFile()->GetAnnotationsForMethod(method));
+  if (method->IsProxyMethod()) {
+    mirror::Class* class_class = mirror::Class::GetJavaLangClass();
+    mirror::Class* class_array_class =
+        Runtime::Current()->GetClassLinker()->FindArrayClass(soa.Self(), &class_class);
+    if (class_array_class == nullptr) {
+      return nullptr;
+    }
+    mirror::ObjectArray<mirror::Class>* empty_array =
+        mirror::ObjectArray<mirror::Class>::Alloc(soa.Self(), class_array_class, 0);
+    return soa.AddLocalReference<jobjectArray>(empty_array);
+  } else {
+    return soa.AddLocalReference<jobjectArray>(
+        method->GetDexFile()->GetAnnotationsForMethod(method));
+  }
 }
 
 static jobjectArray Constructor_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
@@ -69,7 +86,12 @@ static jobjectArray Constructor_getExceptionTypes(JNIEnv* env, jobject javaMetho
 static jobjectArray Constructor_getParameterAnnotationsNative(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  return soa.AddLocalReference<jobjectArray>(method->GetDexFile()->GetParameterAnnotations(method));
+  if (method->IsProxyMethod()) {
+    return nullptr;
+  } else {
+    return soa.AddLocalReference<jobjectArray>(
+        method->GetDexFile()->GetParameterAnnotations(method));
+  }
 }
 
 static jboolean Constructor_isAnnotationPresentNative(JNIEnv* env, jobject javaMethod,
@@ -77,6 +99,10 @@ static jboolean Constructor_isAnnotationPresentNative(JNIEnv* env, jobject javaM
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  if (method->IsProxyMethod()) {
+    // Proxies have no annotations.
+    return false;
+  }
   Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
   return method->GetDexFile()->IsMethodAnnotationPresent(method, klass);
 }
