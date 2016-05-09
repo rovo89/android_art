@@ -103,13 +103,13 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
   }
 
   if (options.Exists(RuntimeArgumentMap::JITInvokeTransitionWeight)) {
+    jit_options->invoke_transition_weight_ =
+        *options.Get(RuntimeArgumentMap::JITInvokeTransitionWeight);
     if (jit_options->invoke_transition_weight_ > jit_options->warmup_threshold_) {
       LOG(FATAL) << "Invoke transition weight is above the warmup threshold.";
     } else if (jit_options->invoke_transition_weight_  == 0) {
-      LOG(FATAL) << "Invoke transition ratio cannot be 0.";
+      LOG(FATAL) << "Invoke transition weight cannot be 0.";
     }
-    jit_options->invoke_transition_weight_ =
-        *options.Get(RuntimeArgumentMap::JITInvokeTransitionWeight);
   } else {
     jit_options->invoke_transition_weight_ = std::max(
         jit_options->warmup_threshold_ / Jit::kDefaultInvokeTransitionWeightRatio,
