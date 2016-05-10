@@ -17,6 +17,7 @@
 #include "ssa_phi_elimination.h"
 
 #include "base/arena_containers.h"
+#include "base/arena_bit_vector.h"
 #include "base/bit_vector-inl.h"
 
 namespace art {
@@ -127,8 +128,10 @@ void SsaRedundantPhiElimination::Run() {
     }
   }
 
-  ArenaSet<uint32_t> visited_phis_in_cycle(
-      graph_->GetArena()->Adapter(kArenaAllocSsaPhiElimination));
+  ArenaBitVector visited_phis_in_cycle(graph_->GetArena(),
+                                       graph_->GetCurrentInstructionId(),
+                                       /* expandable */ false,
+                                       kArenaAllocSsaPhiElimination);
   ArenaVector<HPhi*> cycle_worklist(graph_->GetArena()->Adapter(kArenaAllocSsaPhiElimination));
 
   while (!worklist_.empty()) {
@@ -147,11 +150,11 @@ void SsaRedundantPhiElimination::Run() {
     }
 
     HInstruction* candidate = nullptr;
-    visited_phis_in_cycle.clear();
+    visited_phis_in_cycle.ClearAllBits();
     cycle_worklist.clear();
 
     cycle_worklist.push_back(phi);
-    visited_phis_in_cycle.insert(phi->GetId());
+    visited_phis_in_cycle.SetBit(phi->GetId());
     bool catch_phi_in_cycle = phi->IsCatchPhi();
     bool irreducible_loop_phi_in_cycle = phi->IsIrreducibleLoopHeaderPhi();
 
@@ -183,9 +186,9 @@ void SsaRedundantPhiElimination::Run() {
           if (input == current) {
             continue;
           } else if (input->IsPhi()) {
-            if (!ContainsElement(visited_phis_in_cycle, input->GetId())) {
+            if (!visited_phis_in_cycle.IsBitSet(input->GetId())) {
               cycle_worklist.push_back(input->AsPhi());
-              visited_phis_in_cycle.insert(input->GetId());
+              visited_phis_in_cycle.SetBit(input->GetId());
               catch_phi_in_cycle |= input->AsPhi()->IsCatchPhi();
               irreducible_loop_phi_in_cycle |= input->IsIrreducibleLoopHeaderPhi();
             } else {
@@ -234,7 +237,7 @@ void SsaRedundantPhiElimination::Run() {
       // for elimination. Add phis that use this phi to the worklist.
       for (const HUseListNode<HInstruction*>& use : current->GetUses()) {
         HInstruction* user = use.GetUser();
-        if (user->IsPhi() && !ContainsElement(visited_phis_in_cycle, user->GetId())) {
+        if (user->IsPhi() && !visited_phis_in_cycle.IsBitSet(user->GetId())) {
           worklist_.push_back(user->AsPhi());
         }
       }
