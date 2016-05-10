@@ -943,6 +943,11 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, JNIEnv** p_env, void* vm_args) {
   if (!Runtime::Create(options, ignore_unrecognized)) {
     return JNI_ERR;
   }
+
+  // Initialize native loader. This step makes sure we have
+  // everything set up before we start using JNI.
+  android::InitializeNativeLoader();
+
   Runtime* runtime = Runtime::Current();
   bool started = runtime->Start();
   if (!started) {
@@ -951,10 +956,6 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, JNIEnv** p_env, void* vm_args) {
     LOG(WARNING) << "CreateJavaVM failed";
     return JNI_ERR;
   }
-
-  // Initialize native loader. This step makes sure we have
-  // everything set up before we start using JNI.
-  android::InitializeNativeLoader();
 
   *p_env = Thread::Current()->GetJniEnv();
   *p_vm = runtime->GetJavaVM();
