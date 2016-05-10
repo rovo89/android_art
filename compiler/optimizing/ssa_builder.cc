@@ -233,7 +233,7 @@ bool SsaBuilder::UpdatePrimitiveType(HPhi* phi, ArenaVector<HPhi*>* worklist) {
 }
 
 void SsaBuilder::RunPrimitiveTypePropagation() {
-  ArenaVector<HPhi*> worklist(graph_->GetArena()->Adapter());
+  ArenaVector<HPhi*> worklist(graph_->GetArena()->Adapter(kArenaAllocGraphBuilder));
 
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
@@ -319,7 +319,7 @@ bool SsaBuilder::FixAmbiguousArrayOps() {
   // uses (because they are untyped) and environment uses (if --debuggable).
   // After resolving all ambiguous ArrayGets, we will re-run primitive type
   // propagation on the Phis which need to be updated.
-  ArenaVector<HPhi*> worklist(graph_->GetArena()->Adapter());
+  ArenaVector<HPhi*> worklist(graph_->GetArena()->Adapter(kArenaAllocGraphBuilder));
 
   {
     ScopedObjectAccess soa(Thread::Current());

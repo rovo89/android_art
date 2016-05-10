@@ -56,9 +56,11 @@ void HGraph::FindBackEdges(ArenaBitVector* visited) {
   // Nodes that we're currently visiting, indexed by block id.
   ArenaBitVector visiting(arena_, blocks_.size(), false, kArenaAllocGraphBuilder);
   // Number of successors visited from a given node, indexed by block id.
-  ArenaVector<size_t> successors_visited(blocks_.size(), 0u, arena_->Adapter());
+  ArenaVector<size_t> successors_visited(blocks_.size(),
+                                         0u,
+                                         arena_->Adapter(kArenaAllocGraphBuilder));
   // Stack of nodes that we're currently visiting (same as marked in "visiting" above).
-  ArenaVector<HBasicBlock*> worklist(arena_->Adapter());
+  ArenaVector<HBasicBlock*> worklist(arena_->Adapter(kArenaAllocGraphBuilder));
   constexpr size_t kDefaultWorklistSize = 8;
   worklist.reserve(kDefaultWorklistSize);
   visited->SetBit(entry_block_->GetBlockId());
@@ -228,11 +230,13 @@ void HGraph::ComputeDominanceInformation() {
   reverse_post_order_.push_back(entry_block_);
 
   // Number of visits of a given node, indexed by block id.
-  ArenaVector<size_t> visits(blocks_.size(), 0u, arena_->Adapter());
+  ArenaVector<size_t> visits(blocks_.size(), 0u, arena_->Adapter(kArenaAllocGraphBuilder));
   // Number of successors visited from a given node, indexed by block id.
-  ArenaVector<size_t> successors_visited(blocks_.size(), 0u, arena_->Adapter());
+  ArenaVector<size_t> successors_visited(blocks_.size(),
+                                         0u,
+                                         arena_->Adapter(kArenaAllocGraphBuilder));
   // Nodes for which we need to visit successors.
-  ArenaVector<HBasicBlock*> worklist(arena_->Adapter());
+  ArenaVector<HBasicBlock*> worklist(arena_->Adapter(kArenaAllocGraphBuilder));
   constexpr size_t kDefaultWorklistSize = 8;
   worklist.reserve(kDefaultWorklistSize);
   worklist.push_back(entry_block_);

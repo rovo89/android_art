@@ -30,7 +30,7 @@ void SsaDeadPhiElimination::MarkDeadPhis() {
   // Phis are constructed live and should not be revived if previously marked
   // dead. This algorithm temporarily breaks that invariant but we DCHECK that
   // only phis which were initially live are revived.
-  ArenaSet<HPhi*> initially_live(graph_->GetArena()->Adapter());
+  ArenaSet<HPhi*> initially_live(graph_->GetArena()->Adapter(kArenaAllocSsaPhiElimination));
 
   // Add to the worklist phis referenced by non-phi instructions.
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
@@ -127,8 +127,9 @@ void SsaRedundantPhiElimination::Run() {
     }
   }
 
-  ArenaSet<uint32_t> visited_phis_in_cycle(graph_->GetArena()->Adapter());
-  ArenaVector<HPhi*> cycle_worklist(graph_->GetArena()->Adapter());
+  ArenaSet<uint32_t> visited_phis_in_cycle(
+      graph_->GetArena()->Adapter(kArenaAllocSsaPhiElimination));
+  ArenaVector<HPhi*> cycle_worklist(graph_->GetArena()->Adapter(kArenaAllocSsaPhiElimination));
 
   while (!worklist_.empty()) {
     HPhi* phi = worklist_.back();
