@@ -31,6 +31,7 @@ public class Main {
         NarrowingTest.main(null);
         FloatSelect.main(null);
         NativeProxy.main(args);
+        ConstructorProxy.main();
     }
 
     // The following code maps from the actual proxy class names (eg $Proxy2) to their test output
