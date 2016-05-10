@@ -206,6 +206,22 @@ HInstruction* HBasicBlock::GetFirstInstructionDisregardMoves() const {
   return instruction;
 }
 
+static bool UpdateDominatorOfSuccessor(HBasicBlock* block, HBasicBlock* successor) {
+  DCHECK(ContainsElement(block->GetSuccessors(), successor));
+
+  HBasicBlock* old_dominator = successor->GetDominator();
+  HBasicBlock* new_dominator =
+      (old_dominator == nullptr) ? block
+                                 : CommonDominator::ForPair(old_dominator, block);
+
+  if (old_dominator == new_dominator) {
+    return false;
+  } else {
+    successor->SetDominator(new_dominator);
+    return true;
+  }
+}
+
 void HGraph::ComputeDominanceInformation() {
   DCHECK(reverse_post_order_.empty());
   reverse_post_order_.reserve(blocks_.size());
@@ -228,15 +244,7 @@ void HGraph::ComputeDominanceInformation() {
       worklist.pop_back();
     } else {
       HBasicBlock* successor = current->GetSuccessors()[successors_visited[current_id]++];
-
-      if (successor->GetDominator() == nullptr) {
-        successor->SetDominator(current);
-      } else {
-        // The CommonDominator can work for multiple blocks as long as the
-        // domination information doesn't change. However, since we're changing
-        // that information here, we can use the finder only for pairs of blocks.
-        successor->SetDominator(CommonDominator::ForPair(successor->GetDominator(), current));
-      }
+      UpdateDominatorOfSuccessor(current, successor);
 
       // Once all the forward edges have been visited, we know the immediate
       // dominator of the block. We can then start visiting its successors.
@@ -244,6 +252,44 @@ void HGraph::ComputeDominanceInformation() {
           successor->GetPredecessors().size() - successor->NumberOfBackEdges()) {
         reverse_post_order_.push_back(successor);
         worklist.push_back(successor);
+      }
+    }
+  }
+
+  // Check if the graph has back edges not dominated by their respective headers.
+  // If so, we need to update the dominators of those headers and recursively of
+  // their successors. We do that with a fix-point iteration over all blocks.
+  // The algorithm is guaranteed to terminate because it loops only if the sum
+  // of all dominator chains has decreased in the current iteration.
+  bool must_run_fix_point = false;
+  for (HBasicBlock* block : blocks_) {
+    if (block != nullptr &&
+        block->IsLoopHeader() &&
+        block->GetLoopInformation()->HasBackEdgeNotDominatedByHeader()) {
+      must_run_fix_point = true;
+      break;
+    }
+  }
+  if (must_run_fix_point) {
+    bool update_occurred = true;
+    while (update_occurred) {
+      update_occurred = false;
+      for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
+        HBasicBlock* block = it.Current();
+        for (HBasicBlock* successor : block->GetSuccessors()) {
+          update_occurred |= UpdateDominatorOfSuccessor(block, successor);
+        }
+      }
+    }
+  }
+
+  // Make sure that there are no remaining blocks whose dominator information
+  // needs to be updated.
+  if (kIsDebugBuild) {
+    for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
+      HBasicBlock* block = it.Current();
+      for (HBasicBlock* successor : block->GetSuccessors()) {
+        DCHECK(!UpdateDominatorOfSuccessor(block, successor));
       }
     }
   }
@@ -595,14 +641,7 @@ void HLoopInformation::Populate() {
   blocks_.SetBit(header_->GetBlockId());
   header_->SetInLoop(this);
 
-  bool is_irreducible_loop = false;
-  for (HBasicBlock* back_edge : GetBackEdges()) {
-    DCHECK(back_edge->GetDominator() != nullptr);
-    if (!header_->Dominates(back_edge)) {
-      is_irreducible_loop = true;
-      break;
-    }
-  }
+  bool is_irreducible_loop = HasBackEdgeNotDominatedByHeader();
 
   if (is_irreducible_loop) {
     ArenaBitVector visited(graph->GetArena(),
@@ -668,6 +707,16 @@ size_t HLoopInformation::GetLifetimeEnd() const {
     last_position = std::max(back_edge->GetLifetimeEnd(), last_position);
   }
   return last_position;
+}
+
+bool HLoopInformation::HasBackEdgeNotDominatedByHeader() const {
+  for (HBasicBlock* back_edge : GetBackEdges()) {
+    DCHECK(back_edge->GetDominator() != nullptr);
+    if (!header_->Dominates(back_edge)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool HBasicBlock::Dominates(HBasicBlock* other) const {
