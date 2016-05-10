@@ -33,8 +33,11 @@ class Thread;
 namespace interpreter {
 
 // Called by ArtMethod::Invoke, shadow frames arguments are taken from the args array.
+// The optional stay_in_interpreter parameter (false by default) can be used by clients to
+// explicitly force interpretation in the remaining path that implements method invocation.
 extern void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method,
-                                       mirror::Object* receiver, uint32_t* args, JValue* result)
+                                       mirror::Object* receiver, uint32_t* args, JValue* result,
+                                       bool stay_in_interpreter = false)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
 // 'from_code' denotes whether the deoptimization was explicitly triggered by compiled code.

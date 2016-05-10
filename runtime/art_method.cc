@@ -253,14 +253,17 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   Runtime* runtime = Runtime::Current();
   // Call the invoke stub, passing everything as arguments.
   // If the runtime is not yet started or it is required by the debugger, then perform the
-  // Invocation by the interpreter.
+  // Invocation by the interpreter, explicitly forcing interpretation over JIT to prevent
+  // cycling around the various JIT/Interpreter methods that handle method invocation.
   if (UNLIKELY(!runtime->IsStarted() || Dbg::IsForcedInterpreterNeededForCalling(self, this))) {
     if (IsStatic()) {
-      art::interpreter::EnterInterpreterFromInvoke(self, this, nullptr, args, result);
+      art::interpreter::EnterInterpreterFromInvoke(
+          self, this, nullptr, args, result, /*stay_in_interpreter*/ true);
     } else {
       mirror::Object* receiver =
           reinterpret_cast<StackReference<mirror::Object>*>(&args[0])->AsMirrorPtr();
-      art::interpreter::EnterInterpreterFromInvoke(self, this, receiver, args + 1, result);
+      art::interpreter::EnterInterpreterFromInvoke(
+          self, this, receiver, args + 1, result, /*stay_in_interpreter*/ true);
     }
   } else {
     DCHECK_EQ(runtime->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
