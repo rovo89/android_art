@@ -264,12 +264,12 @@ JValue ExecuteGotoImpl<false, true>(Thread* self, const DexFile::CodeItem* code_
                                     ShadowFrame& shadow_frame, JValue result_register);
 #endif
 
-static JValue Execute(Thread* self, const DexFile::CodeItem* code_item, ShadowFrame& shadow_frame,
-                      JValue result_register)
-    SHARED_REQUIRES(Locks::mutator_lock_);
-
-static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
-                             ShadowFrame& shadow_frame, JValue result_register) {
+static inline JValue Execute(
+    Thread* self,
+    const DexFile::CodeItem* code_item,
+    ShadowFrame& shadow_frame,
+    JValue result_register,
+    bool stay_in_interpreter = false) SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(!shadow_frame.GetMethod()->IsAbstract());
   DCHECK(!shadow_frame.GetMethod()->IsNative());
   if (LIKELY(shadow_frame.GetDexPC() == 0)) {  // Entering the method, but not via deoptimization.
@@ -284,19 +284,21 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
                                         method, 0);
     }
 
-    jit::Jit* jit = Runtime::Current()->GetJit();
-    if (jit != nullptr) {
-      jit->MethodEntered(self, shadow_frame.GetMethod());
-      if (jit->CanInvokeCompiledCode(method)) {
-        JValue result;
+    if (!stay_in_interpreter) {
+      jit::Jit* jit = Runtime::Current()->GetJit();
+      if (jit != nullptr) {
+        jit->MethodEntered(self, shadow_frame.GetMethod());
+        if (jit->CanInvokeCompiledCode(method)) {
+          JValue result;
 
-        // Pop the shadow frame before calling into compiled code.
-        self->PopShadowFrame();
-        ArtInterpreterToCompiledCodeBridge(self, nullptr, code_item, &shadow_frame, &result);
-        // Push the shadow frame back as the caller will expect it.
-        self->PushShadowFrame(&shadow_frame);
+          // Pop the shadow frame before calling into compiled code.
+          self->PopShadowFrame();
+          ArtInterpreterToCompiledCodeBridge(self, nullptr, code_item, &shadow_frame, &result);
+          // Push the shadow frame back as the caller will expect it.
+          self->PushShadowFrame(&shadow_frame);
 
-        return result;
+          return result;
+        }
       }
     }
   }
@@ -387,7 +389,8 @@ static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
 }
 
 void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receiver,
-                                uint32_t* args, JValue* result) {
+                                uint32_t* args, JValue* result,
+                                bool stay_in_interpreter) {
   DCHECK_EQ(self, Thread::Current());
   bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
@@ -462,7 +465,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     }
   }
   if (LIKELY(!method->IsNative())) {
-    JValue r = Execute(self, code_item, *shadow_frame, JValue());
+    JValue r = Execute(self, code_item, *shadow_frame, JValue(), stay_in_interpreter);
     if (result != nullptr) {
       *result = r;
     }
