@@ -309,17 +309,8 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
     }
 
     if (block->IsLoopHeader()) {
-      if (kIsDebugBuild && block->GetLoopInformation()->IsIrreducible()) {
-        // To satisfy our liveness algorithm, we need to ensure loop headers of
-        // irreducible loops do not have any live-in instructions, except constants
-        // and the current method, which can be trivially re-materialized.
-        for (uint32_t idx : live_in->Indexes()) {
-          HInstruction* instruction = GetInstructionFromSsaIndex(idx);
-          DCHECK(instruction->GetBlock()->IsEntryBlock()) << instruction->DebugName();
-          DCHECK(!instruction->IsParameterValue());
-          DCHECK(instruction->IsCurrentMethod() || instruction->IsConstant())
-              << instruction->DebugName();
-        }
+      if (kIsDebugBuild) {
+        CheckNoLiveInIrreducibleLoop(*block);
       }
       size_t last_position = block->GetLoopInformation()->GetLifetimeEnd();
       // For all live_in instructions at the loop header, we need to create a range
@@ -344,6 +335,9 @@ void SsaLivenessAnalysis::ComputeLiveInAndLiveOutSets() {
       // change in this loop), and the live_out set.  If the live_out
       // set does not change, there is no need to update the live_in set.
       if (UpdateLiveOut(block) && UpdateLiveIn(block)) {
+        if (kIsDebugBuild) {
+          CheckNoLiveInIrreducibleLoop(block);
+        }
         changed = true;
       }
     }

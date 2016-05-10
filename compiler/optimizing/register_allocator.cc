@@ -1773,7 +1773,9 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
     // therefore will not have a location for that instruction for `to`.
     // Because the instruction is a constant or the ArtMethod, we don't need to
     // do anything: it will be materialized in the irreducible loop.
-    DCHECK(IsMaterializableEntryBlockInstructionOfGraphWithIrreducibleLoop(defined_by));
+    DCHECK(IsMaterializableEntryBlockInstructionOfGraphWithIrreducibleLoop(defined_by))
+        << defined_by->DebugName() << ":" << defined_by->GetId()
+        << " " << from->GetBlockId() << " -> " << to->GetBlockId();
     return;
   }
 

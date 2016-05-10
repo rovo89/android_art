@@ -650,6 +650,7 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
       : header_(header),
         suspend_check_(nullptr),
         irreducible_(false),
+        contains_irreducible_loop_(false),
         back_edges_(graph->GetArena()->Adapter(kArenaAllocLoopInfoBackEdges)),
         // Make bit vector growable, as the number of blocks may change.
         blocks_(graph->GetArena(), graph->GetBlocks().size(), true, kArenaAllocLoopInfoBackEdges) {
@@ -657,6 +658,7 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
   }
 
   bool IsIrreducible() const { return irreducible_; }
+  bool ContainsIrreducibleLoop() const { return contains_irreducible_loop_; }
 
   void Dump(std::ostream& os);
 
@@ -727,6 +729,10 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
 
   bool HasBackEdgeNotDominatedByHeader() const;
 
+  bool IsPopulated() const {
+    return blocks_.GetHighestBitSet() != -1;
+  }
+
  private:
   // Internal recursive implementation of `Populate`.
   void PopulateRecursive(HBasicBlock* block);
@@ -735,6 +741,7 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
   HBasicBlock* header_;
   HSuspendCheck* suspend_check_;
   bool irreducible_;
+  bool contains_irreducible_loop_;
   ArenaVector<HBasicBlock*> back_edges_;
   ArenaBitVector blocks_;
 
