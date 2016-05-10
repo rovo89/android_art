@@ -2358,7 +2358,8 @@ static bool CheckAtMostOneOfPublicProtectedPrivate(uint32_t flags) {
 static std::string GetStringOrError(const uint8_t* const begin,
                                     const DexFile::Header* const header,
                                     uint32_t string_idx) {
-  if (header->string_ids_size_ < string_idx) {
+  // The `string_idx` is not guaranteed to be valid yet.
+  if (header->string_ids_size_ <= string_idx) {
     return "(error)";
   }
 
@@ -2375,9 +2376,11 @@ static std::string GetStringOrError(const uint8_t* const begin,
 static std::string GetClassOrError(const uint8_t* const begin,
                                    const DexFile::Header* const header,
                                    uint32_t class_idx) {
-  if (header->type_ids_size_ < class_idx) {
-    return "(error)";
-  }
+  // The `class_idx` is either `FieldId::class_idx_` or `MethodId::class_idx_` and
+  // it has already been checked in `DexFileVerifier::CheckClassDataItemField()`
+  // or `DexFileVerifier::CheckClassDataItemMethod()`, respectively, to match
+  // a valid defining class.
+  CHECK_LT(class_idx, header->type_ids_size_);
 
   const DexFile::TypeId* type_id =
       reinterpret_cast<const DexFile::TypeId*>(begin + header->type_ids_off_) + class_idx;
@@ -2390,9 +2393,8 @@ static std::string GetClassOrError(const uint8_t* const begin,
 static std::string GetFieldDescriptionOrError(const uint8_t* const begin,
                                               const DexFile::Header* const header,
                                               uint32_t idx) {
-  if (header->field_ids_size_ < idx) {
-    return "(error)";
-  }
+  // The `idx` has already been checked in `DexFileVerifier::CheckClassDataItemField()`.
+  CHECK_LT(idx, header->field_ids_size_);
 
   const DexFile::FieldId* field_id =
       reinterpret_cast<const DexFile::FieldId*>(begin + header->field_ids_off_) + idx;
@@ -2408,9 +2410,8 @@ static std::string GetFieldDescriptionOrError(const uint8_t* const begin,
 static std::string GetMethodDescriptionOrError(const uint8_t* const begin,
                                                const DexFile::Header* const header,
                                                uint32_t idx) {
-  if (header->method_ids_size_ < idx) {
-    return "(error)";
-  }
+  // The `idx` has already been checked in `DexFileVerifier::CheckClassDataItemMethod()`.
+  CHECK_LT(idx, header->method_ids_size_);
 
   const DexFile::MethodId* method_id =
       reinterpret_cast<const DexFile::MethodId*>(begin + header->method_ids_off_) + idx;
