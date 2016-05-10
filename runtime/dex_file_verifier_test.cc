@@ -1444,4 +1444,81 @@ TEST_F(DexFileVerifierTest, SectionAlignment) {
   }
 }
 
+// Generated from
+//
+// .class LOverloading;
+//
+// .super Ljava/lang/Object;
+//
+// .method public static foo()V
+// .registers 1
+//     return-void
+// .end method
+//
+// .method public static foo(I)V
+// .registers 1
+//     return-void
+// .end method
+static const char kProtoOrderingTestDex[] =
+    "ZGV4CjAzNQA1L+ABE6voQ9Lr4Ci//efB53oGnDr5PinsAQAAcAAAAHhWNBIAAAAAAAAAAFgBAAAG"
+    "AAAAcAAAAAQAAACIAAAAAgAAAJgAAAAAAAAAAAAAAAIAAACwAAAAAQAAAMAAAAAMAQAA4AAAAOAA"
+    "AADjAAAA8gAAAAYBAAAJAQAADQEAAAAAAAABAAAAAgAAAAMAAAADAAAAAwAAAAAAAAAEAAAAAwAA"
+    "ABQBAAABAAAABQAAAAEAAQAFAAAAAQAAAAAAAAACAAAAAAAAAP////8AAAAASgEAAAAAAAABSQAN"
+    "TE92ZXJsb2FkaW5nOwASTGphdmEvbGFuZy9PYmplY3Q7AAFWAAJWSQADZm9vAAAAAQAAAAAAAAAA"
+    "AAAAAAAAAAEAAAAAAAAAAAAAAAEAAAAOAAAAAQABAAAAAAAAAAAAAQAAAA4AAAACAAAJpAIBCbgC"
+    "AAAMAAAAAAAAAAEAAAAAAAAAAQAAAAYAAABwAAAAAgAAAAQAAACIAAAAAwAAAAIAAACYAAAABQAA"
+    "AAIAAACwAAAABgAAAAEAAADAAAAAAiAAAAYAAADgAAAAARAAAAEAAAAUAQAAAxAAAAIAAAAcAQAA"
+    "ASAAAAIAAAAkAQAAACAAAAEAAABKAQAAABAAAAEAAABYAQAA";
+
+TEST_F(DexFileVerifierTest, ProtoOrdering) {
+  {
+    // The input dex file should be good before modification.
+    ScratchFile tmp;
+    std::string error_msg;
+    std::unique_ptr<const DexFile> raw(OpenDexFileBase64(kProtoOrderingTestDex,
+                                                         tmp.GetFilename().c_str(),
+                                                         &error_msg));
+    ASSERT_TRUE(raw.get() != nullptr) << error_msg;
+  }
+
+  // Modify the order of the ProtoIds for two overloads of "foo" with the
+  // same return type and one having longer parameter list than the other.
+  for (size_t i = 0; i != 2; ++i) {
+    VerifyModification(
+        kProtoOrderingTestDex,
+        "proto_ordering",
+        [i](DexFile* dex_file) {
+          uint32_t method_idx;
+          const uint8_t* data = FindMethodData(dex_file, "foo", &method_idx);
+          CHECK(data != nullptr);
+          // There should be 2 methods called "foo".
+          CHECK_LT(method_idx + 1u, dex_file->NumMethodIds());
+          CHECK_EQ(dex_file->GetMethodId(method_idx).name_idx_,
+                   dex_file->GetMethodId(method_idx + 1).name_idx_);
+          CHECK_EQ(dex_file->GetMethodId(method_idx).proto_idx_ + 1u,
+                   dex_file->GetMethodId(method_idx + 1).proto_idx_);
+          // Their return types should be the same.
+          uint32_t proto1_idx = dex_file->GetMethodId(method_idx).proto_idx_;
+          const DexFile::ProtoId& proto1 = dex_file->GetProtoId(proto1_idx);
+          const DexFile::ProtoId& proto2 = dex_file->GetProtoId(proto1_idx + 1u);
+          CHECK_EQ(proto1.return_type_idx_, proto2.return_type_idx_);
+          // And the first should not have any parameters while the second should have some.
+          CHECK(!DexFileParameterIterator(*dex_file, proto1).HasNext());
+          CHECK(DexFileParameterIterator(*dex_file, proto2).HasNext());
+          if (i == 0) {
+            // Swap the proto parameters and shorties to break the ordering.
+            std::swap(const_cast<uint32_t&>(proto1.parameters_off_),
+                      const_cast<uint32_t&>(proto2.parameters_off_));
+            std::swap(const_cast<uint32_t&>(proto1.shorty_idx_),
+                      const_cast<uint32_t&>(proto2.shorty_idx_));
+          } else {
+            // Copy the proto parameters and shorty to create duplicate proto id.
+            const_cast<uint32_t&>(proto1.parameters_off_) = proto2.parameters_off_;
+            const_cast<uint32_t&>(proto1.shorty_idx_) = proto2.shorty_idx_;
+          }
+        },
+        "Out-of-order proto_id arguments");
+  }
+}
+
 }  // namespace art
