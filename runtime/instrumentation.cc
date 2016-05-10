@@ -687,8 +687,7 @@ void Instrumentation::ResetQuickAllocEntryPoints() {
   }
 }
 
-void Instrumentation::UpdateMethodsCode(ArtMethod* method, const void* quick_code) {
-  DCHECK(method->GetDeclaringClass()->IsResolved());
+void Instrumentation::UpdateMethodsCodeImpl(ArtMethod* method, const void* quick_code) {
   const void* new_quick_code;
   if (LIKELY(!instrumentation_stubs_installed_)) {
     new_quick_code = quick_code;
@@ -708,6 +707,18 @@ void Instrumentation::UpdateMethodsCode(ArtMethod* method, const void* quick_cod
     }
   }
   UpdateEntrypoints(method, new_quick_code);
+}
+
+void Instrumentation::UpdateMethodsCode(ArtMethod* method, const void* quick_code) {
+  DCHECK(method->GetDeclaringClass()->IsResolved());
+  UpdateMethodsCodeImpl(method, quick_code);
+}
+
+void Instrumentation::UpdateMethodsCodeFromDebugger(ArtMethod* method, const void* quick_code) {
+  // When debugger attaches, we may update the entry points of all methods of a class
+  // to the interpreter bridge. A method's declaring class might not be in resolved
+  // state yet in that case.
+  UpdateMethodsCodeImpl(method, quick_code);
 }
 
 bool Instrumentation::AddDeoptimizedMethod(ArtMethod* method) {
