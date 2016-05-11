@@ -119,6 +119,8 @@ static constexpr uint32_t kAllocSpaceBeginForDeterministicAoT = 0x40000000;
 // Dump the rosalloc stats on SIGQUIT.
 static constexpr bool kDumpRosAllocStatsOnSigQuit = false;
 
+static constexpr size_t kNativeAllocationHistogramBuckets = 16;
+
 static inline bool CareAboutPauseTimes() {
   return Runtime::Current()->InJankPerceptibleProcessState();
 }
@@ -186,6 +188,11 @@ Heap::Heap(size_t initial_size,
       total_objects_freed_ever_(0),
       num_bytes_allocated_(0),
       native_bytes_allocated_(0),
+      native_histogram_lock_("Native allocation lock"),
+      native_allocation_histogram_("Native allocation sizes",
+                                   1U,
+                                   kNativeAllocationHistogramBuckets),
+      native_free_histogram_("Native free sizes", 1U, kNativeAllocationHistogramBuckets),
       num_bytes_freed_revoke_(0),
       verify_missing_card_marks_(false),
       verify_system_weaks_(false),
@@ -1183,6 +1190,20 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
 
   if (kDumpRosAllocStatsOnSigQuit && rosalloc_space_ != nullptr) {
     rosalloc_space_->DumpStats(os);
+  }
+
+  {
+    MutexLock mu(Thread::Current(), native_histogram_lock_);
+    if (native_allocation_histogram_.SampleSize() > 0u) {
+      os << "Histogram of native allocation ";
+      native_allocation_histogram_.DumpBins(os);
+      os << " bucket size " << native_allocation_histogram_.BucketWidth() << "\n";
+    }
+    if (native_free_histogram_.SampleSize() > 0u) {
+      os << "Histogram of native free ";
+      native_free_histogram_.DumpBins(os);
+      os << " bucket size " << native_free_histogram_.BucketWidth() << "\n";
+    }
   }
 
   BaseMutex::DumpAll(os);
@@ -3848,6 +3869,10 @@ void Heap::RunFinalization(JNIEnv* env, uint64_t timeout) {
 
 void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
   Thread* self = ThreadForEnv(env);
+  {
+    MutexLock mu(self, native_histogram_lock_);
+    native_allocation_histogram_.AddValue(bytes);
+  }
   if (native_need_to_run_finalization_) {
     RunFinalization(env, kNativeAllocationFinalizeTimeout);
     UpdateMaxNativeFootprint();
@@ -3892,6 +3917,10 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
 
 void Heap::RegisterNativeFree(JNIEnv* env, size_t bytes) {
   size_t expected_size;
+  {
+    MutexLock mu(Thread::Current(), native_histogram_lock_);
+    native_free_histogram_.AddValue(bytes);
+  }
   do {
     expected_size = native_bytes_allocated_.LoadRelaxed();
     if (UNLIKELY(bytes > expected_size)) {

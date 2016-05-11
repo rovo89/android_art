@@ -85,6 +85,10 @@ template <class Value> class Histogram {
     return max_value_added_;
   }
 
+  Value BucketWidth() const {
+    return bucket_width_;
+  }
+
   const std::string& Name() const {
     return name_;
   }
