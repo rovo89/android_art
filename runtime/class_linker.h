@@ -1024,7 +1024,7 @@ class ClassLinker {
 
   // Returns null if not found.
   ClassTable* ClassTableForClassLoader(mirror::ClassLoader* class_loader)
-      SHARED_REQUIRES(Locks::mutator_lock_, Locks::classlinker_classes_lock_);
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Insert a new class table if not found.
   ClassTable* InsertClassTableForClassLoader(mirror::ClassLoader* class_loader)
