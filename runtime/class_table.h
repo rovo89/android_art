@@ -153,6 +153,10 @@ class ClassTable {
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  ReaderWriterMutex& GetLock() {
+    return lock_;
+  }
+
  private:
   // Lock to guard inserting and removing.
   mutable ReaderWriterMutex lock_;
