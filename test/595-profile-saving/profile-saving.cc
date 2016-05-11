@@ -16,6 +16,7 @@
 
 #include "dex_file.h"
 
+#include "art_method-inl.h"
 #include "jit/offline_profiling_info.h"
 #include "jit/profile_saver.h"
 #include "jni.h"
