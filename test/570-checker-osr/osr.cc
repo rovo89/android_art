@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "art_method.h"
+#include "art_method-inl.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "jit/profiling_info.h"

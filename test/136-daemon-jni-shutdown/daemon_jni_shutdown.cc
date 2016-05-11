@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <dlfcn.h>
 #include <iostream>
 
 #include "base/casts.h"
@@ -45,6 +46,10 @@ extern "C" JNIEXPORT void JNICALL Java_Main_destroyJavaVMAndExit(JNIEnv* env, jc
   self->SetTopOfShadowStack(nullptr);
   JavaVM* vm = down_cast<JNIEnvExt*>(env)->vm;
   vm->DetachCurrentThread();
+  // Open ourself again to make sure the native library does not get unloaded from
+  // underneath us due to DestroyJavaVM. b/28406866
+  void* handle = dlopen(kIsDebugBuild ? "libarttestd.so" : "libarttest.so", RTLD_NOW);
+  CHECK(handle != nullptr);
   vm->DestroyJavaVM();
   vm_was_shutdown.store(true);
   // Give threads some time to get stuck in ExceptionCheck.

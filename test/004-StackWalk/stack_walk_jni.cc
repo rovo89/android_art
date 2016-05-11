@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "art_method-inl.h"
 #include "check_reference_map_visitor.h"
 #include "jni.h"
 
