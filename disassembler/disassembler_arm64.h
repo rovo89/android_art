@@ -30,8 +30,11 @@ namespace arm64 {
 
 class CustomDisassembler FINAL : public vixl::Disassembler {
  public:
-  explicit CustomDisassembler(DisassemblerOptions* options) :
-      vixl::Disassembler(), read_literals_(options->can_read_literals_) {
+  explicit CustomDisassembler(DisassemblerOptions* options)
+      : vixl::Disassembler(),
+        read_literals_(options->can_read_literals_),
+        base_address_(options->base_address_),
+        end_address_(options->end_address_) {
     if (!options->absolute_addresses_) {
       MapCodeAddress(0, reinterpret_cast<const vixl::Instruction*>(options->base_address_));
     }
@@ -55,6 +58,10 @@ class CustomDisassembler FINAL : public vixl::Disassembler {
   //           true | 0x72681558: 1c000acb  ldr s11, pc+344 (addr 0x726816b0)
   //          false | 0x72681558: 1c000acb  ldr s11, pc+344 (addr 0x726816b0) (3.40282e+38)
   const bool read_literals_;
+
+  // Valid address range: [base_address_, end_address_)
+  const void* const base_address_;
+  const void* const end_address_;
 };
 
 class DisassemblerArm64 FINAL : public Disassembler {

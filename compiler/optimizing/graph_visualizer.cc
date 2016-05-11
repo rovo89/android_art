@@ -98,7 +98,9 @@ typedef Disassembler* create_disasm_prototype(InstructionSet instruction_set,
                                               DisassemblerOptions* options);
 class HGraphVisualizerDisassembler {
  public:
-  HGraphVisualizerDisassembler(InstructionSet instruction_set, const uint8_t* base_address)
+  HGraphVisualizerDisassembler(InstructionSet instruction_set,
+                               const uint8_t* base_address,
+                               const uint8_t* end_address)
       : instruction_set_(instruction_set), disassembler_(nullptr) {
     libart_disassembler_handle_ =
         dlopen(kIsDebugBuild ? "libartd-disassembler.so" : "libart-disassembler.so", RTLD_NOW);
@@ -119,6 +121,7 @@ class HGraphVisualizerDisassembler {
             instruction_set,
             new DisassemblerOptions(/* absolute_addresses */ false,
                                     base_address,
+                                    end_address,
                                     /* can_read_literals */ true)));
   }
 
@@ -174,7 +177,9 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         disassembler_(disasm_info_ != nullptr
                       ? new HGraphVisualizerDisassembler(
                             codegen_.GetInstructionSet(),
-                            codegen_.GetAssembler().CodeBufferBaseAddress())
+                            codegen_.GetAssembler().CodeBufferBaseAddress(),
+                            codegen_.GetAssembler().CodeBufferBaseAddress()
+                                + codegen_.GetAssembler().CodeSize())
                       : nullptr),
         indent_(0) {}
 
