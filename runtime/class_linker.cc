@@ -6968,6 +6968,7 @@ bool ClassLinker::LinkInterfaceMethods(
     }
     // Put some random garbage in old methods to help find stale pointers.
     if (methods != old_methods && old_methods != nullptr) {
+      WriterMutexLock mu(self, ClassTableForClassLoader(klass->GetClassLoader())->GetLock());
       memset(old_methods, 0xFEu, old_size);
     }
   } else {
