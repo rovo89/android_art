@@ -241,9 +241,9 @@ class Heap {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void RegisterNativeAllocation(JNIEnv* env, size_t bytes)
-      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_);
+      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !native_histogram_lock_);
   void RegisterNativeFree(JNIEnv* env, size_t bytes)
-      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_);
+      REQUIRES(!*gc_complete_lock_, !*pending_task_lock_, !native_histogram_lock_);
 
   // Change the allocator, updates entrypoints.
   void ChangeAllocator(AllocatorType allocator)
@@ -532,7 +532,7 @@ class Heap {
   space::Space* FindSpaceFromObject(const mirror::Object*, bool fail_ok) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void DumpForSigQuit(std::ostream& os) REQUIRES(!*gc_complete_lock_);
+  void DumpForSigQuit(std::ostream& os) REQUIRES(!*gc_complete_lock_, !native_histogram_lock_);
 
   // Do a pending collector transition.
   void DoPendingCollectorTransition() REQUIRES(!*gc_complete_lock_);
@@ -654,7 +654,8 @@ class Heap {
   std::string SafePrettyTypeOf(mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;
 
   // GC performance measuring
-  void DumpGcPerformanceInfo(std::ostream& os) REQUIRES(!*gc_complete_lock_);
+  void DumpGcPerformanceInfo(std::ostream& os)
+      REQUIRES(!*gc_complete_lock_, !native_histogram_lock_);
   void ResetGcPerformanceInfo() REQUIRES(!*gc_complete_lock_);
 
   // Thread pool.
@@ -1155,6 +1156,11 @@ class Heap {
 
   // Bytes which are allocated and managed by native code but still need to be accounted for.
   Atomic<size_t> native_bytes_allocated_;
+
+  // Native allocation stats.
+  Mutex native_histogram_lock_;
+  Histogram<uint64_t> native_allocation_histogram_;
+  Histogram<uint64_t> native_free_histogram_;
 
   // Number of bytes freed by thread local buffer revokes. This will
   // cancel out the ahead-of-time bulk counting of bytes allocated in
