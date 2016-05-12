@@ -446,8 +446,10 @@ void HGraph::SimplifyCFG() {
 }
 
 GraphAnalysisResult HGraph::AnalyzeLoops() const {
-  // Order does not matter.
-  for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
+  // We iterate post order to ensure we visit inner loops before outer loops.
+  // `PopulateRecursive` needs this guarantee to know whether a natural loop
+  // contains an irreducible loop.
+  for (HPostOrderIterator it(*this); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     if (block->IsLoopHeader()) {
       if (block->IsCatchBlock()) {
@@ -580,6 +582,14 @@ void HLoopInformation::PopulateRecursive(HBasicBlock* block) {
 
   blocks_.SetBit(block->GetBlockId());
   block->SetInLoop(this);
+  if (block->IsLoopHeader()) {
+    // We're visiting loops in post-order, so inner loops must have been
+    // populated already.
+    DCHECK(block->GetLoopInformation()->IsPopulated());
+    if (block->GetLoopInformation()->IsIrreducible()) {
+      contains_irreducible_loop_ = true;
+    }
+  }
   for (HBasicBlock* predecessor : block->GetPredecessors()) {
     PopulateRecursive(predecessor);
   }
@@ -683,6 +693,7 @@ void HLoopInformation::Populate() {
   }
   if (is_irreducible_loop) {
     irreducible_ = true;
+    contains_irreducible_loop_ = true;
     graph->SetHasIrreducibleLoops(true);
   }
 }

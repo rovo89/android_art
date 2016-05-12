@@ -1260,6 +1260,23 @@ class SsaLivenessAnalysis : public ValueObject {
     return instruction->GetType() == Primitive::kPrimNot;
   }
 
+  void CheckNoLiveInIrreducibleLoop(const HBasicBlock& block) const {
+    if (!block.IsLoopHeader() || !block.GetLoopInformation()->IsIrreducible()) {
+      return;
+    }
+    BitVector* live_in = GetLiveInSet(block);
+    // To satisfy our liveness algorithm, we need to ensure loop headers of
+    // irreducible loops do not have any live-in instructions, except constants
+    // and the current method, which can be trivially re-materialized.
+    for (uint32_t idx : live_in->Indexes()) {
+      HInstruction* instruction = GetInstructionFromSsaIndex(idx);
+      DCHECK(instruction->GetBlock()->IsEntryBlock()) << instruction->DebugName();
+      DCHECK(!instruction->IsParameterValue());
+      DCHECK(instruction->IsCurrentMethod() || instruction->IsConstant())
+          << instruction->DebugName();
+    }
+  }
+
   HGraph* const graph_;
   CodeGenerator* const codegen_;
   ArenaVector<BlockInfo*> block_infos_;

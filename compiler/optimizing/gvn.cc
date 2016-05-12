@@ -454,11 +454,16 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
 
     if (!set->IsEmpty()) {
       if (block->IsLoopHeader()) {
-        if (block->GetLoopInformation()->IsIrreducible()) {
+        if (block->GetLoopInformation()->ContainsIrreducibleLoop()) {
           // To satisfy our linear scan algorithm, no instruction should flow in an irreducible
-          // loop header.
+          // loop header. We clear the set at entry of irreducible loops and any loop containing
+          // an irreducible loop, as in both cases, GVN can extend the liveness of an instruction
+          // across the irreducible loop.
+          // Note that, if we're not compiling OSR, we could still do GVN and introduce
+          // phis at irreducible loop headers. We decided it was not worth the complexity.
           set->Clear();
         } else {
+          DCHECK(!block->GetLoopInformation()->IsIrreducible());
           DCHECK_EQ(block->GetDominator(), block->GetLoopInformation()->GetPreHeader());
           set->Kill(side_effects_.GetLoopEffects(block));
         }
