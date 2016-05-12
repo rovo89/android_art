@@ -490,17 +490,20 @@ bool ProfileSaver::MaybeRecordDexUseInternal(
   // frameworks/base/services/core/java/com/android/server/pm/PackageDexOptimizer.java)
   std::replace(dex_location_real_path_str.begin(), dex_location_real_path_str.end(), '/', '@');
   std::string flag_path = foreign_dex_profile_path + "/" + dex_location_real_path_str;
-  // No need to give any sort of access to flag_path. The system has enough permissions
-  // to test for its existence.
-  int fd = TEMP_FAILURE_RETRY(open(flag_path.c_str(), O_CREAT | O_EXCL, 0));
+  // We use O_RDONLY as the access mode because we must supply some access
+  // mode, and there is no access mode that means 'create but do not read' the
+  // file. We will not not actually read from the file.
+  int fd = TEMP_FAILURE_RETRY(open(flag_path.c_str(),
+        O_CREAT | O_RDONLY | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0));
   if (fd != -1) {
     if (close(fd) != 0) {
       PLOG(WARNING) << "Could not close file after flagging foreign dex use " << flag_path;
     }
     return true;
   } else {
-    if (errno != EEXIST) {
-      // Another app could have already created the file.
+    if (errno != EEXIST && errno != EACCES) {
+      // Another app could have already created the file, and selinux may not
+      // allow the read access to the file implied by the call to open.
       PLOG(WARNING) << "Could not create foreign dex use mark " << flag_path;
       return false;
     }
