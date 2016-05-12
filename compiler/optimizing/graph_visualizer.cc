@@ -544,26 +544,19 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       }
     }
 
-    if (IsPass(LICM::kLoopInvariantCodeMotionPassName)
-        || IsPass(HDeadCodeElimination::kFinalDeadCodeEliminationPassName)
-        || IsPass(HDeadCodeElimination::kInitialDeadCodeEliminationPassName)
-        || IsPass(BoundsCheckElimination::kBoundsCheckEliminationPassName)
-        || IsPass(RegisterAllocator::kRegisterAllocatorPassName)
-        || IsPass(HGraphBuilder::kBuilderPassName)) {
-      HLoopInformation* info = instruction->GetBlock()->GetLoopInformation();
-      if (info == nullptr) {
-        StartAttributeStream("loop") << "none";
+    HLoopInformation* loop_info = instruction->GetBlock()->GetLoopInformation();
+    if (loop_info == nullptr) {
+      StartAttributeStream("loop") << "none";
+    } else {
+      StartAttributeStream("loop") << "B" << loop_info->GetHeader()->GetBlockId();
+      HLoopInformation* outer = loop_info->GetPreHeader()->GetLoopInformation();
+      if (outer != nullptr) {
+        StartAttributeStream("outer_loop") << "B" << outer->GetHeader()->GetBlockId();
       } else {
-        StartAttributeStream("loop") << "B" << info->GetHeader()->GetBlockId();
-        HLoopInformation* outer = info->GetPreHeader()->GetLoopInformation();
-        if (outer != nullptr) {
-          StartAttributeStream("outer_loop") << "B" << outer->GetHeader()->GetBlockId();
-        } else {
-          StartAttributeStream("outer_loop") << "none";
-        }
-        StartAttributeStream("irreducible")
-            << std::boolalpha << info->IsIrreducible() << std::noboolalpha;
+        StartAttributeStream("outer_loop") << "none";
       }
+      StartAttributeStream("irreducible")
+          << std::boolalpha << loop_info->IsIrreducible() << std::noboolalpha;
     }
 
     if ((IsPass(HGraphBuilder::kBuilderPassName)
