@@ -2010,8 +2010,6 @@ void InstructionCodeGeneratorX86::VisitInvokeInterface(HInvokeInterface* invoke)
   LocationSummary* locations = invoke->GetLocations();
   Register temp = locations->GetTemp(0).AsRegister<Register>();
   XmmRegister hidden_reg = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
-  uint32_t method_offset = mirror::Class::EmbeddedImTableEntryOffset(
-      invoke->GetImtIndex() % mirror::Class::kImtSize, kX86PointerSize).Uint32Value();
   Location receiver = locations->InAt(0);
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
 
@@ -2038,7 +2036,12 @@ void InstructionCodeGeneratorX86::VisitInvokeInterface(HInvokeInterface* invoke)
   // intact/accessible until the end of the marking phase (the
   // concurrent copying collector may not in the future).
   __ MaybeUnpoisonHeapReference(temp);
+  // temp = temp->GetAddressOfIMT()
+  __ movl(temp,
+      Address(temp, mirror::Class::ImtPtrOffset(kX86PointerSize).Uint32Value()));
   // temp = temp->GetImtEntryAt(method_offset);
+  uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+      invoke->GetImtIndex() % ImTable::kSize, kX86PointerSize));
   __ movl(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
   __ call(Address(temp,
@@ -4070,8 +4073,12 @@ void InstructionCodeGeneratorX86::VisitClassTableGet(HClassTableGet* instruction
     method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kX86PointerSize).SizeValue();
   } else {
-    method_offset = mirror::Class::EmbeddedImTableEntryOffset(
-        instruction->GetIndex() % mirror::Class::kImtSize, kX86PointerSize).Uint32Value();
+    __ movl(locations->InAt(0).AsRegister<Register>(),
+        Address(locations->InAt(0).AsRegister<Register>(),
+        mirror::Class::ImtPtrOffset(kX86PointerSize).Uint32Value()));
+    // temp = temp->GetImtEntryAt(method_offset);
+    method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+        instruction->GetIndex() % ImTable::kSize, kX86PointerSize));
   }
   __ movl(locations->Out().AsRegister<Register>(),
           Address(locations->InAt(0).AsRegister<Register>(), method_offset));

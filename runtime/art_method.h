@@ -99,6 +99,22 @@ class ImtConflictTable {
     return GetMethod(index * kMethodCount + kMethodImplementation, pointer_size);
   }
 
+  // Return true if two conflict tables are the same.
+  bool Equals(ImtConflictTable* other, size_t pointer_size) const {
+    size_t num = NumEntries(pointer_size);
+    if (num != other->NumEntries(pointer_size)) {
+      return false;
+    }
+    for (size_t i = 0; i < num; ++i) {
+      if (GetInterfaceMethod(i, pointer_size) != other->GetInterfaceMethod(i, pointer_size) ||
+          GetImplementationMethod(i, pointer_size) !=
+              other->GetImplementationMethod(i, pointer_size)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   // Visit all of the entries.
   // NO_THREAD_SAFETY_ANALYSIS for calling with held locks. Visitor is passed a pair of ArtMethod*
   // and also returns one. The order is <interface, implementation>.

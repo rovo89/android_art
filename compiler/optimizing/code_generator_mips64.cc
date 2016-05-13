@@ -2933,8 +2933,6 @@ void LocationsBuilderMIPS64::VisitInvokeInterface(HInvokeInterface* invoke) {
 void InstructionCodeGeneratorMIPS64::VisitInvokeInterface(HInvokeInterface* invoke) {
   // TODO: b/18116999, our IMTs can miss an IncompatibleClassChangeError.
   GpuRegister temp = invoke->GetLocations()->GetTemp(0).AsRegister<GpuRegister>();
-  uint32_t method_offset = mirror::Class::EmbeddedImTableEntryOffset(
-      invoke->GetImtIndex() % mirror::Class::kImtSize, kMips64PointerSize).Uint32Value();
   Location receiver = invoke->GetLocations()->InAt(0);
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
   Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMips64DoublewordSize);
@@ -2951,6 +2949,10 @@ void InstructionCodeGeneratorMIPS64::VisitInvokeInterface(HInvokeInterface* invo
     __ LoadFromOffset(kLoadUnsignedWord, temp, receiver.AsRegister<GpuRegister>(), class_offset);
   }
   codegen_->MaybeRecordImplicitNullCheck(invoke);
+  __ LoadFromOffset(kLoadDoubleword, temp, temp,
+      mirror::Class::ImtPtrOffset(kMips64PointerSize).Uint32Value());
+  uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+      invoke->GetImtIndex() % ImTable::kSize, kMips64PointerSize));
   // temp = temp->GetImtEntryAt(method_offset);
   __ LoadFromOffset(kLoadDoubleword, temp, temp, method_offset);
   // T9 = temp->GetEntryPoint();

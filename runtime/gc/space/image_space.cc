@@ -1130,6 +1130,10 @@ static bool RelocateInPlace(ImageHeader& image_header,
       image_header.VisitPackedArtFields(&field_visitor, target_base);
     }
     {
+      TimingLogger::ScopedTiming timing("Fixup imt", &logger);
+      image_header.VisitPackedImTables(fixup_adapter, target_base, pointer_size);
+    }
+    {
       TimingLogger::ScopedTiming timing("Fixup conflict tables", &logger);
       image_header.VisitPackedImtConflictTables(fixup_adapter, target_base, pointer_size);
     }

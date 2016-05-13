@@ -117,6 +117,7 @@ class PatchOat {
   bool PatchImage(bool primary_image) SHARED_REQUIRES(Locks::mutator_lock_);
   void PatchArtFields(const ImageHeader* image_header) SHARED_REQUIRES(Locks::mutator_lock_);
   void PatchArtMethods(const ImageHeader* image_header) SHARED_REQUIRES(Locks::mutator_lock_);
+  void PatchImTables(const ImageHeader* image_header) SHARED_REQUIRES(Locks::mutator_lock_);
   void PatchImtConflictTables(const ImageHeader* image_header)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void PatchInternedStrings(const ImageHeader* image_header)
