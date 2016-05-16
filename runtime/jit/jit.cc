@@ -565,6 +565,7 @@ class JitCompileTask FINAL : public Task {
         VLOG(jit) << "Start profiling " << PrettyMethod(method_);
       }
     }
+    ProfileSaver::NotifyJitActivity();
   }
 
   void Finalize() OVERRIDE {
