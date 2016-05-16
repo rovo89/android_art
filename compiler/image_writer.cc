@@ -1222,18 +1222,17 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
           AssignMethodOffset(&m, type, oat_index);
         }
         (any_dirty ? dirty_methods_ : clean_methods_) += num_methods;
-
-        // Assign offsets for all runtime methods in the IMT since these may hold conflict tables
-        // live.
-        if (as_klass->ShouldHaveEmbeddedImtAndVTable()) {
-          for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
-            ArtMethod* imt_method = as_klass->GetEmbeddedImTableEntry(i, target_ptr_size_);
-            DCHECK(imt_method != nullptr);
-            if (imt_method->IsRuntimeMethod() &&
-                !IsInBootImage(imt_method) &&
-                !NativeRelocationAssigned(imt_method)) {
-              AssignMethodOffset(imt_method, kNativeObjectRelocationTypeRuntimeMethod, oat_index);
-            }
+      }
+      // Assign offsets for all runtime methods in the IMT since these may hold conflict tables
+      // live.
+      if (as_klass->ShouldHaveEmbeddedImtAndVTable()) {
+        for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
+          ArtMethod* imt_method = as_klass->GetEmbeddedImTableEntry(i, target_ptr_size_);
+          DCHECK(imt_method != nullptr);
+          if (imt_method->IsRuntimeMethod() &&
+              !IsInBootImage(imt_method) &&
+              !NativeRelocationAssigned(imt_method)) {
+            AssignMethodOffset(imt_method, kNativeObjectRelocationTypeRuntimeMethod, oat_index);
           }
         }
       }
