@@ -733,6 +733,8 @@ class HLoopInformation : public ArenaObject<kArenaAllocLoopInfo> {
     return blocks_.GetHighestBitSet() != -1;
   }
 
+  bool DominatesAllBackEdges(HBasicBlock* block);
+
  private:
   // Internal recursive implementation of `Populate`.
   void PopulateRecursive(HBasicBlock* block);

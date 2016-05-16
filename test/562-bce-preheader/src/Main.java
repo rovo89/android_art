@@ -90,6 +90,25 @@ public class Main {
     return a;
   }
 
+  /**
+   * Example shows that we can hoist ArrayGet to pre-header only if
+   * its execution is guaranteed.
+   */
+  public static int hoistcheck(int[] c) {
+    int i = 0, i2 = 0, i3 = 0, k = 0;
+    int n = c.length;
+    for (i = -100000000; i < 20; i += 10000000) {
+      i3 = i;
+      i2 = 0;
+      while (i2++ < 1) {
+        if (i3 >= 0 && i3 < n) {
+          k += c[i3];
+        }
+      }
+    }
+    return k;
+  }
+
   public static void main(String args[]) {
     int[][] x = new int[2][2];
     int y;
@@ -118,6 +137,9 @@ public class Main {
 
     int[] z = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
     expectEquals(10, doit(z));
+
+    int c[] = { 1, 2, 3, 5 };
+    expectEquals(1, hoistcheck(c));
 
     System.out.println("passed");
   }
