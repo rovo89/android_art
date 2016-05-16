@@ -1956,6 +1956,29 @@ bool DexFileVerifier::CheckInterClassDefItem() {
   }
 
   if (item->superclass_idx_ != DexFile::kDexNoIndex16) {
+    // Check that a class does not inherit from itself directly (by having
+    // the same type idx as its super class).
+    if (UNLIKELY(item->superclass_idx_ == item->class_idx_)) {
+      ErrorStringPrintf("Class with same type idx as its superclass: '%d'", item->class_idx_);
+      return false;
+    }
+
+    // Check that a class is defined after its super class (if the
+    // latter is defined in the same Dex file).
+    const DexFile::ClassDef* superclass_def = dex_file_->FindClassDef(item->superclass_idx_);
+    if (superclass_def != nullptr) {
+      // The superclass is defined in this Dex file.
+      if (superclass_def > item) {
+        // ClassDef item for super class appearing after the class' ClassDef item.
+        ErrorStringPrintf("Invalid class definition ordering:"
+                          " class with type idx: '%d' defined before"
+                          " superclass with type idx: '%d'",
+                          item->class_idx_,
+                          item->superclass_idx_);
+        return false;
+      }
+    }
+
     LOAD_STRING_BY_TYPE(superclass_descriptor, item->superclass_idx_,
                         "inter_class_def_item superclass_idx")
     if (UNLIKELY(!IsValidDescriptor(superclass_descriptor) || superclass_descriptor[0] != 'L')) {

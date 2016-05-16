@@ -184,6 +184,12 @@ static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
   return dex_file;
 }
 
+// To generate base64 encoded Dex file contents (such as kGoodTestDex,
+// below) from Smali files, use:
+//
+//   smali -o classes.dex class1.smali [class2.smali ...]
+//   base64 classes.dex >classes.dex.base64
+
 // For reference.
 static const char kGoodTestDex[] =
     "ZGV4CjAzNQDrVbyVkxX1HljTznNf95AglkUAhQuFtmKkAgAAcAAAAHhWNBIAAAAAAAAAAAQCAAAN"
@@ -1519,6 +1525,86 @@ TEST_F(DexFileVerifierTest, ProtoOrdering) {
         },
         "Out-of-order proto_id arguments");
   }
+}
+
+// Generated from:
+//
+//   .class public LB28685551;
+//   .super LB28685551;
+
+static const char kClassExtendsItselfTestDex[] =
+    "ZGV4CjAzNQDtGF0irRLsVfRf3hwTL3zgNupO1a8AkTEEAQAAcAAAAHhWNBIAAAAAAAAAAKwAAAAB"
+    "AAAAcAAAAAEAAAB0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAHgAAABsAAAAmAAAAJgA"
+    "AAAAAAAAAAAAAAEAAAAAAAAAAAAAAP////8AAAAAAAAAAAAAAAALTEIyODY4NTU1MTsAAAAAAAAA"
+    "AAcAAAAAAAAAAQAAAAAAAAABAAAAAQAAAHAAAAACAAAAAQAAAHQAAAAGAAAAAQAAAHgAAAACIAAA"
+    "AQAAAJgAAAADEAAAAQAAAKgAAAAAEAAAAQAAAKwAAAA=";
+
+TEST_F(DexFileVerifierTest, ClassExtendsItself) {
+  VerifyModification(
+      kClassExtendsItselfTestDex,
+      "class_extends_itself",
+      [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
+      "Class with same type idx as its superclass: '0'");
+}
+
+// Generated from:
+//
+//   .class public LFoo;
+//   .super LBar;
+//
+// and:
+//
+//    .class public LBar;
+//    .super LFoo;
+
+static const char kClassesExtendOneAnotherTestDex[] =
+    "ZGV4CjAzNQDFHx5oxT079TdKMJ3M37hx96CSFQA8MaUsAQAAcAAAAHhWNBIAAAAAAAAAANQAAAAC"
+    "AAAAcAAAAAIAAAB4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAIAAAABsAAAAwAAAAMAA"
+    "AADHAAAAAAAAAAEAAAABAAAAAQAAAAAAAAAAAAAA/////wAAAAAAAAAAAAAAAAAAAAABAAAAAQAA"
+    "AAAAAAD/////AAAAAAAAAAAAAAAABUxCYXI7AAVMRm9vOwAAAAAAAAAHAAAAAAAAAAEAAAAAAAAA"
+    "AQAAAAIAAABwAAAAAgAAAAIAAAB4AAAABgAAAAIAAACAAAAAAiAAAAIAAADAAAAAAxAAAAEAAADQ"
+    "AAAAABAAAAEAAADUAAAA";
+
+TEST_F(DexFileVerifierTest, ClassesExtendOneAnother) {
+  VerifyModification(
+      kClassesExtendOneAnotherTestDex,
+      "classes_extend_one_another",
+      [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
+      "Invalid class definition ordering: class with type idx: '1' defined before"
+      " superclass with type idx: '0'");
+}
+
+// Generated from:
+//
+//   .class public LAll;
+//   .super LYour;
+//
+// and:
+//
+//   .class public LYour;
+//   .super LBase;
+//
+// and:
+//
+//   .class public LBase;
+//   .super LAll;
+
+static const char kCircularClassInheritanceTestDex[] =
+    "ZGV4CjAzNQDJJQtdMzp/mPagoltMlDWgd9MqiEtamoVcAQAAcAAAAHhWNBIAAAAAAAAAAAQBAAAD"
+    "AAAAcAAAAAMAAAB8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAIgAAAB0AAAA6AAAAOgA"
+    "AADvAAAA9wAAAAAAAAABAAAAAgAAAAEAAAABAAAAAAAAAAAAAAD/////AAAAAAAAAAAAAAAAAgAA"
+    "AAEAAAABAAAAAAAAAP////8AAAAAAAAAAAAAAAAAAAAAAQAAAAIAAAAAAAAA/////wAAAAAAAAAA"
+    "AAAAAAVMQWxsOwAGTEJhc2U7AAZMWW91cjsAAAAAAAAHAAAAAAAAAAEAAAAAAAAAAQAAAAMAAABw"
+    "AAAAAgAAAAMAAAB8AAAABgAAAAMAAACIAAAAAiAAAAMAAADoAAAAAxAAAAEAAAAAAQAAABAAAAEA"
+    "AAAEAQAA";
+
+TEST_F(DexFileVerifierTest, CircularClassInheritance) {
+  VerifyModification(
+      kCircularClassInheritanceTestDex,
+      "circular_class_inheritance",
+      [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
+      "Invalid class definition ordering: class with type idx: '1' defined before"
+      " superclass with type idx: '0'");
 }
 
 }  // namespace art
