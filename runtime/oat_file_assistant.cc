@@ -198,6 +198,10 @@ OatFileAssistant::DexOptNeeded OatFileAssistant::GetDexOptNeeded(CompilerFilter:
   return HasOriginalDexFiles() ? kDex2OatNeeded : kNoDexOptNeeded;
 }
 
+bool OatFileAssistant::IsUpToDate() {
+  return OatFileIsUpToDate() || OdexFileIsUpToDate();
+}
+
 OatFileAssistant::ResultOfAttemptToUpdate
 OatFileAssistant::MakeUpToDate(CompilerFilter::Filter target, std::string* error_msg) {
   switch (GetDexOptNeeded(target)) {

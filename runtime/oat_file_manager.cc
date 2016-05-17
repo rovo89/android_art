@@ -588,22 +588,24 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
 
   const OatFile* source_oat_file = nullptr;
 
-  // Update the oat file on disk if we can. This may fail, but that's okay.
-  // Best effort is all that matters here.
-  switch (oat_file_assistant.MakeUpToDate(filter_, /*out*/ &error_msg)) {
-    case OatFileAssistant::kUpdateFailed:
-      LOG(WARNING) << error_msg;
-      break;
+  if (!oat_file_assistant.IsUpToDate()) {
+    // Update the oat file on disk if we can. This may fail, but that's okay.
+    // Best effort is all that matters here.
+    switch (oat_file_assistant.MakeUpToDate(filter_, /*out*/ &error_msg)) {
+      case OatFileAssistant::kUpdateFailed:
+        LOG(WARNING) << error_msg;
+        break;
 
-    case OatFileAssistant::kUpdateNotAttempted:
-      // Avoid spamming the logs if we decided not to attempt making the oat
-      // file up to date.
-      VLOG(oat) << error_msg;
-      break;
+      case OatFileAssistant::kUpdateNotAttempted:
+        // Avoid spamming the logs if we decided not to attempt making the oat
+        // file up to date.
+        VLOG(oat) << error_msg;
+        break;
 
-    case OatFileAssistant::kUpdateSucceeded:
-      // Nothing to do.
-      break;
+      case OatFileAssistant::kUpdateSucceeded:
+        // Nothing to do.
+        break;
+    }
   }
 
   // Get the oat file on disk.
