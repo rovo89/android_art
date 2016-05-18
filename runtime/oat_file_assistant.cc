@@ -446,7 +446,7 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
     return true;
   }
 
-  if (!file.GetOatHeader().IsXposedOatVersionValid()) {
+  if (!Runtime::Current()->IsMinimalFramework() && !file.GetOatHeader().IsXposedOatVersionValid()) {
     VLOG(oat) << "Xposed oat version is outdated";
     return true;
   }

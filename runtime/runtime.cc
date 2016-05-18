@@ -131,6 +131,10 @@
 #include "verifier/method_verifier.h"
 #include "well_known_classes.h"
 
+#ifdef HAVE_ANDROID_OS
+#include "cutils/properties.h"
+#endif
+
 namespace art {
 
 // If a signal isn't handled properly, enable a handler that attempts to dump the Java stack.
@@ -151,6 +155,7 @@ Runtime::Runtime()
       instruction_set_(kNone),
       compiler_callbacks_(nullptr),
       is_zygote_(false),
+      is_minimal_framework_(false),
       must_relocate_(false),
       is_concurrent_gc_enabled_(true),
       is_explicit_gc_disabled_(false),
@@ -813,6 +818,20 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   is_explicit_gc_disabled_ = runtime_options.Exists(Opt::DisableExplicitGC);
   dex2oat_enabled_ = runtime_options.GetOrDefault(Opt::Dex2Oat);
   image_dex2oat_enabled_ = runtime_options.GetOrDefault(Opt::ImageDex2Oat);
+
+#ifdef HAVE_ANDROID_OS
+  // Checks whether the system is booting into a minimal Android framework.
+  // This is the case when the device is encrypted with a password that
+  // has to be entered on boot. /data is a tmpfs in that case, so we
+  // can't load any modules anyway.
+  // The system will reboot later with the full framework.
+  {
+    char voldDecrypt[PROPERTY_VALUE_MAX];
+    property_get("vold.decrypt", voldDecrypt, "");
+    is_minimal_framework_ = ((strcmp(voldDecrypt, "trigger_restart_min_framework") == 0) ||
+                             (strcmp(voldDecrypt, "1") == 0));
+  }
+#endif
 
   vfprintf_ = runtime_options.GetOrDefault(Opt::HookVfprintf);
   exit_ = runtime_options.GetOrDefault(Opt::HookExit);

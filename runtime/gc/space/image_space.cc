@@ -513,14 +513,15 @@ ImageSpace* ImageSpace::Create(const char* image_location,
 
   const std::string* image_filename = nullptr;
   bool is_system = false;
-  bool relocated_version_used = false;
+  const bool relocated_version_used = false;
+  const bool require_xposed = !Runtime::Current()->IsMinimalFramework();
   if (has_cache) {
     std::string cache_oat_filename = ImageHeader::GetOatLocationFromImageLocation(cache_filename);
     std::unique_ptr<OatHeader> cache_oat_hdr(OatHeader::FromFile(cache_oat_filename, error_msg));
     if (cache_oat_hdr.get() == nullptr) {
       LOG(INFO) << "Forcing image recompilation because " << cache_oat_filename
           << " could not be opened: " << *error_msg;
-    } else if (!cache_oat_hdr->IsXposedOatVersionValid()) {
+    } else if (require_xposed && !cache_oat_hdr->IsXposedOatVersionValid()) {
       XLOG(INFO) << "Forcing image recompilation because " << cache_filename
           << " is not compiled for the current Xposed version";
     } else {
@@ -536,7 +537,13 @@ ImageSpace* ImageSpace::Create(const char* image_location,
       }
     }
   }
-  // TODO: Consider relocating in the rare case that the system image is already prepared for Xposed
+
+  if (image_filename == nullptr && has_system && !require_xposed) {
+    XLOG(INFO) << "Falling back to system image " << system_filename;
+    image_filename = &system_filename;
+    is_system = true;
+  }
+
 
   if (image_filename != nullptr) {
 /*
