@@ -58,6 +58,9 @@ void ThrowArrayStoreException(mirror::Class* element_class, mirror::Class* array
 void ThrowClassCircularityError(mirror::Class* c)
     SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
 
+void ThrowClassCircularityError(mirror::Class* c, const char* fmt, ...)
+    SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
+
 // ClassCastException
 
 void ThrowClassCastException(mirror::Class* dest_type, mirror::Class* src_type)
