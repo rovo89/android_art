@@ -130,6 +130,10 @@ class Runtime {
     return is_zygote_;
   }
 
+  bool IsMinimalFramework() const {
+    return is_minimal_framework_;
+  }
+
   bool IsExplicitGcDisabled() const {
     return is_explicit_gc_disabled_;
   }
@@ -531,6 +535,7 @@ class Runtime {
   CompilerCallbacks* compiler_callbacks_;
   bool is_recompiling_;
   bool is_zygote_;
+  bool is_minimal_framework_;
   bool must_relocate_;
   bool is_concurrent_gc_enabled_;
   bool is_explicit_gc_disabled_;

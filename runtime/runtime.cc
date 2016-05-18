@@ -103,6 +103,7 @@ Runtime::Runtime()
       compiler_callbacks_(nullptr),
       is_recompiling_(false),
       is_zygote_(false),
+      is_minimal_framework_(false),
       must_relocate_(false),
       is_concurrent_gc_enabled_(true),
       is_explicit_gc_disabled_(false),
@@ -679,6 +680,20 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   is_explicit_gc_disabled_ = options->is_explicit_gc_disabled_;
   dex2oat_enabled_ = options->dex2oat_enabled_;
   image_dex2oat_enabled_ = options->image_dex2oat_enabled_;
+
+#ifdef HAVE_ANDROID_OS
+  // Checks whether the system is booting into a minimal Android framework.
+  // This is the case when the device is encrypted with a password that
+  // has to be entered on boot. /data is a tmpfs in that case, so we
+  // can't load any modules anyway.
+  // The system will reboot later with the full framework.
+  {
+    char voldDecrypt[PROPERTY_VALUE_MAX];
+    property_get("vold.decrypt", voldDecrypt, "");
+    is_minimal_framework_ = ((strcmp(voldDecrypt, "trigger_restart_min_framework") == 0) ||
+                             (strcmp(voldDecrypt, "1") == 0));
+  }
+#endif
 
   vfprintf_ = options->hook_vfprintf_;
   exit_ = options->hook_exit_;

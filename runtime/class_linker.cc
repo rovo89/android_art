@@ -1024,7 +1024,7 @@ const OatFile* ClassLinker::FindOatFileInOatLocationForDexFile(const char* dex_l
     }
   }
 
-  if (!oat_file->GetOatHeader().IsXposedOatVersionValid()) {
+  if (!runtime->IsMinimalFramework() && !oat_file->GetOatHeader().IsXposedOatVersionValid()) {
     *error_msg = StringPrintf("Failed to find oat file at '%s' with expected Xposed oat version", oat_location);
     return nullptr;
   }
@@ -1573,7 +1573,7 @@ bool ClassLinker::CheckOatFile(const OatFile* oat_file, InstructionSet isa,
                                  real_patch_delta, oat_patch_delta);
   }
 
-  if (!oat_header.IsXposedOatVersionValid()) {
+  if (!runtime->IsMinimalFramework() && !oat_header.IsXposedOatVersionValid()) {
     compound_msg += " Oat Image Xposed oat version invalid";
     *checksum_verified = false;
   }
