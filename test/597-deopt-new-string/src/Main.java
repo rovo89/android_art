@@ -48,7 +48,12 @@ public class Main implements Runnable {
             throw new Error();
         }
         char[] arr = {'a', 'b', 'c'};
-        return new String(arr, 0, arr.length);
+        String str = new String(arr, 0, arr.length);
+        if (!str.equals("abc")) {
+            System.out.println("Failure! " + str);
+            System.exit(0);
+        }
+        return str;
     }
 
     public void run() {
@@ -68,7 +73,11 @@ public class Main implements Runnable {
         } else {
             // This thread keeps doing new String() from a char array.
             while (!done) {
-                $noinline$run0();
+                String str = $noinline$run0();
+                if (!str.equals("abc")) {
+                    System.out.println("Failure! " + str);
+                    System.exit(0);
+                }
             }
         }
     }

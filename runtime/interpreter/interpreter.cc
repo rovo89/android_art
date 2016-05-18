@@ -484,6 +484,43 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
   self->PopShadowFrame();
 }
 
+static bool IsStringInit(Thread* self,
+                         const Instruction* instr,
+                         ArtMethod* caller,
+                         ArtMethod* callee)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  if (instr->Opcode() == Instruction::INVOKE_DIRECT ||
+      instr->Opcode() == Instruction::INVOKE_DIRECT_RANGE) {
+    if (callee == nullptr) {
+      // Don't know the callee. Resolve and find out.
+      uint16_t callee_method_idx = (instr->Opcode() == Instruction::INVOKE_DIRECT_RANGE) ?
+          instr->VRegB_3rc() : instr->VRegB_35c();
+      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+      // We just returned from callee, the method should resolve.
+      // If it's a String constructor, the resolved method should not be null.
+      callee = class_linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+          self, callee_method_idx, caller, kDirect);
+    }
+    if (callee == nullptr) {
+      // In case null is returned from method resolution, just return false
+      // since a string init (just called) must not resolve to null.
+      return false;
+    }
+    if (callee->GetDeclaringClass()->IsStringClass() &&
+        callee->IsConstructor()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int16_t GetReceiverRegisterForStringInit(const Instruction* instr) {
+  DCHECK(instr->Opcode() == Instruction::INVOKE_DIRECT_RANGE ||
+         instr->Opcode() == Instruction::INVOKE_DIRECT);
+  return (instr->Opcode() == Instruction::INVOKE_DIRECT_RANGE) ?
+      instr->VRegC_3rc() : instr->VRegC_35c();
+}
+
 void EnterInterpreterFromDeoptimize(Thread* self,
                                     ShadowFrame* shadow_frame,
                                     bool from_code,
@@ -494,6 +531,7 @@ void EnterInterpreterFromDeoptimize(Thread* self,
   value.SetJ(ret_val->GetJ());
   // Are we executing the first shadow frame?
   bool first = true;
+  ArtMethod* callee_method = nullptr;
   while (shadow_frame != nullptr) {
     // We do not want to recover lock state for lock counting when deoptimizing. Currently,
     // the compiler should not have compiled a method that failed structured-locking checks.
@@ -519,6 +557,13 @@ void EnterInterpreterFromDeoptimize(Thread* self,
       // TODO: should be tested more once b/17586779 is fixed.
       const Instruction* instr = Instruction::At(&code_item->insns_[dex_pc]);
       if (instr->IsInvoke()) {
+        if (IsStringInit(self, instr, shadow_frame->GetMethod(), callee_method)) {
+          uint16_t this_obj_vreg = GetReceiverRegisterForStringInit(instr);
+          // Move the StringFactory.newStringFromChars() result into the register representing
+          // "this object" when invoking the string constructor in the original dex instruction.
+          // Also move the result into all aliases.
+          SetStringInitValueToAllAliases(shadow_frame, this_obj_vreg, value);
+        }
         new_dex_pc = dex_pc + instr->SizeInCodeUnits();
       } else if (instr->Opcode() == Instruction::NEW_INSTANCE) {
         // It's possible to deoptimize at a NEW_INSTANCE dex instruciton that's for a
@@ -529,12 +574,14 @@ void EnterInterpreterFromDeoptimize(Thread* self,
               instr->VRegB_21c(), shadow_frame->GetMethod());
           DCHECK(klass->IsStringClass());
         }
+        // Move the StringFactory.newEmptyString() result into the destination register.
+        shadow_frame->SetVRegReference(instr->VRegA_21c(), value.GetL());
         // Skip the dex instruction since we essentially come back from an invocation.
         new_dex_pc = dex_pc + instr->SizeInCodeUnits();
       } else {
-        DCHECK(false) << "Unexpected instruction opcode " << instr->Opcode()
-                      << " at dex_pc " << dex_pc
-                      << " of method: " << PrettyMethod(shadow_frame->GetMethod(), false);
+        CHECK(false) << "Unexpected instruction opcode " << instr->Opcode()
+                     << " at dex_pc " << dex_pc
+                     << " of method: " << PrettyMethod(shadow_frame->GetMethod(), false);
       }
     } else {
       // Nothing to do, the dex_pc is the one at which the code requested
@@ -544,6 +591,7 @@ void EnterInterpreterFromDeoptimize(Thread* self,
       shadow_frame->SetDexPC(new_dex_pc);
       value = Execute(self, code_item, *shadow_frame, value);
     }
+    callee_method = shadow_frame->GetMethod();
     ShadowFrame* old_frame = shadow_frame;
     shadow_frame = shadow_frame->GetLink();
     ShadowFrame::DeleteDeoptimizedFrame(old_frame);
