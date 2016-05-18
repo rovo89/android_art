@@ -964,17 +964,13 @@ bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
           if (!kUseReadBarrier) {
             DCHECK_EQ(new_lw.ReadBarrierState(), 0U);
             h_obj->SetLockWord(new_lw, true);
-            if (ATRACE_ENABLED()) {
-              ATRACE_END();
-            }
+            AtraceMonitorUnlock();
             // Success!
             return true;
           } else {
             // Use CAS to preserve the read barrier state.
             if (h_obj->CasLockWordWeakSequentiallyConsistent(lock_word, new_lw)) {
-              if (ATRACE_ENABLED()) {
-                ATRACE_END();
-              }
+              AtraceMonitorUnlock();
               // Success!
               return true;
             }
