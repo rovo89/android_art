@@ -5317,6 +5317,19 @@ bool ClassLinker::LoadSuperAndInterfaces(Handle<mirror::Class> klass, const DexF
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(klass->GetDexClassDefIndex());
   uint16_t super_class_idx = class_def.superclass_idx_;
   if (super_class_idx != DexFile::kDexNoIndex16) {
+    // Check that a class does not inherit from itself directly.
+    //
+    // TODO: This is a cheap check to detect the straightforward case
+    // of a class extending itself (b/28685551), but we should do a
+    // proper cycle detection on loaded classes, to detect all cases
+    // of class circularity errors (b/28830038).
+    if (super_class_idx == class_def.class_idx_) {
+      ThrowClassCircularityError(klass.Get(),
+                                 "Class %s extends itself",
+                                 PrettyDescriptor(klass.Get()).c_str());
+      return false;
+    }
+
     mirror::Class* super_class = ResolveType(dex_file, super_class_idx, klass.Get());
     if (super_class == nullptr) {
       DCHECK(Thread::Current()->IsExceptionPending());
