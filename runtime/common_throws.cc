@@ -137,6 +137,13 @@ void ThrowClassCircularityError(mirror::Class* c) {
   ThrowException("Ljava/lang/ClassCircularityError;", c, msg.str().c_str());
 }
 
+void ThrowClassCircularityError(mirror::Class* c, const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  ThrowException("Ljava/lang/ClassCircularityError;", c, fmt, &args);
+  va_end(args);
+}
+
 // ClassFormatError
 
 void ThrowClassFormatError(mirror::Class* referrer, const char* fmt, ...) {
