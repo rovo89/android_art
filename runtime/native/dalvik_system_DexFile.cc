@@ -309,7 +309,7 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
   // TODO: Refactor this function to be less complicated.
   *oat_is_pic = oat_file->IsPic();
 
-  if (!oat_file->GetOatHeader().IsXposedOatVersionValid()) {
+  if (!Runtime::Current()->IsMinimalFramework() && !oat_file->GetOatHeader().IsXposedOatVersionValid()) {
     if (kReasonLogging) {
       LOG(INFO) << "DexFile_isDexOptNeeded file " << oat_filename
                 << " needs to be recompiled with Xposed for " << filename;
