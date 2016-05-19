@@ -954,7 +954,12 @@ OatFile* OatFile::Open(const std::string& filename,
   ScopedTrace trace("Open oat file " + location);
   CHECK(!filename.empty()) << location;
   CheckLocation(location);
-  std::unique_ptr<OatFile> ret;
+
+  // Check that the file even exists, fast-fail.
+  if (!OS::FileExists(filename.c_str())) {
+    *error_msg = StringPrintf("File %s does not exist.", filename.c_str());
+    return nullptr;
+  }
 
   // Try dlopen first, as it is required for native debuggability. This will fail fast if dlopen is
   // disabled.
