@@ -97,7 +97,15 @@ void ProfileSaver::Run() {
   // classes save (unless they started before the initial saving was done).
   {
     MutexLock mu(self, wait_lock_);
-    period_condition_.TimedWait(self, kSaveResolvedClassesDelayMs, 0);
+    constexpr uint64_t kSleepTime = kSaveResolvedClassesDelayMs;
+    const uint64_t end_time = NanoTime() + MsToNs(kSleepTime);
+    while (true) {
+      const uint64_t current_time = NanoTime();
+      if (current_time >= end_time) {
+        break;
+      }
+      period_condition_.TimedWait(self, NsToMs(end_time - current_time), 0);
+    }
     total_ms_of_sleep_ += kSaveResolvedClassesDelayMs;
   }
   FetchAndCacheResolvedClasses();
