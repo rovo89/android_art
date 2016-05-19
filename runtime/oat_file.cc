@@ -98,6 +98,8 @@ class OatFileBase : public OatFile {
   virtual const uint8_t* FindDynamicSymbolAddress(const std::string& symbol_name,
                                                   std::string* error_msg) const = 0;
 
+  virtual void PreLoad() = 0;
+
   virtual bool Load(const std::string& elf_filename,
                     uint8_t* oat_file_begin,
                     bool writable,
@@ -138,6 +140,9 @@ OatFileBase* OatFileBase::OpenOatFile(const std::string& elf_filename,
                                       const char* abs_dex_location,
                                       std::string* error_msg) {
   std::unique_ptr<OatFileBase> ret(new kOatFileBaseSubType(location, executable));
+
+  ret->PreLoad();
+
   if (!ret->Load(elf_filename,
                  oat_file_begin,
                  writable,
@@ -150,6 +155,7 @@ OatFileBase* OatFileBase::OpenOatFile(const std::string& elf_filename,
   if (!ret->ComputeFields(requested_base, elf_filename, error_msg)) {
     return nullptr;
   }
+
   ret->PreSetup(elf_filename);
 
   if (!ret->Setup(abs_dex_location, error_msg)) {
@@ -509,6 +515,7 @@ class DlOpenOatFile FINAL : public OatFileBase {
   DlOpenOatFile(const std::string& filename, bool executable)
       : OatFileBase(filename, executable),
         dlopen_handle_(nullptr),
+        shared_objects_before_(0),
         first_oat_(RegisterOatFileLocation(filename)) {
   }
 
@@ -529,6 +536,8 @@ class DlOpenOatFile FINAL : public OatFileBase {
     }
     return ptr;
   }
+
+  void PreLoad() OVERRIDE;
 
   bool Load(const std::string& elf_filename,
             uint8_t* oat_file_begin,
@@ -551,11 +560,36 @@ class DlOpenOatFile FINAL : public OatFileBase {
   // Dummy memory map objects corresponding to the regions mapped by dlopen.
   std::vector<std::unique_ptr<MemMap>> dlopen_mmaps_;
 
+  // The number of shared objects the linker told us about before loading. Used to
+  // (optimistically) optimize the PreSetup stage (see comment there).
+  size_t shared_objects_before_;
+
   // Track the registration status (= was this the first oat file) for the location.
   const bool first_oat_;
 
   DISALLOW_COPY_AND_ASSIGN(DlOpenOatFile);
 };
+
+void DlOpenOatFile::PreLoad() {
+#ifdef __APPLE__
+  LOG(FATAL) << "Should not reach here.";
+  UNREACHABLE();
+#else
+  // Count the entries in dl_iterate_phdr we get at this point in time.
+  struct dl_iterate_context {
+    static int callback(struct dl_phdr_info *info ATTRIBUTE_UNUSED,
+                        size_t size ATTRIBUTE_UNUSED,
+                        void *data) {
+      reinterpret_cast<dl_iterate_context*>(data)->count++;
+      return 0;  // Continue iteration.
+    }
+    size_t count = 0;
+  } context;
+
+  dl_iterate_phdr(dl_iterate_context::callback, &context);
+  shared_objects_before_ = context.count;
+#endif
+}
 
 bool DlOpenOatFile::Load(const std::string& elf_filename,
                          uint8_t* oat_file_begin,
@@ -657,6 +691,14 @@ void DlOpenOatFile::PreSetup(const std::string& elf_filename) {
   struct dl_iterate_context {
     static int callback(struct dl_phdr_info *info, size_t /* size */, void *data) {
       auto* context = reinterpret_cast<dl_iterate_context*>(data);
+      context->shared_objects_seen++;
+      if (context->shared_objects_seen < context->shared_objects_before) {
+        // We haven't been called yet for anything we haven't seen before. Just continue.
+        // Note: this is aggressively optimistic. If another thread was unloading a library,
+        //       we may miss out here. However, this does not happen often in practice.
+        return 0;
+      }
+
       // See whether this callback corresponds to the file which we have just loaded.
       bool contains_begin = false;
       for (int i = 0; i < info->dlpi_phnum; i++) {
@@ -687,11 +729,22 @@ void DlOpenOatFile::PreSetup(const std::string& elf_filename) {
     }
     const uint8_t* const begin_;
     std::vector<std::unique_ptr<MemMap>>* const dlopen_mmaps_;
-  } context = { Begin(), &dlopen_mmaps_ };
+    const size_t shared_objects_before;
+    size_t shared_objects_seen;
+  };
+  dl_iterate_context context = { Begin(), &dlopen_mmaps_, shared_objects_before_, 0};
 
   if (dl_iterate_phdr(dl_iterate_context::callback, &context) == 0) {
-    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
-    LOG(ERROR) << "File " << elf_filename << " loaded with dlopen but cannot find its mmaps.";
+    // Hm. Maybe our optimization went wrong. Try another time with shared_objects_before == 0
+    // before giving up. This should be unusual.
+    VLOG(oat) << "Need a second run in PreSetup, didn't find with shared_objects_before="
+              << shared_objects_before_;
+    dl_iterate_context context0 = { Begin(), &dlopen_mmaps_, 0, 0};
+    if (dl_iterate_phdr(dl_iterate_context::callback, &context0) == 0) {
+      // OK, give up and print an error.
+      PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+      LOG(ERROR) << "File " << elf_filename << " loaded with dlopen but cannot find its mmaps.";
+    }
   }
 #endif
 }
@@ -726,6 +779,9 @@ class ElfOatFile FINAL : public OatFileBase {
       *error_msg = "(Internal implementation could not find symbol)";
     }
     return ptr;
+  }
+
+  void PreLoad() OVERRIDE {
   }
 
   bool Load(const std::string& elf_filename,
