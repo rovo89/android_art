@@ -540,30 +540,6 @@ void ArtInterpreterToCompiledCodeBridge(Thread* self,
                  result, method->GetInterfaceMethodIfProxy(sizeof(void*))->GetShorty());
 }
 
-void SetStringInitValueToAllAliases(ShadowFrame* shadow_frame,
-                                    uint16_t this_obj_vreg,
-                                    JValue result)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
-  Object* existing = shadow_frame->GetVRegReference(this_obj_vreg);
-  if (existing == nullptr) {
-    // If it's null, we come from compiled code that was deoptimized. Nothing to do,
-    // as the compiler verified there was no alias.
-    // Set the new string result of the StringFactory.
-    shadow_frame->SetVRegReference(this_obj_vreg, result.GetL());
-    return;
-  }
-  // Set the string init result into all aliases.
-  for (uint32_t i = 0, e = shadow_frame->NumberOfVRegs(); i < e; ++i) {
-    if (shadow_frame->GetVRegReference(i) == existing) {
-      DCHECK_EQ(shadow_frame->GetVRegReference(i),
-                reinterpret_cast<mirror::Object*>(shadow_frame->GetVReg(i)));
-      shadow_frame->SetVRegReference(i, result.GetL());
-      DCHECK_EQ(shadow_frame->GetVRegReference(i),
-                reinterpret_cast<mirror::Object*>(shadow_frame->GetVReg(i)));
-    }
-  }
-}
-
 template <bool is_range,
           bool do_assignability_check,
           size_t kVarArgMax>
@@ -763,7 +739,24 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   }
 
   if (string_init && !self->IsExceptionPending()) {
-    SetStringInitValueToAllAliases(&shadow_frame, string_init_vreg_this, *result);
+    mirror::Object* existing = shadow_frame.GetVRegReference(string_init_vreg_this);
+    if (existing == nullptr) {
+      // If it's null, we come from compiled code that was deoptimized. Nothing to do,
+      // as the compiler verified there was no alias.
+      // Set the new string result of the StringFactory.
+      shadow_frame.SetVRegReference(string_init_vreg_this, result->GetL());
+    } else {
+      // Replace the fake string that was allocated with the StringFactory result.
+      for (uint32_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
+        if (shadow_frame.GetVRegReference(i) == existing) {
+          DCHECK_EQ(shadow_frame.GetVRegReference(i),
+                    reinterpret_cast<mirror::Object*>(shadow_frame.GetVReg(i)));
+          shadow_frame.SetVRegReference(i, result->GetL());
+          DCHECK_EQ(shadow_frame.GetVRegReference(i),
+                    reinterpret_cast<mirror::Object*>(shadow_frame.GetVReg(i)));
+        }
+      }
+    }
   }
 
   return !self->IsExceptionPending();
