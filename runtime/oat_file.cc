@@ -572,6 +572,7 @@ class DlOpenOatFile FINAL : public OatFileBase {
 
 void DlOpenOatFile::PreLoad() {
 #ifdef __APPLE__
+  UNUSED(shared_objects_before_);
   LOG(FATAL) << "Should not reach here.";
   UNREACHABLE();
 #else
