@@ -114,17 +114,31 @@ void ProfileSaver::Run() {
   while (!ShuttingDown(self)) {
     uint64_t sleep_start = NanoTime();
     {
-      MutexLock mu(self, wait_lock_);
-      period_condition_.Wait(self);
+      uint64_t sleep_time = 0;
+      {
+        MutexLock mu(self, wait_lock_);
+        period_condition_.Wait(self);
+        sleep_time = NanoTime() - last_time_ns_saver_woke_up_;
+      }
+      // Check if the thread was woken up for shutdown.
+      if (ShuttingDown(self)) {
+        break;
+      }
       total_number_of_wake_ups_++;
       // We might have been woken up by a huge number of notifications to guarantee saving.
       // If we didn't meet the minimum saving period go back to sleep (only if missed by
       // a reasonable margin).
-      uint64_t sleep_time = NanoTime() - last_time_ns_saver_woke_up_;
       while (kMinSavePeriodNs - sleep_time > (kMinSavePeriodNs / 10)) {
-        period_condition_.TimedWait(self, NsToMs(kMinSavePeriodNs - sleep_time), 0);
+        {
+          MutexLock mu(self, wait_lock_);
+          period_condition_.TimedWait(self, NsToMs(kMinSavePeriodNs - sleep_time), 0);
+          sleep_time = NanoTime() - last_time_ns_saver_woke_up_;
+        }
+        // Check if the thread was woken up for shutdown.
+        if (ShuttingDown(self)) {
+          break;
+        }
         total_number_of_wake_ups_++;
-        sleep_time = NanoTime() - last_time_ns_saver_woke_up_;
       }
     }
     total_ms_of_sleep_ += NsToMs(NanoTime() - sleep_start);
