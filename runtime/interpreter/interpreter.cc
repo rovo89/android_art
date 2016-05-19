@@ -484,6 +484,36 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
   self->PopShadowFrame();
 }
 
+static bool IsStringInit(const Instruction* instr, ArtMethod* caller)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  if (instr->Opcode() == Instruction::INVOKE_DIRECT ||
+      instr->Opcode() == Instruction::INVOKE_DIRECT_RANGE) {
+    // Instead of calling ResolveMethod() which has suspend point and can trigger
+    // GC, look up the callee method symbolically.
+    uint16_t callee_method_idx = (instr->Opcode() == Instruction::INVOKE_DIRECT_RANGE) ?
+        instr->VRegB_3rc() : instr->VRegB_35c();
+    const DexFile* dex_file = caller->GetDexFile();
+    const DexFile::MethodId& method_id = dex_file->GetMethodId(callee_method_idx);
+    const char* class_name = dex_file->StringByTypeIdx(method_id.class_idx_);
+    const char* method_name = dex_file->GetMethodName(method_id);
+    // Compare method's class name and method name against string init.
+    // It's ok since it's not allowed to create your own java/lang/String.
+    // TODO: verify that assumption.
+    if ((strcmp(class_name, "Ljava/lang/String;") == 0) &&
+        (strcmp(method_name, "<init>") == 0)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int16_t GetReceiverRegisterForStringInit(const Instruction* instr) {
+  DCHECK(instr->Opcode() == Instruction::INVOKE_DIRECT_RANGE ||
+         instr->Opcode() == Instruction::INVOKE_DIRECT);
+  return (instr->Opcode() == Instruction::INVOKE_DIRECT_RANGE) ?
+      instr->VRegC_3rc() : instr->VRegC_35c();
+}
+
 void EnterInterpreterFromDeoptimize(Thread* self,
                                     ShadowFrame* shadow_frame,
                                     bool from_code,
@@ -519,22 +549,38 @@ void EnterInterpreterFromDeoptimize(Thread* self,
       // TODO: should be tested more once b/17586779 is fixed.
       const Instruction* instr = Instruction::At(&code_item->insns_[dex_pc]);
       if (instr->IsInvoke()) {
+        if (IsStringInit(instr, shadow_frame->GetMethod())) {
+          uint16_t this_obj_vreg = GetReceiverRegisterForStringInit(instr);
+          // Move the StringFactory.newStringFromChars() result into the register representing
+          // "this object" when invoking the string constructor in the original dex instruction.
+          // Also move the result into all aliases.
+          DCHECK(value.GetL()->IsString());
+          SetStringInitValueToAllAliases(shadow_frame, this_obj_vreg, value);
+          // Calling string constructor in the original dex code doesn't generate a result value.
+          value.SetJ(0);
+        }
         new_dex_pc = dex_pc + instr->SizeInCodeUnits();
       } else if (instr->Opcode() == Instruction::NEW_INSTANCE) {
         // It's possible to deoptimize at a NEW_INSTANCE dex instruciton that's for a
         // java string, which is turned into a call into StringFactory.newEmptyString();
+        // Move the StringFactory.newEmptyString() result into the destination register.
+        DCHECK(value.GetL()->IsString());
+        shadow_frame->SetVRegReference(instr->VRegA_21c(), value.GetL());
+        // new-instance doesn't generate a result value.
+        value.SetJ(0);
+        // Skip the dex instruction since we essentially come back from an invocation.
+        new_dex_pc = dex_pc + instr->SizeInCodeUnits();
         if (kIsDebugBuild) {
           ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+          // This is a suspend point. But it's ok since value has been set into shadow_frame.
           mirror::Class* klass = class_linker->ResolveType(
               instr->VRegB_21c(), shadow_frame->GetMethod());
           DCHECK(klass->IsStringClass());
         }
-        // Skip the dex instruction since we essentially come back from an invocation.
-        new_dex_pc = dex_pc + instr->SizeInCodeUnits();
       } else {
-        DCHECK(false) << "Unexpected instruction opcode " << instr->Opcode()
-                      << " at dex_pc " << dex_pc
-                      << " of method: " << PrettyMethod(shadow_frame->GetMethod(), false);
+        CHECK(false) << "Unexpected instruction opcode " << instr->Opcode()
+                     << " at dex_pc " << dex_pc
+                     << " of method: " << PrettyMethod(shadow_frame->GetMethod(), false);
       }
     } else {
       // Nothing to do, the dex_pc is the one at which the code requested
