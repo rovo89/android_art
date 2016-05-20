@@ -28,7 +28,7 @@ test_jack=${OUT_DIR-out}/target/common/obj/JAVA_LIBRARIES/core-tests_intermediat
 
 if [ ! -f $test_jack ]; then
   echo "Before running, you must build core-tests, jsr166-tests and vogar: \
-        make core-tests jsr166-tests vogar vogar.jar"
+        make core-tests jsr166-tests vogar"
   exit 1
 fi
 

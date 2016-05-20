@@ -24,7 +24,7 @@ test_jack=${OUT_DIR-out}/host/common/obj/JAVA_LIBRARIES/apache-harmony-jdwp-test
 
 if [ ! -f $test_jack ]; then
   echo "Before running, you must build jdwp tests and vogar:" \
-       "make apache-harmony-jdwp-tests-hostdex vogar vogar.jar"
+       "make apache-harmony-jdwp-tests-hostdex vogar"
   exit 1
 fi
 
@@ -126,7 +126,6 @@ vogar $vm_command \
       $image_compiler_option \
       --timeout 800 \
       --vm-arg -Djpda.settings.verbose=true \
-      --vm-arg -Djpda.settings.syncPort=34016 \
       --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \
       --vm-arg -Djpda.settings.debuggeeJavaPath="$art_debugee $image $debuggee_args" \
       --classpath $test_jack \
