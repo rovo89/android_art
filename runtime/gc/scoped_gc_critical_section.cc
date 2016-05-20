@@ -38,4 +38,3 @@ ScopedGCCriticalSection::~ScopedGCCriticalSection() {
 
 }  // namespace gc
 }  // namespace art
-

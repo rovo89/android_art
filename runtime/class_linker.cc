@@ -52,6 +52,7 @@
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap-inl.h"
 #include "gc/heap.h"
+#include "gc/scoped_gc_critical_section.h"
 #include "gc/space/image_space.h"
 #include "handle_scope-inl.h"
 #include "image-inl.h"
@@ -6980,8 +6981,13 @@ bool ClassLinker::LinkInterfaceMethods(
       }
     }
     // Put some random garbage in old methods to help find stale pointers.
-    if (methods != old_methods && old_methods != nullptr) {
-      WriterMutexLock mu(self, ClassTableForClassLoader(klass->GetClassLoader())->GetLock());
+    if (methods != old_methods && old_methods != nullptr && kIsDebugBuild) {
+      // Need to make sure the GC is not running since it could be scanning the methods we are
+      // about to overwrite.
+      ScopedThreadStateChange tsc(self, kSuspended);
+      gc::ScopedGCCriticalSection gcs(self,
+                                      gc::kGcCauseClassLinker,
+                                      gc::kCollectorTypeClassLinker);
       memset(old_methods, 0xFEu, old_size);
     }
   } else {
