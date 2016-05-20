@@ -45,6 +45,8 @@ enum GcCause {
   kGcCauseAddRemoveAppImageSpace,
   // GC triggered for background transition when both foreground and background collector are CMS.
   kGcCauseHomogeneousSpaceCompact,
+  // Class linker cause, used to guard filling art methods with special values.
+  kGcCauseClassLinker,
 };
 
 const char* PrettyCause(GcCause cause);

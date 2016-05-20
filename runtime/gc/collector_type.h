@@ -47,6 +47,8 @@ enum CollectorType {
   // A homogeneous space compaction collector used in background transition
   // when both foreground and background collector are CMS.
   kCollectorTypeHomogeneousSpaceCompact,
+  // Class linker fake collector.
+  kCollectorTypeClassLinker,
 };
 std::ostream& operator<<(std::ostream& os, const CollectorType& collector_type);
 
