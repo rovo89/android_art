@@ -30,7 +30,7 @@ const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromVariant(
 
   // Look for variants that need a fix for a53 erratum 835769.
   static const char* arm64_variants_with_a53_835769_bug[] = {
-      "default", "generic", "cortex-a53"  // Pessimistically assume all generic ARM64s are A53s.
+      "default", "generic", "cortex-a53", "cortex-a53.a57"  // Pessimistically assume all generic ARM64s are A53s.
   };
   bool needs_a53_835769_fix = FindVariantInArray(arm64_variants_with_a53_835769_bug,
                                                  arraysize(arm64_variants_with_a53_835769_bug),
