@@ -29,39 +29,51 @@
 
 namespace art {
 
-extern "C" NO_RETURN void artDeoptimize(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-
+NO_RETURN static void artDeoptimizeImpl(Thread* self, bool single_frame)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
   if (VLOG_IS_ON(deopt)) {
-    LOG(INFO) << "Deopting:";
-    self->Dump(LOG(INFO));
+    if (single_frame) {
+      // Deopt logging will be in DeoptimizeSingleFrame. It is there to take advantage of the
+      // specialized visitor that will show whether a method is Quick or Shadow.
+    } else {
+      LOG(INFO) << "Deopting:";
+      self->Dump(LOG(INFO));
+    }
   }
 
   self->AssertHasDeoptimizationContext();
-  self->SetException(Thread::GetDeoptimizationException());
-  self->QuickDeliverException();
+  QuickExceptionHandler exception_handler(self, true);
+  if (single_frame) {
+    exception_handler.DeoptimizeSingleFrame();
+  } else {
+    exception_handler.DeoptimizeStack();
+  }
+  uintptr_t return_pc = exception_handler.UpdateInstrumentationStack();
+  if (exception_handler.IsFullFragmentDone()) {
+    exception_handler.DoLongJump(true);
+  } else {
+    exception_handler.DeoptimizePartialFragmentFixup(return_pc);
+    // We cannot smash the caller-saves, as we need the ArtMethod in a parameter register that would
+    // be caller-saved. This has the downside that we cannot track incorrect register usage down the
+    // line.
+    exception_handler.DoLongJump(false);
+  }
 }
 
+extern "C" NO_RETURN void artDeoptimize(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) {
+  ScopedQuickEntrypointChecks sqec(self);
+  artDeoptimizeImpl(self, false);
+}
+
+// This is called directly from compiled code by an HDepptimize.
 extern "C" NO_RETURN void artDeoptimizeFromCompiledCode(Thread* self)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
-
-  // Deopt logging will be in DeoptimizeSingleFrame. It is there to take advantage of the
-  // specialized visitor that will show whether a method is Quick or Shadow.
-
   // Before deoptimizing to interpreter, we must push the deoptimization context.
   JValue return_value;
   return_value.SetJ(0);  // we never deoptimize from compiled code with an invoke result.
   self->PushDeoptimizationContext(return_value, false, /* from_code */ true, self->GetException());
-
-  QuickExceptionHandler exception_handler(self, true);
-  exception_handler.DeoptimizeSingleFrame();
-  exception_handler.UpdateInstrumentationStack();
-  exception_handler.DeoptimizeSingleFrameArchDependentFixup();
-  // We cannot smash the caller-saves, as we need the ArtMethod in a parameter register that would
-  // be caller-saved. This has the downside that we cannot track incorrect register usage down the
-  // line.
-  exception_handler.DoLongJump(false);
+  artDeoptimizeImpl(self, true);
 }
 
 }  // namespace art

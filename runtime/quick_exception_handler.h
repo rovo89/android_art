@@ -46,15 +46,29 @@ class QuickExceptionHandler {
   // Find the catch handler for the given exception.
   void FindCatch(mirror::Throwable* exception) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Deoptimize the stack to the upcall. For every compiled frame, we create a "copy"
-  // shadow frame that will be executed with the interpreter.
+  // Deoptimize the stack to the upcall/some code that's not deoptimizeable. For
+  // every compiled frame, we create a "copy" shadow frame that will be executed
+  // with the interpreter.
   void DeoptimizeStack() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Deoptimize a single frame. It's directly triggered from compiled code. It
+  // has the following properties:
+  // - It deoptimizes a single frame, which can include multiple inlined frames.
+  // - It doesn't have return result or pending exception at the deoptimization point.
+  // - It always deoptimizes, even if IsDeoptimizeable() returns false for the
+  //   code, since HDeoptimize always saves the full environment. So it overrides
+  //   the result of IsDeoptimizeable().
+  // - It can be either full-fragment, or partial-fragment deoptimization, depending
+  //   on whether that single frame covers full or partial fragment.
   void DeoptimizeSingleFrame() SHARED_REQUIRES(Locks::mutator_lock_);
-  void DeoptimizeSingleFrameArchDependentFixup() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  void DeoptimizePartialFragmentFixup(uintptr_t return_pc)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Update the instrumentation stack by removing all methods that will be unwound
   // by the exception being thrown.
-  void UpdateInstrumentationStack() SHARED_REQUIRES(Locks::mutator_lock_);
+  // Return the return pc of the last frame that's unwound.
+  uintptr_t UpdateInstrumentationStack() SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Set up environment before delivering an exception to optimized code.
   void SetCatchEnvironmentForOptimizedHandler(StackVisitor* stack_visitor)
@@ -103,8 +117,16 @@ class QuickExceptionHandler {
     handler_frame_depth_ = frame_depth;
   }
 
+  bool IsFullFragmentDone() const {
+    return full_fragment_done_;
+  }
+
+  void SetFullFragmentDone(bool full_fragment_done) {
+    full_fragment_done_ = full_fragment_done;
+  }
+
   // Walk the stack frames of the given thread, printing out non-runtime methods with their types
-  // of frames. Helps to verify that single-frame deopt really only deopted one frame.
+  // of frames. Helps to verify that partial-fragment deopt really works as expected.
   static void DumpFramesWithType(Thread* self, bool details = false)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -131,6 +153,13 @@ class QuickExceptionHandler {
   bool clear_exception_;
   // Frame depth of the catch handler or the upcall.
   size_t handler_frame_depth_;
+  // Does the handler successfully walk the full fragment (not stopped
+  // by some code that's not deoptimizeable)? Even single-frame deoptimization
+  // can set this to true if the fragment contains only one quick frame.
+  bool full_fragment_done_;
+
+  void PrepareForLongJumpToInvokeStubOrInterpreterBridge()
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(QuickExceptionHandler);
 };

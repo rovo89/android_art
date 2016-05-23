@@ -654,7 +654,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
 
   JValue tmp_value;
   ShadowFrame* deopt_frame = self->PopStackedShadowFrame(
-      StackedShadowFrameType::kSingleFrameDeoptimizationShadowFrame, false);
+      StackedShadowFrameType::kDeoptimizationShadowFrame, false);
   ManagedStack fragment;
 
   DCHECK(!method->IsNative()) << PrettyMethod(method);
@@ -667,7 +667,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
   JValue result;
 
   if (deopt_frame != nullptr) {
-    // Coming from single-frame deopt.
+    // Coming from partial-fragment deopt.
 
     if (kIsDebugBuild) {
       // Sanity-check: are the methods as expected? We check that the last shadow frame (the bottom
@@ -681,7 +681,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
     }
 
     if (VLOG_IS_ON(deopt)) {
-      // Print out the stack to verify that it was a single-frame deopt.
+      // Print out the stack to verify that it was a partial-fragment deopt.
       LOG(INFO) << "Continue-ing from deopt. Stack is:";
       QuickExceptionHandler::DumpFramesWithType(self, true);
     }
@@ -689,7 +689,6 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
     mirror::Throwable* pending_exception = nullptr;
     bool from_code = false;
     self->PopDeoptimizationContext(&result, &pending_exception, /* out */ &from_code);
-    CHECK(from_code);
 
     // Push a transition back into managed code onto the linked list in thread.
     self->PushManagedStackFragment(&fragment);
@@ -755,7 +754,9 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
 
   // Request a stack deoptimization if needed
   ArtMethod* caller = QuickArgumentVisitor::GetCallingMethod(sp);
-  if (UNLIKELY(Dbg::IsForcedInterpreterNeededForUpcall(self, caller))) {
+  uintptr_t caller_pc = QuickArgumentVisitor::GetCallingPc(sp);
+  if (UNLIKELY(Dbg::IsForcedInterpreterNeededForUpcall(self, caller) &&
+               Runtime::Current()->IsDeoptimizeable(caller_pc))) {
     // Push the context of the deoptimization stack so we can restore the return value and the
     // exception before executing the deoptimized frames.
     self->PushDeoptimizationContext(

@@ -46,6 +46,7 @@ struct NthCallerVisitor : public StackVisitor {
       DCHECK(caller == nullptr);
       if (count == n) {
         caller = m;
+        caller_pc = GetCurrentQuickFramePc();
         return false;
       }
       count++;
@@ -57,6 +58,7 @@ struct NthCallerVisitor : public StackVisitor {
   const bool include_runtime_and_upcalls_;
   size_t count;
   ArtMethod* caller;
+  uintptr_t caller_pc;
 };
 
 }  // namespace art
