@@ -475,15 +475,22 @@ static jint DexFile_getDexOptNeeded(JNIEnv* env,
 
 // public API
 static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
-  const char* instruction_set = GetInstructionSetString(kRuntimeISA);
-  ScopedUtfChars filename(env, javaFilename);
-  jint status = GetDexOptNeeded(
-      env,
-      filename.c_str(),
-      instruction_set,
-      "speed-profile",
-      /*profile_changed*/false);
-  return (status != OatFileAssistant::kNoDexOptNeeded) ? JNI_TRUE : JNI_FALSE;
+  ScopedUtfChars filename_utf(env, javaFilename);
+  if (env->ExceptionCheck()) {
+    return JNI_FALSE;
+  }
+
+  const char* filename = filename_utf.c_str();
+  if ((filename == nullptr) || !OS::FileExists(filename)) {
+    LOG(ERROR) << "DexFile_isDexOptNeeded file '" << filename << "' does not exist";
+    ScopedLocalRef<jclass> fnfe(env, env->FindClass("java/io/FileNotFoundException"));
+    const char* message = (filename == nullptr) ? "<empty file name>" : filename;
+    env->ThrowNew(fnfe.get(), message);
+    return JNI_FALSE;
+  }
+
+  OatFileAssistant oat_file_assistant(filename, kRuntimeISA, false, false);
+  return oat_file_assistant.IsUpToDate() ? JNI_FALSE : JNI_TRUE;
 }
 
 static jboolean DexFile_isValidCompilerFilter(JNIEnv* env,
