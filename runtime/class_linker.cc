@@ -1662,6 +1662,10 @@ bool ClassLinker::AddImageSpace(
     // resolve the same way, simply flatten the hierarchy in the way the resolution order would be,
     // and check that the dex file names are the same.
     for (mirror::ClassLoader* image_class_loader : image_class_loaders) {
+      if (IsBootClassLoader(soa, image_class_loader)) {
+        // The dex cache can reference types from the boot class loader.
+        continue;
+      }
       std::list<mirror::String*> image_dex_file_names;
       std::string temp_error_msg;
       if (!FlattenPathClassLoader(image_class_loader, &image_dex_file_names, &temp_error_msg)) {
