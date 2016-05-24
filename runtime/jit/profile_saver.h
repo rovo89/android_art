@@ -95,9 +95,9 @@ class ProfileSaver {
   // If no entry exists, a new empty one will be created, added to the cache and
   // then returned.
   ProfileCompilationInfo* GetCachedProfiledInfo(const std::string& filename);
-  // Fetches the current resolved classes from the ClassLinker and stores them
-  // in the profile_cache_ for later save.
-  void FetchAndCacheResolvedClasses();
+  // Fetches the current resolved classes and methods from the ClassLinker and stores them in the
+  // profile_cache_ for later save.
+  void FetchAndCacheResolvedClassesAndMethods();
 
   static bool MaybeRecordDexUseInternal(
       const std::string& dex_location,
