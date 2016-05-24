@@ -182,8 +182,12 @@ void OatHeader::UpdateChecksumWithHeaderData() {
 
 void OatHeader::UpdateChecksum(const void* data, size_t length) {
   DCHECK(IsValid());
-  const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data);
-  adler32_checksum_ = adler32(adler32_checksum_, bytes, length);
+  if (data != nullptr) {
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data);
+    adler32_checksum_ = adler32(adler32_checksum_, bytes, length);
+  } else {
+    DCHECK_EQ(0U, length);
+  }
 }
 
 InstructionSet OatHeader::GetInstructionSet() const {
