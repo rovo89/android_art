@@ -1,0 +1,4 @@
+The situation in this test was discovered by running dexfuzz on
+another fuzzingly random generated Java test. The soft verification
+fail (on the final field modification) should not hide the hard
+verification fail (on the type mismatch) to avoid a crash later on.
