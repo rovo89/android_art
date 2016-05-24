@@ -58,11 +58,6 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 
-#ifdef __ANDROID__
-// This function is provided by android linker.
-extern "C" void android_update_LD_LIBRARY_PATH(const char* ld_library_path);
-#endif  // __ANDROID__
-
 #undef LOG_TAG
 #define LOG_TAG "artopenjdk"
 
@@ -324,22 +319,6 @@ JNIEXPORT __attribute__((noreturn)) void JVM_Exit(jint status) {
   exit(status);
 }
 
-static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPath) {
-#ifdef __ANDROID__
-  if (javaLdLibraryPath != nullptr) {
-    ScopedUtfChars ldLibraryPath(env, javaLdLibraryPath);
-    if (ldLibraryPath.c_str() != nullptr) {
-      android_update_LD_LIBRARY_PATH(ldLibraryPath.c_str());
-    }
-  }
-
-#else
-  LOG(WARNING) << "android_update_LD_LIBRARY_PATH not found; .so dependencies will not work!";
-  UNUSED(javaLdLibraryPath, env);
-#endif
-}
-
-
 JNIEXPORT jstring JVM_NativeLoad(JNIEnv* env,
                                  jstring javaFilename,
                                  jobject javaLoader,
@@ -347,17 +326,6 @@ JNIEXPORT jstring JVM_NativeLoad(JNIEnv* env,
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == NULL) {
     return NULL;
-  }
-
-  int32_t target_sdk_version = art::Runtime::Current()->GetTargetSdkVersion();
-
-  // Starting with N nativeLoad uses classloader local
-  // linker namespace instead of global LD_LIBRARY_PATH
-  // (23 is Marshmallow). This call is here to preserve
-  // backwards compatibility for the apps targeting sdk
-  // version <= 23
-  if (target_sdk_version == 0) {
-    SetLdLibraryPath(env, javaLibrarySearchPath);
   }
 
   std::string error_msg;
