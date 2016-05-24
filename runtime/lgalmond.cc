@@ -1,6 +1,7 @@
 #include "lgalmond.h"
 
 #include <dlfcn.h>
+#include <endian.h>
 #include <sys/mman.h>
 
 #include "base/logging.h"
