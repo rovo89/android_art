@@ -104,7 +104,7 @@ bool VerificationResults::IsClassRejected(ClassReference ref) {
 
 bool VerificationResults::IsCandidateForCompilation(MethodReference&,
                                                     const uint32_t access_flags) {
-  if (!compiler_options_->IsCompilationEnabled()) {
+  if (!compiler_options_->IsBytecodeCompilationEnabled()) {
     return false;
   }
   // Don't compile class initializers unless kEverything.
