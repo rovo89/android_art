@@ -227,6 +227,10 @@ class Instrumentation {
   void UpdateMethodsCode(ArtMethod* method, const void* quick_code)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!deoptimized_methods_lock_);
 
+  // Update the code of a method respecting any installed stubs from debugger.
+  void UpdateMethodsCodeFromDebugger(ArtMethod* method, const void* quick_code)
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!deoptimized_methods_lock_);
+
   // Get the quick code for the given method. More efficient than asking the class linker as it
   // will short-cut to GetCode if instrumentation and static method resolution stubs aren't
   // installed.
@@ -493,6 +497,9 @@ class Instrumentation {
       SHARED_REQUIRES(Locks::mutator_lock_, deoptimized_methods_lock_);
   bool IsDeoptimizedMethodsEmpty() const
       SHARED_REQUIRES(Locks::mutator_lock_, deoptimized_methods_lock_);
+  void UpdateMethodsCodeImpl(ArtMethod* method, const void* quick_code)
+      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!deoptimized_methods_lock_);
+
 
   // Have we hijacked ArtMethod::code_ so that it calls instrumentation/interpreter code?
   bool instrumentation_stubs_installed_;

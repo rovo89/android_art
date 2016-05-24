@@ -582,7 +582,7 @@ class UpdateEntryPointsClassVisitor : public ClassVisitor {
       if (Runtime::Current()->GetHeap()->IsInBootImageOatFile(code) &&
           !m.IsNative() &&
           !m.IsProxyMethod()) {
-        instrumentation_->UpdateMethodsCode(&m, GetQuickToInterpreterBridge());
+        instrumentation_->UpdateMethodsCodeFromDebugger(&m, GetQuickToInterpreterBridge());
       }
     }
     return true;
