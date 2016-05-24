@@ -89,8 +89,12 @@ class CompilerOptions FINAL {
     return compiler_filter_ == CompilerFilter::kVerifyAtRuntime;
   }
 
-  bool IsCompilationEnabled() const {
-    return CompilerFilter::IsCompilationEnabled(compiler_filter_);
+  bool IsBytecodeCompilationEnabled() const {
+    return CompilerFilter::IsBytecodeCompilationEnabled(compiler_filter_);
+  }
+
+  bool IsJniCompilationEnabled() const {
+    return CompilerFilter::IsJniCompilationEnabled(compiler_filter_);
   }
 
   bool IsVerificationEnabled() const {

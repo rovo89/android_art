@@ -1450,25 +1450,6 @@ class Dex2Oat FINAL {
           class_linker->RegisterDexFile(*dex_file, Runtime::Current()->GetLinearAlloc())));
     }
 
-    /*
-     * If we're not in interpret-only or verify-none or verify-at-runtime or verify-profile mode,
-     * go ahead and compile small applications.  Don't bother to check if we're doing the image.
-     */
-    if (!IsBootImage() &&
-        compiler_options_->IsCompilationEnabled() &&
-        compiler_kind_ == Compiler::kQuick) {
-      size_t num_methods = 0;
-      for (size_t i = 0; i != dex_files_.size(); ++i) {
-        const DexFile* dex_file = dex_files_[i];
-        CHECK(dex_file != nullptr);
-        num_methods += dex_file->NumMethodIds();
-      }
-      if (num_methods <= compiler_options_->GetNumDexMethodsThreshold()) {
-        compiler_options_->SetCompilerFilter(CompilerFilter::kSpeed);
-        VLOG(compiler) << "Below method threshold, compiling anyways";
-      }
-    }
-
     return true;
   }
 

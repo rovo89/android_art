@@ -20,13 +20,32 @@
 
 namespace art {
 
-bool CompilerFilter::IsCompilationEnabled(Filter filter) {
+bool CompilerFilter::IsBytecodeCompilationEnabled(Filter filter) {
   switch (filter) {
     case CompilerFilter::kVerifyNone:
     case CompilerFilter::kVerifyAtRuntime:
     case CompilerFilter::kVerifyProfile:
     case CompilerFilter::kInterpretOnly: return false;
 
+    case CompilerFilter::kSpaceProfile:
+    case CompilerFilter::kSpace:
+    case CompilerFilter::kBalanced:
+    case CompilerFilter::kTime:
+    case CompilerFilter::kSpeedProfile:
+    case CompilerFilter::kSpeed:
+    case CompilerFilter::kEverythingProfile:
+    case CompilerFilter::kEverything: return true;
+  }
+  UNREACHABLE();
+}
+
+bool CompilerFilter::IsJniCompilationEnabled(Filter filter) {
+  switch (filter) {
+    case CompilerFilter::kVerifyNone:
+    case CompilerFilter::kVerifyAtRuntime: return false;
+
+    case CompilerFilter::kVerifyProfile:
+    case CompilerFilter::kInterpretOnly:
     case CompilerFilter::kSpaceProfile:
     case CompilerFilter::kSpace:
     case CompilerFilter::kBalanced:

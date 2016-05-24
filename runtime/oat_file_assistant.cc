@@ -153,7 +153,7 @@ bool OatFileAssistant::OdexFileCompilerFilterIsOkay(CompilerFilter::Filter targe
 }
 
 OatFileAssistant::DexOptNeeded OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target) {
-  bool compilation_desired = CompilerFilter::IsCompilationEnabled(target);
+  bool compilation_desired = CompilerFilter::IsBytecodeCompilationEnabled(target);
 
   // See if the oat file is in good shape as is.
   bool oat_okay = OatFileCompilerFilterIsOkay(target);
@@ -573,7 +573,7 @@ bool OatFileAssistant::GivenOatFileIsUpToDate(const OatFile& file) {
 
   CompilerFilter::Filter current_compiler_filter = file.GetCompilerFilter();
 
-  if (CompilerFilter::IsCompilationEnabled(current_compiler_filter)) {
+  if (CompilerFilter::IsBytecodeCompilationEnabled(current_compiler_filter)) {
     if (!file.IsPic()) {
       const ImageInfo* image_info = GetImageInfo();
       if (image_info == nullptr) {

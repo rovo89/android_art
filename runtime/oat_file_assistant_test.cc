@@ -233,7 +233,7 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     EXPECT_TRUE(odex_file->HasPatchInfo());
     EXPECT_EQ(filter, odex_file->GetCompilerFilter());
 
-    if (CompilerFilter::IsCompilationEnabled(filter)) {
+    if (CompilerFilter::IsBytecodeCompilationEnabled(filter)) {
       const std::vector<gc::space::ImageSpace*> image_spaces =
         runtime->GetHeap()->GetBootImageSpaces();
       ASSERT_TRUE(!image_spaces.empty() && image_spaces[0] != nullptr);

@@ -553,8 +553,8 @@ static void CompileMethod(Thread* self,
   MethodReference method_ref(&dex_file, method_idx);
 
   if ((access_flags & kAccNative) != 0) {
-    // Are we interpreting only and have support for generic JNI down calls?
-    if (!driver->GetCompilerOptions().IsCompilationEnabled() &&
+    // Are we extracting only and have support for generic JNI down calls?
+    if (!driver->GetCompilerOptions().IsJniCompilationEnabled() &&
         InstructionSetHasGenericJniStub(driver->GetInstructionSet())) {
       // Leaving this empty will trigger the generic JNI version
     } else {
