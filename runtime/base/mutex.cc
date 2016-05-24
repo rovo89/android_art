@@ -49,7 +49,7 @@ Mutex* Locks::modify_ldt_lock_ = nullptr;
 MutatorMutex* Locks::mutator_lock_ = nullptr;
 Mutex* Locks::profiler_lock_ = nullptr;
 ReaderWriterMutex* Locks::oat_file_manager_lock_ = nullptr;
-ReaderWriterMutex* Locks::oat_file_count_lock_ = nullptr;
+Mutex* Locks::host_dlopen_handles_lock_ = nullptr;
 Mutex* Locks::reference_processor_lock_ = nullptr;
 Mutex* Locks::reference_queue_cleared_references_lock_ = nullptr;
 Mutex* Locks::reference_queue_finalizer_references_lock_ = nullptr;
@@ -953,7 +953,7 @@ void Locks::Init() {
     DCHECK(deoptimization_lock_ != nullptr);
     DCHECK(heap_bitmap_lock_ != nullptr);
     DCHECK(oat_file_manager_lock_ != nullptr);
-    DCHECK(oat_file_count_lock_ != nullptr);
+    DCHECK(host_dlopen_handles_lock_ != nullptr);
     DCHECK(intern_table_lock_ != nullptr);
     DCHECK(jni_libraries_lock_ != nullptr);
     DCHECK(logging_lock_ != nullptr);
@@ -1042,9 +1042,9 @@ void Locks::Init() {
     DCHECK(oat_file_manager_lock_ == nullptr);
     oat_file_manager_lock_ = new ReaderWriterMutex("OatFile manager lock", current_lock_level);
 
-    UPDATE_CURRENT_LOCK_LEVEL(kOatFileCountLock);
-    DCHECK(oat_file_count_lock_ == nullptr);
-    oat_file_count_lock_ = new ReaderWriterMutex("OatFile count lock", current_lock_level);
+    UPDATE_CURRENT_LOCK_LEVEL(kHostDlOpenHandlesLock);
+    DCHECK(host_dlopen_handles_lock_ == nullptr);
+    host_dlopen_handles_lock_ = new Mutex("host dlopen handles lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kInternTableLock);
     DCHECK(intern_table_lock_ == nullptr);
