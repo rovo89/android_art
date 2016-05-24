@@ -448,23 +448,23 @@ TEST_F(OatTest, OatHeaderSizeCheck) {
 }
 
 TEST_F(OatTest, OatHeaderIsValid) {
-    InstructionSet insn_set = kX86;
-    std::string error_msg;
-    std::unique_ptr<const InstructionSetFeatures> insn_features(
-        InstructionSetFeatures::FromVariant(insn_set, "default", &error_msg));
-    ASSERT_TRUE(insn_features.get() != nullptr) << error_msg;
-    std::unique_ptr<OatHeader> oat_header(OatHeader::Create(insn_set,
-                                                            insn_features.get(),
-                                                            0u,
-                                                            nullptr));
-    ASSERT_NE(oat_header.get(), nullptr);
-    ASSERT_TRUE(oat_header->IsValid());
+  InstructionSet insn_set = kX86;
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> insn_features(
+    InstructionSetFeatures::FromVariant(insn_set, "default", &error_msg));
+  ASSERT_TRUE(insn_features.get() != nullptr) << error_msg;
+  std::unique_ptr<OatHeader> oat_header(OatHeader::Create(insn_set,
+                                                          insn_features.get(),
+                                                          0u,
+                                                          nullptr));
+  ASSERT_NE(oat_header.get(), nullptr);
+  ASSERT_TRUE(oat_header->IsValid());
 
-    char* magic = const_cast<char*>(oat_header->GetMagic());
-    strcpy(magic, "");  // bad magic
-    ASSERT_FALSE(oat_header->IsValid());
-    strcpy(magic, "oat\n000");  // bad version
-    ASSERT_FALSE(oat_header->IsValid());
+  char* magic = const_cast<char*>(oat_header->GetMagic());
+  strcpy(magic, "");  // bad magic
+  ASSERT_FALSE(oat_header->IsValid());
+  strcpy(magic, "oat\n000");  // bad version
+  ASSERT_FALSE(oat_header->IsValid());
 }
 
 TEST_F(OatTest, EmptyTextSection) {
@@ -764,6 +764,30 @@ TEST_F(OatTest, ZipFileInputCheckOutput) {
 
 TEST_F(OatTest, ZipFileInputCheckVerifier) {
   TestZipFileInput(true);
+}
+
+TEST_F(OatTest, UpdateChecksum) {
+  InstructionSet insn_set = kX86;
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> insn_features(
+    InstructionSetFeatures::FromVariant(insn_set, "default", &error_msg));
+  ASSERT_TRUE(insn_features.get() != nullptr) << error_msg;
+  std::unique_ptr<OatHeader> oat_header(OatHeader::Create(insn_set,
+                                                          insn_features.get(),
+                                                          0u,
+                                                          nullptr));
+  // The starting adler32 value is 1.
+  EXPECT_EQ(1U, oat_header->GetChecksum());
+
+  oat_header->UpdateChecksum(OatHeader::kOatMagic, sizeof(OatHeader::kOatMagic));
+  EXPECT_EQ(64291151U, oat_header->GetChecksum());
+
+  // Make sure that null data does not reset the checksum.
+  oat_header->UpdateChecksum(nullptr, 0);
+  EXPECT_EQ(64291151U, oat_header->GetChecksum());
+
+  oat_header->UpdateChecksum(OatHeader::kOatMagic, sizeof(OatHeader::kOatMagic));
+  EXPECT_EQ(216138397U, oat_header->GetChecksum());
 }
 
 }  // namespace art
