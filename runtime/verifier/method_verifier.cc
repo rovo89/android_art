@@ -4652,7 +4652,7 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
       if (field->IsFinal() && field->GetDeclaringClass() != GetDeclaringClass().GetClass()) {
         Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
                                         << " from other class " << GetDeclaringClass();
-        return;
+        // Keep hunting for possible hard fails.
       }
     }
 
