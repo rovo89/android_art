@@ -149,6 +149,10 @@ class OatFileAssistant {
   // given compiler filter.
   DexOptNeeded GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter);
 
+  // Returns true if there is up-to-date code for this dex location,
+  // irrespective of the compiler filter of the up-to-date code.
+  bool IsUpToDate();
+
   // Return code used when attempting to generate updated code.
   enum ResultOfAttemptToUpdate {
     kUpdateFailed,        // We tried making the code up to date, but
