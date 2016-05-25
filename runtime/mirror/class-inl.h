@@ -419,8 +419,6 @@ inline bool Class::ResolvedMethodAccessTest(Class* access_to, ArtMethod* method,
       }
       return false;
     }
-    DCHECK_EQ(this->CanAccessMember(access_to, method->GetAccessFlags()),
-              this->CanAccessMember(dex_access_to, method->GetAccessFlags()));
   }
   if (LIKELY(this->CanAccessMember(access_to, method->GetAccessFlags()))) {
     return true;
