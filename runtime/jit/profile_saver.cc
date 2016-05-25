@@ -120,7 +120,7 @@ void ProfileSaver::Run() {
       {
         MutexLock mu(self, wait_lock_);
         period_condition_.Wait(self);
-        sleep_time = NanoTime() - last_time_ns_saver_woke_up_;
+        sleep_time = NanoTime() - sleep_start;
       }
       // Check if the thread was woken up for shutdown.
       if (ShuttingDown(self)) {
@@ -134,7 +134,7 @@ void ProfileSaver::Run() {
         {
           MutexLock mu(self, wait_lock_);
           period_condition_.TimedWait(self, NsToMs(kMinSavePeriodNs - sleep_time), 0);
-          sleep_time = NanoTime() - last_time_ns_saver_woke_up_;
+          sleep_time = NanoTime() - sleep_start;
         }
         // Check if the thread was woken up for shutdown.
         if (ShuttingDown(self)) {
