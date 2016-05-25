@@ -1269,6 +1269,21 @@ class Dex2Oat FINAL {
       CHECK(runtime != nullptr);
       std::set<DexCacheResolvedClasses> resolved_classes(
           profile_compilation_info_->GetResolvedClasses());
+
+      // Filter out class path classes since we don't want to include these in the image.
+      std::unordered_set<std::string> dex_files_locations;
+      for (const DexFile* dex_file : dex_files_) {
+        dex_files_locations.insert(dex_file->GetLocation());
+      }
+      for (auto it = resolved_classes.begin(); it != resolved_classes.end(); ) {
+        if (dex_files_locations.find(it->GetDexLocation()) == dex_files_locations.end()) {
+          VLOG(compiler) << "Removed profile samples for non-app dex file " << it->GetDexLocation();
+          it = resolved_classes.erase(it);
+        } else {
+          ++it;
+        }
+      }
+
       image_classes_.reset(new std::unordered_set<std::string>(
           runtime->GetClassLinker()->GetClassDescriptorsForProfileKeys(resolved_classes)));
       VLOG(compiler) << "Loaded " << image_classes_->size()
@@ -2443,6 +2458,7 @@ class Dex2Oat FINAL {
   bool multi_image_;
   bool is_host_;
   std::string android_root_;
+  // Dex files we are compiling, does not include the class path dex files.
   std::vector<const DexFile*> dex_files_;
   std::string no_inline_from_string_;
   std::vector<jobject> dex_caches_;
