@@ -1348,7 +1348,8 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         for (int32_t j = 0; j < static_cast<int32_t>(num_types); j++) {
           // The image space is not yet added to the heap, avoid read barriers.
           mirror::Class* klass = types[j].Read();
-          if (klass != nullptr) {
+          // There may also be boot image classes,
+          if (space->HasAddress(klass)) {
             DCHECK_NE(klass->GetStatus(), mirror::Class::kStatusError);
             // Update the class loader from the one in the image class loader to the one that loaded
             // the app image.
@@ -1387,6 +1388,9 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
                 VLOG(image) << PrettyMethod(&m);
               }
             }
+          } else {
+            DCHECK(klass == nullptr || heap->ObjectIsInBootImageSpace(klass))
+                << klass << " " << PrettyClass(klass);
           }
         }
       }
@@ -1394,10 +1398,10 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         for (int32_t j = 0; j < static_cast<int32_t>(num_types); j++) {
           // The image space is not yet added to the heap, avoid read barriers.
           mirror::Class* klass = types[j].Read();
-          if (klass != nullptr) {
+          if (space->HasAddress(klass)) {
             DCHECK_NE(klass->GetStatus(), mirror::Class::kStatusError);
             if (kIsDebugBuild) {
-              if (new_class_set != nullptr)   {
+              if (new_class_set != nullptr) {
                 auto it = new_class_set->Find(GcRoot<mirror::Class>(klass));
                 DCHECK(it != new_class_set->end());
                 DCHECK_EQ(it->Read(), klass);
