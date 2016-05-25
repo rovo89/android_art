@@ -130,7 +130,7 @@ void ProfileSaver::Run() {
       // We might have been woken up by a huge number of notifications to guarantee saving.
       // If we didn't meet the minimum saving period go back to sleep (only if missed by
       // a reasonable margin).
-      while (kMinSavePeriodNs - sleep_time > (kMinSavePeriodNs / 10)) {
+      while (kMinSavePeriodNs * 0.9 > sleep_time) {
         {
           MutexLock mu(self, wait_lock_);
           period_condition_.TimedWait(self, NsToMs(kMinSavePeriodNs - sleep_time), 0);
