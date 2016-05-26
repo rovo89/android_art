@@ -271,7 +271,6 @@ class OatWriter {
   bool WriteTypeLookupTables(MemMap* opened_dex_files_map,
                              const std::vector<std::unique_ptr<const DexFile>>& opened_dex_files);
   bool WriteCodeAlignment(OutputStream* out, uint32_t aligned_code_delta);
-  bool WriteData(OutputStream* out, const void* data, size_t size);
   void SetMultiOatRelativePatcherAdjustment();
 
   enum class WriteState {
