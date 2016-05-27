@@ -490,40 +490,23 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
 // OatFile via dlopen //
 ////////////////////////
 
-static bool RegisterOatFileLocation(const std::string& location) {
-  if (!kIsTargetBuild) {
-    Runtime* const runtime = Runtime::Current();
-    if (runtime != nullptr && !runtime->IsAotCompiler()) {
-      return runtime->GetOatFileManager().RegisterOatFileLocation(location);
-    }
-    return false;
-  }
-  return true;
-}
-
-static void UnregisterOatFileLocation(const std::string& location) {
-  if (!kIsTargetBuild) {
-    Runtime* const runtime = Runtime::Current();
-    if (runtime != nullptr && !runtime->IsAotCompiler()) {
-      runtime->GetOatFileManager().UnRegisterOatFileLocation(location);
-    }
-  }
-}
-
 class DlOpenOatFile FINAL : public OatFileBase {
  public:
   DlOpenOatFile(const std::string& filename, bool executable)
       : OatFileBase(filename, executable),
         dlopen_handle_(nullptr),
-        shared_objects_before_(0),
-        first_oat_(RegisterOatFileLocation(filename)) {
+        shared_objects_before_(0) {
   }
 
   ~DlOpenOatFile() {
     if (dlopen_handle_ != nullptr) {
       dlclose(dlopen_handle_);
+
+      if (!kIsTargetBuild) {
+        MutexLock mu(Thread::Current(), *Locks::host_dlopen_handles_lock_);
+        host_dlopen_handles_.erase(dlopen_handle_);
+      }
     }
-    UnregisterOatFileLocation(GetLocation());
   }
 
  protected:
@@ -554,6 +537,17 @@ class DlOpenOatFile FINAL : public OatFileBase {
               uint8_t* oat_file_begin,
               std::string* error_msg);
 
+  // On the host, if the same library is loaded again with dlopen the same
+  // file handle is returned. This differs from the behavior of dlopen on the
+  // target, where dlopen reloads the library at a different address every
+  // time you load it. The runtime relies on the target behavior to ensure
+  // each instance of the loaded library has a unique dex cache. To avoid
+  // problems, we fall back to our own linker in the case when the same
+  // library is opened multiple times on host. dlopen_handles_ is used to
+  // detect that case.
+  // Guarded by host_dlopen_handles_lock_;
+  static std::unordered_set<void*> host_dlopen_handles_;
+
   // dlopen handle during runtime.
   void* dlopen_handle_;  // TODO: Unique_ptr with custom deleter.
 
@@ -564,11 +558,10 @@ class DlOpenOatFile FINAL : public OatFileBase {
   // (optimistically) optimize the PreSetup stage (see comment there).
   size_t shared_objects_before_;
 
-  // Track the registration status (= was this the first oat file) for the location.
-  const bool first_oat_;
-
   DISALLOW_COPY_AND_ASSIGN(DlOpenOatFile);
 };
+
+std::unordered_set<void*> DlOpenOatFile::host_dlopen_handles_;
 
 void DlOpenOatFile::PreLoad() {
 #ifdef __APPLE__
@@ -628,12 +621,6 @@ bool DlOpenOatFile::Load(const std::string& elf_filename,
       *error_msg = "DlOpen disabled for host.";
       return false;
     }
-    // For RAII, tracking multiple loads is done in the constructor and destructor. The result is
-    // stored in the first_oat_ flag.
-    if (!first_oat_) {
-      *error_msg = "Loading oat files multiple times with dlopen not supported on host.";
-      return false;
-    }
   }
 
   bool success = Dlopen(elf_filename, oat_file_begin, error_msg);
@@ -671,8 +658,18 @@ bool DlOpenOatFile::Dlopen(const std::string& elf_filename,
     }                                                           //   (pic boot image).
     dlopen_handle_ = android_dlopen_ext(absolute_path.get(), RTLD_NOW, &extinfo);
 #else
-    dlopen_handle_ = dlopen(absolute_path.get(), RTLD_NOW);
     UNUSED(oat_file_begin);
+    static_assert(!kIsTargetBuild, "host_dlopen_handles_ will leak handles");
+    dlopen_handle_ = dlopen(absolute_path.get(), RTLD_NOW);
+    if (dlopen_handle_ != nullptr) {
+      MutexLock mu(Thread::Current(), *Locks::host_dlopen_handles_lock_);
+      if (!host_dlopen_handles_.insert(dlopen_handle_).second) {
+        dlclose(dlopen_handle_);
+        dlopen_handle_ = nullptr;
+        *error_msg = StringPrintf("host dlopen re-opened '%s'", elf_filename.c_str());
+        return false;
+      }
+    }
 #endif
   }
   if (dlopen_handle_ == nullptr) {
