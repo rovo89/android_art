@@ -731,28 +731,6 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
   return dex_files;
 }
 
-bool OatFileManager::RegisterOatFileLocation(const std::string& oat_location) {
-  WriterMutexLock mu(Thread::Current(), *Locks::oat_file_count_lock_);
-  auto it = oat_file_count_.find(oat_location);
-  if (it != oat_file_count_.end()) {
-    ++it->second;
-    return false;
-  }
-  oat_file_count_.insert(std::pair<std::string, size_t>(oat_location, 1u));
-  return true;
-}
-
-void OatFileManager::UnRegisterOatFileLocation(const std::string& oat_location) {
-  WriterMutexLock mu(Thread::Current(), *Locks::oat_file_count_lock_);
-  auto it = oat_file_count_.find(oat_location);
-  if (it != oat_file_count_.end()) {
-    --it->second;
-    if (it->second == 0) {
-      oat_file_count_.erase(it);
-    }
-  }
-}
-
 void OatFileManager::DumpForSigQuit(std::ostream& os) {
   ReaderMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
   std::vector<const OatFile*> boot_oat_files = GetBootOatFiles();
