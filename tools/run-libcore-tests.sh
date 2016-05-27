@@ -109,7 +109,6 @@ done
 vogar_args="$vogar_args --timeout 480"
 
 # Use Jack with "1.8" configuration.
-export JACK_VERSION=`basename prebuilts/sdk/tools/jacks/*ALPHA* | sed 's/^jack-//' | sed 's/.jar$//'`
 vogar_args="$vogar_args --toolchain jack --language JN"
 
 # Run the tests using vogar.
