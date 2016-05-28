@@ -159,7 +159,23 @@ public class TestAnnotations {
         System.out.println("");
     }
 
-
+    public static void testVisibilityCompatibility() throws Exception {
+        if (!VMRuntime.isAndroid()) {
+            return;
+        }
+        Object runtime = VMRuntime.getRuntime();
+        int currentSdkVersion = VMRuntime.getTargetSdkVersion(runtime);
+        // SDK version 23 is M.
+        int oldSdkVersion = 23;
+        VMRuntime.setTargetSdkVersion(runtime, oldSdkVersion);
+        // This annotation has CLASS retention, but is visible to the runtime in M and earlier.
+        Annotation anno = SimplyNoted.class.getAnnotation(AnnoSimpleTypeInvis.class);
+        if (anno == null) {
+            System.out.println("testVisibilityCompatibility failed: " +
+                    "SimplyNoted.get(AnnoSimpleTypeInvis) should not be null");
+        }
+        VMRuntime.setTargetSdkVersion(runtime, currentSdkVersion);
+    }
 
     public static void main(String[] args) {
         System.out.println("TestAnnotations...");
@@ -228,6 +244,56 @@ public class TestAnnotations {
             }
         } catch (NoSuchFieldError expected) {
             System.out.println("Got expected NoSuchFieldError");
+        }
+
+        // Test if annotations marked VISIBILITY_BUILD are visible to runtime in M and earlier.
+        try {
+            testVisibilityCompatibility();
+        } catch (Exception e) {
+            System.out.println("testVisibilityCompatibility failed: " + e);
+        }
+    }
+
+    private static class VMRuntime {
+        private static Class vmRuntimeClass;
+        private static Method getRuntimeMethod;
+        private static Method getTargetSdkVersionMethod;
+        private static Method setTargetSdkVersionMethod;
+        static {
+            init();
+        }
+
+        private static void init() {
+            try {
+                vmRuntimeClass = Class.forName("dalvik.system.VMRuntime");
+            } catch (Exception e) {
+                return;
+            }
+            try {
+                getRuntimeMethod = vmRuntimeClass.getDeclaredMethod("getRuntime");
+                getTargetSdkVersionMethod =
+                        vmRuntimeClass.getDeclaredMethod("getTargetSdkVersion");
+                setTargetSdkVersionMethod =
+                        vmRuntimeClass.getDeclaredMethod("setTargetSdkVersion", Integer.TYPE);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public static boolean isAndroid() {
+            return vmRuntimeClass != null;
+        }
+
+        public static Object getRuntime() throws Exception {
+            return getRuntimeMethod.invoke(null);
+        }
+
+        public static int getTargetSdkVersion(Object runtime) throws Exception {
+            return (int) getTargetSdkVersionMethod.invoke(runtime);
+        }
+
+        public static void setTargetSdkVersion(Object runtime, int version) throws Exception {
+            setTargetSdkVersionMethod.invoke(runtime, version);
         }
     }
 }

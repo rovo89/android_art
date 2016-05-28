@@ -1163,6 +1163,18 @@ static uint64_t ReadUnsignedLong(const uint8_t* ptr, int zwidth, bool fill_on_ri
   return val;
 }
 
+// Checks that visibility is as expected. Includes special behavior for M and
+// before to allow runtime and build visibility when expecting runtime.
+static bool IsVisibilityCompatible(uint32_t actual, uint32_t expected) {
+  if (expected == DexFile::kDexVisibilityRuntime) {
+    int32_t sdk_version = Runtime::Current()->GetTargetSdkVersion();
+    if (sdk_version > 0 && sdk_version <= 23) {
+      return actual == DexFile::kDexVisibilityRuntime || actual == DexFile::kDexVisibilityBuild;
+    }
+  }
+  return actual == expected;
+}
+
 const DexFile::AnnotationSetItem* DexFile::FindAnnotationSetForField(ArtField* field) const {
   mirror::Class* klass = field->GetDeclaringClass();
   const AnnotationsDirectoryItem* annotations_dir = GetAnnotationsDirectory(*klass->GetClassDef());
@@ -1640,7 +1652,7 @@ const DexFile::AnnotationItem* DexFile::GetAnnotationItemFromAnnotationSet(
     Handle<mirror::Class> annotation_class) const {
   for (uint32_t i = 0; i < annotation_set->size_; ++i) {
     const AnnotationItem* annotation_item = GetAnnotationItem(annotation_set, i);
-    if (annotation_item->visibility_ != visibility) {
+    if (!IsVisibilityCompatible(annotation_item->visibility_, visibility)) {
       continue;
     }
     const uint8_t* annotation = annotation_item->annotation_;
@@ -1758,6 +1770,8 @@ mirror::ObjectArray<mirror::Object>* DexFile::ProcessAnnotationSet(Handle<mirror
   uint32_t dest_index = 0;
   for (uint32_t i = 0; i < size; ++i) {
     const AnnotationItem* annotation_item = GetAnnotationItem(annotation_set, i);
+    // Note that we do not use IsVisibilityCompatible here because older code
+    // was correct for this case.
     if (annotation_item->visibility_ != visibility) {
       continue;
     }
@@ -2146,7 +2160,7 @@ const DexFile::AnnotationItem* DexFile::SearchAnnotationSet(const AnnotationSetI
   const AnnotationItem* result = nullptr;
   for (uint32_t i = 0; i < annotation_set->size_; ++i) {
     const AnnotationItem* annotation_item = GetAnnotationItem(annotation_set, i);
-    if (annotation_item->visibility_ != visibility) {
+    if (!IsVisibilityCompatible(annotation_item->visibility_, visibility)) {
       continue;
     }
     const uint8_t* annotation = annotation_item->annotation_;
