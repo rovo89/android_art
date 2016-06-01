@@ -31,6 +31,7 @@
 #include "base/stringprintf.h"
 #include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
+#include "dex_file.h"
 #include "jit/offline_profiling_info.h"
 #include "utils.h"
 #include "profile_assistant.h"
@@ -46,6 +47,12 @@ static std::string CommandLine() {
     command.push_back(original_argv[i]);
   }
   return Join(command, ' ');
+}
+
+static constexpr int kInvalidFd = -1;
+
+static bool FdIsValid(int fd) {
+  return fd != kInvalidFd;
 }
 
 static void UsageErrorV(const char* fmt, va_list ap) {
@@ -70,8 +77,11 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("Command: %s", CommandLine().c_str());
   UsageError("Usage: profman [options]...");
   UsageError("");
-  UsageError("  --dump-info-for=<filename>: dumps the content of the profile file");
-  UsageError("      to standard output in a human readable form.");
+  UsageError("  --dump-only: dumps the content of the specified profile files");
+  UsageError("      to standard output (default) in a human readable form.");
+  UsageError("");
+  UsageError("  --dump-output-to-fd=<number>: redirects --dump-info-for output to a file");
+  UsageError("      descriptor.");
   UsageError("");
   UsageError("  --profile-file=<filename>: specify profiler output file to use for compilation.");
   UsageError("      Can be specified multiple time, in which case the data from the different");
@@ -90,6 +100,12 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("      accepts a file descriptor. Cannot be used together with");
   UsageError("      --reference-profile-file.");
   UsageError("");
+  UsageError("  --code-location=<string>: location string to use with corresponding");
+  UsageError("      code-fd to find dex files");
+  UsageError("");
+  UsageError("  --code-location-fd=<number>: file descriptor containing an open APK to");
+  UsageError("      search for dex files");
+  UsageError("");
 
   exit(EXIT_FAILURE);
 }
@@ -97,7 +113,9 @@ NO_RETURN static void Usage(const char *fmt, ...) {
 class ProfMan FINAL {
  public:
   ProfMan() :
-      reference_profile_file_fd_(-1),
+      reference_profile_file_fd_(kInvalidFd),
+      dump_only_(false),
+      dump_output_to_fd_(kInvalidFd),
       start_ns_(NanoTime()) {}
 
   ~ProfMan() {
@@ -124,8 +142,10 @@ class ProfMan FINAL {
       if (log_options) {
         LOG(INFO) << "profman: option[" << i << "]=" << argv[i];
       }
-      if (option.starts_with("--dump-info-for=")) {
-        dump_info_for_ = option.substr(strlen("--dump-info-for=")).ToString();
+      if (option == "--dump-only") {
+        dump_only_ = true;
+      } else if (option.starts_with("--dump-output-to-fd=")) {
+        ParseUintOption(option, "--dump-output-to-fd", &dump_output_to_fd_, Usage);
       } else if (option.starts_with("--profile-file=")) {
         profile_files_.push_back(option.substr(strlen("--profile-file=")).ToString());
       } else if (option.starts_with("--profile-file-fd=")) {
@@ -134,32 +154,37 @@ class ProfMan FINAL {
         reference_profile_file_ = option.substr(strlen("--reference-profile-file=")).ToString();
       } else if (option.starts_with("--reference-profile-file-fd=")) {
         ParseUintOption(option, "--reference-profile-file-fd", &reference_profile_file_fd_, Usage);
+      } else if (option.starts_with("--code-location=")) {
+        code_locations_.push_back(option.substr(strlen("--code-location=")).ToString());
+      } else if (option.starts_with("--code-location-fd=")) {
+        ParseFdForCollection(option, "--code-location-fd", &code_locations_fd_);
       } else {
-        Usage("Unknown argument %s", option.data());
+        Usage("Unknown argument '%s'", option.data());
       }
     }
 
     bool has_profiles = !profile_files_.empty() || !profile_files_fd_.empty();
     bool has_reference_profile = !reference_profile_file_.empty() ||
-        (reference_profile_file_fd_ != -1);
+        FdIsValid(reference_profile_file_fd_);
 
-    if (!dump_info_for_.empty()) {
-      if (has_profiles || has_reference_profile) {
-        Usage("dump-info-for cannot be specified together with other options");
-      }
-      return;
-    }
-    if (!has_profiles) {
+    // --dump-only may be specified with only --reference-profiles present.
+    if (!dump_only_ && !has_profiles) {
       Usage("No profile files specified.");
     }
     if (!profile_files_.empty() && !profile_files_fd_.empty()) {
       Usage("Profile files should not be specified with both --profile-file-fd and --profile-file");
     }
-    if (!has_reference_profile) {
-      Usage("--reference-profile-file-fd should only be supplied with --profile-file-fd");
+    if (!dump_only_ && !has_reference_profile) {
+      Usage("No reference profile file specified.");
     }
-    if (reference_profile_file_.empty() && (reference_profile_file_fd_ == -1)) {
-      Usage("Reference profile file not specified");
+    if (!reference_profile_file_.empty() && FdIsValid(reference_profile_file_fd_)) {
+      Usage("Reference profile should not be specified with both "
+            "--reference-profile-file-fd and --reference-profile-file");
+    }
+    if ((!profile_files_.empty() && FdIsValid(reference_profile_file_fd_)) ||
+        (!dump_only_ && !profile_files_fd_.empty() && !FdIsValid(reference_profile_file_fd_))) {
+      Usage("Options --profile-file-fd and --reference-profile-file-fd "
+            "should only be used together");
     }
   }
 
@@ -177,24 +202,82 @@ class ProfMan FINAL {
     return result;
   }
 
-  int DumpProfileInfo() {
-    int fd = open(dump_info_for_.c_str(), O_RDWR);
-    if (fd < 0) {
-      std::cerr << "Cannot open " << dump_info_for_ << strerror(errno);
-      return -1;
+  int DumpOneProfile(const std::string& banner, const std::string& filename, int fd,
+                     const std::vector<const DexFile*>* dex_files, std::string* dump) {
+    if (!filename.empty()) {
+      fd = open(filename.c_str(), O_RDWR);
+      if (fd < 0) {
+        std::cerr << "Cannot open " << filename << strerror(errno);
+        return -1;
+      }
     }
     ProfileCompilationInfo info;
     if (!info.Load(fd)) {
-      std::cerr << "Cannot load profile info from " << dump_info_for_;
+      std::cerr << "Cannot load profile info from fd=" << fd << "\n";
       return -1;
     }
-    std::string dump = info.DumpInfo(/*dex_files*/ nullptr);
-    std::cout << dump << "\n";
+    std::string this_dump = banner + "\n" + info.DumpInfo(dex_files) + "\n";
+    *dump += this_dump;
+    if (close(fd) < 0) {
+      PLOG(WARNING) << "Failed to close descriptor";
+    }
+    return 0;
+  }
+
+  int DumpProfileInfo() {
+    static const char* kEmptyString = "";
+    static const char *kOrdinaryProfile = "=== profile ===";
+    static const char *kReferenceProfile = "=== reference profile ===";
+    const std::vector<const DexFile*>* dex_files = nullptr;
+    std::string dump;
+
+    // TODO(sehr): open apk/zip files and and read dex files.
+
+    // Dump individual profile files.
+    if (!profile_files_fd_.empty()) {
+      for (int profile_file_fd : profile_files_fd_) {
+        int ret = DumpOneProfile(kOrdinaryProfile, kEmptyString, profile_file_fd, dex_files, &dump);
+        if (ret != 0) {
+          return ret;
+        }
+      }
+    }
+    if (!profile_files_.empty()) {
+      for (const std::string& profile_file : profile_files_) {
+        int ret = DumpOneProfile(kOrdinaryProfile, profile_file, kInvalidFd, dex_files, &dump);
+        if (ret != 0) {
+          return ret;
+        }
+      }
+    }
+    // Dump reference profile file.
+    if (FdIsValid(reference_profile_file_fd_)) {
+      int ret = DumpOneProfile(kReferenceProfile, kEmptyString, reference_profile_file_fd_,
+                               dex_files, &dump);
+      if (ret != 0) {
+        return ret;
+      }
+    }
+    if (!reference_profile_file_.empty()) {
+      int ret = DumpOneProfile(kReferenceProfile, reference_profile_file_, kInvalidFd, dex_files,
+                               &dump);
+      if (ret != 0) {
+        return ret;
+      }
+    }
+    if (!FdIsValid(dump_output_to_fd_)) {
+      std::cout << dump;
+    } else {
+      unix_file::FdFile out_fd(dump_output_to_fd_, false /*check_usage*/);
+      if (!out_fd.WriteFully(dump.c_str(), dump.length())) {
+        return -1;
+      }
+    }
     return 0;
   }
 
   bool ShouldOnlyDumpProfile() {
-    return !dump_info_for_.empty();
+    return dump_only_;
   }
 
  private:
@@ -224,10 +307,13 @@ class ProfMan FINAL {
 
   std::vector<std::string> profile_files_;
   std::vector<int> profile_files_fd_;
+  std::vector<std::string> code_locations_;
+  std::vector<int> code_locations_fd_;
   std::string reference_profile_file_;
   int reference_profile_file_fd_;
+  bool dump_only_;
+  int dump_output_to_fd_;
   uint64_t start_ns_;
-  std::string dump_info_for_;
 };
 
 // See ProfileAssistant::ProcessingResult for return codes.
