@@ -111,6 +111,20 @@ class BitVector {
     const BitVector* const bit_vector_;
   };
 
+  // MoveConstructible but not MoveAssignable, CopyConstructible or CopyAssignable.
+
+  BitVector(const BitVector& other) = delete;
+  BitVector& operator=(const BitVector& other) = delete;
+
+  BitVector(BitVector&& other)
+      : storage_(other.storage_),
+        storage_size_(other.storage_size_),
+        allocator_(other.allocator_),
+        expandable_(other.expandable_) {
+    other.storage_ = nullptr;
+    other.storage_size_ = 0u;
+  }
+
   BitVector(uint32_t start_bits,
             bool expandable,
             Allocator* allocator);

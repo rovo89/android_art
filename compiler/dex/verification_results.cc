@@ -80,15 +80,6 @@ const VerifiedMethod* VerificationResults::GetVerifiedMethod(MethodReference ref
   return (it != verified_methods_.end()) ? it->second : nullptr;
 }
 
-void VerificationResults::RemoveVerifiedMethod(MethodReference ref) {
-  WriterMutexLock mu(Thread::Current(), verified_methods_lock_);
-  auto it = verified_methods_.find(ref);
-  if (it != verified_methods_.end()) {
-    delete it->second;
-    verified_methods_.erase(it);
-  }
-}
-
 void VerificationResults::AddRejectedClass(ClassReference ref) {
   {
     WriterMutexLock mu(Thread::Current(), rejected_classes_lock_);
