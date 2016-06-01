@@ -500,11 +500,12 @@ class DlOpenOatFile FINAL : public OatFileBase {
 
   ~DlOpenOatFile() {
     if (dlopen_handle_ != nullptr) {
-      dlclose(dlopen_handle_);
-
       if (!kIsTargetBuild) {
         MutexLock mu(Thread::Current(), *Locks::host_dlopen_handles_lock_);
         host_dlopen_handles_.erase(dlopen_handle_);
+        dlclose(dlopen_handle_);
+      } else {
+        dlclose(dlopen_handle_);
       }
     }
   }
@@ -660,9 +661,9 @@ bool DlOpenOatFile::Dlopen(const std::string& elf_filename,
 #else
     UNUSED(oat_file_begin);
     static_assert(!kIsTargetBuild, "host_dlopen_handles_ will leak handles");
+    MutexLock mu(Thread::Current(), *Locks::host_dlopen_handles_lock_);
     dlopen_handle_ = dlopen(absolute_path.get(), RTLD_NOW);
     if (dlopen_handle_ != nullptr) {
-      MutexLock mu(Thread::Current(), *Locks::host_dlopen_handles_lock_);
       if (!host_dlopen_handles_.insert(dlopen_handle_).second) {
         dlclose(dlopen_handle_);
         dlopen_handle_ = nullptr;
