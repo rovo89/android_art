@@ -2092,6 +2092,21 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
       reinterpret_cast<ArtMethod**>(raw_arrays + layout.MethodsOffset());
   ArtField** fields = (dex_file.NumFieldIds() == 0u) ? nullptr :
       reinterpret_cast<ArtField**>(raw_arrays + layout.FieldsOffset());
+  if (kIsDebugBuild) {
+    // Sanity check to make sure all the dex cache arrays are empty. b/28992179
+    for (size_t i = 0; i < dex_file.NumStringIds(); ++i) {
+      CHECK(strings[i].Read<kWithoutReadBarrier>() == nullptr);
+    }
+    for (size_t i = 0; i < dex_file.NumTypeIds(); ++i) {
+      CHECK(types[i].Read<kWithoutReadBarrier>() == nullptr);
+    }
+    for (size_t i = 0; i < dex_file.NumMethodIds(); ++i) {
+      CHECK(mirror::DexCache::GetElementPtrSize(methods, i, image_pointer_size_) == nullptr);
+    }
+    for (size_t i = 0; i < dex_file.NumFieldIds(); ++i) {
+      CHECK(mirror::DexCache::GetElementPtrSize(fields, i, image_pointer_size_) == nullptr);
+    }
+  }
   dex_cache->Init(&dex_file,
                   location.Get(),
                   strings,
