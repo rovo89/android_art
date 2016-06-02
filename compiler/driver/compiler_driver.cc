@@ -1113,9 +1113,8 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
       uint16_t exception_type_idx = exception_type.first;
       const DexFile* dex_file = exception_type.second;
       StackHandleScope<2> hs2(self);
-      Handle<mirror::DexCache> dex_cache(hs2.NewHandle(class_linker->RegisterDexFile(
-          *dex_file,
-          Runtime::Current()->GetLinearAlloc())));
+      Handle<mirror::DexCache> dex_cache(hs2.NewHandle(class_linker->RegisterDexFile(*dex_file,
+                                                                                     nullptr)));
       Handle<mirror::Class> klass(hs2.NewHandle(
           class_linker->ResolveType(*dex_file,
                                     exception_type_idx,
@@ -2156,7 +2155,7 @@ class ResolveTypeVisitor : public CompilationVisitor {
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(manager_->GetClassLoader())));
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->RegisterDexFile(
         dex_file,
-        class_linker->GetOrCreateAllocatorForClassLoader(class_loader.Get()))));
+        class_loader.Get())));
     mirror::Class* klass = class_linker->ResolveType(dex_file, type_idx, dex_cache, class_loader);
 
     if (klass == nullptr) {
