@@ -809,7 +809,11 @@ void ReferenceTypePropagation::UpdateBoundType(HBoundType* instr) {
   // Make sure that we don't go over the bounded type.
   ReferenceTypeInfo upper_bound_rti = instr->GetUpperBound();
   if (!upper_bound_rti.IsSupertypeOf(new_rti)) {
-    new_rti = upper_bound_rti;
+    // Note that the input might be exact, in which case we know the branch leading
+    // to the bound type is dead. We play it safe by not marking the bound type as
+    // exact.
+    bool is_exact = upper_bound_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes();
+    new_rti = ReferenceTypeInfo::Create(upper_bound_rti.GetTypeHandle(), is_exact);
   }
   instr->SetReferenceTypeInfo(new_rti);
 }
