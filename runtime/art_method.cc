@@ -79,10 +79,10 @@ void ArtMethod::ThrowInvocationTimeError() {
 
 InvokeType ArtMethod::GetInvokeType() {
   // TODO: kSuper?
-  if (GetDeclaringClass()->IsInterface()) {
-    return kInterface;
-  } else if (IsStatic()) {
+  if (IsStatic()) {
     return kStatic;
+  } else if (GetDeclaringClass()->IsInterface()) {
+    return kInterface;
   } else if (IsDirect()) {
     return kDirect;
   } else {
