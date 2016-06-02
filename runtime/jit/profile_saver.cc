@@ -74,19 +74,6 @@ ProfileSaver::ProfileSaver(const std::string& output_filename,
       total_number_of_hot_spikes_(0),
       total_number_of_wake_ups_(0) {
   AddTrackedLocations(output_filename, app_data_dir, code_paths);
-  if (!app_data_dir.empty()) {
-    // The application directory is used to determine which dex files are owned by app.
-    // Since it could be a symlink (e.g. /data/data instead of /data/user/0), and we
-    // don't have control over how the dex files are actually loaded (symlink or canonical path),
-    // store it's canonical form to be sure we use the same base when comparing.
-    UniqueCPtr<const char[]> app_data_dir_real_path(realpath(app_data_dir.c_str(), nullptr));
-    if (app_data_dir_real_path != nullptr) {
-      app_data_dirs_.emplace(app_data_dir_real_path.get());
-    } else {
-      LOG(WARNING) << "Failed to get the real path for app dir: " << app_data_dir
-          << ". The app dir will not be used to determine which dex files belong to the app";
-    }
-  }
 }
 
 void ProfileSaver::Run() {
@@ -503,12 +490,18 @@ void ProfileSaver::AddTrackedLocations(const std::string& output_filename,
   if (it == tracked_dex_base_locations_.end()) {
     tracked_dex_base_locations_.Put(output_filename,
                                     std::set<std::string>(code_paths.begin(), code_paths.end()));
-    app_data_dirs_.insert(app_data_dir);
+    if (!app_data_dir.empty()) {
+      app_data_dirs_.insert(app_data_dir);
+    }
   } else {
     it->second.insert(code_paths.begin(), code_paths.end());
   }
 }
 
+// TODO(calin): This may lead to several calls to realpath.
+// Consider moving the logic to the saver thread (i.e. when notified,
+// only cache the location, and then wake up the saver thread to do the
+// comparisons with the real file paths and to create the markers).
 void ProfileSaver::NotifyDexUse(const std::string& dex_location) {
   if (!ShouldProfileLocation(dex_location)) {
     return;
@@ -541,63 +534,32 @@ void ProfileSaver::NotifyDexUse(const std::string& dex_location) {
   }
 }
 
-bool ProfileSaver::MaybeRecordDexUseInternal(
-      const std::string& dex_location,
-      const std::set<std::string>& app_code_paths,
-      const std::string& foreign_dex_profile_path,
-      const std::set<std::string>& app_data_dirs) {
-  if (dex_location.empty()) {
-    LOG(WARNING) << "Asked to record foreign dex use with an empty dex location.";
-    return false;
-  }
-  if (foreign_dex_profile_path.empty()) {
-    LOG(WARNING) << "Asked to record foreign dex use without a valid profile path ";
-    return false;
-  }
-
-  UniqueCPtr<const char[]> dex_location_real_path(realpath(dex_location.c_str(), nullptr));
-  if (dex_location_real_path == nullptr) {
-    PLOG(WARNING) << "Could not get realpath for " << dex_location;
-  }
-  std::string dex_location_real_path_str((dex_location_real_path == nullptr)
-    ? dex_location.c_str()
-    : dex_location_real_path.get());
-
-  if (app_data_dirs.find(dex_location_real_path_str) != app_data_dirs.end()) {
-    // The dex location is under the application folder. Nothing to record.
-    return false;
-  }
-
-  if (app_code_paths.find(dex_location) != app_code_paths.end()) {
-    // The dex location belongs to the application code paths. Nothing to record.
-    return false;
-  }
-  // Do another round of checks with the real paths.
-  // Note that we could cache all the real locations in the saver (since it's an expensive
-  // operation). However we expect that app_code_paths is small (usually 1 element), and
-  // NotifyDexUse is called just a few times in the app lifetime. So we make the compromise
-  // to save some bytes of memory usage.
-  for (const auto& app_code_location : app_code_paths) {
-    UniqueCPtr<const char[]> real_app_code_location(realpath(app_code_location.c_str(), nullptr));
-    if (real_app_code_location == nullptr) {
-      PLOG(WARNING) << "Could not get realpath for " << app_code_location;
+static bool CheckContainsWithRealPath(const std::set<std::string>& paths_set,
+                                      const std::string& path_to_check) {
+  for (const auto& path : paths_set) {
+    UniqueCPtr<const char[]> real_path(realpath(path.c_str(), nullptr));
+    if (real_path == nullptr) {
+      PLOG(WARNING) << "Could not get realpath for " << path;
+      continue;
     }
-    std::string real_app_code_location_str((real_app_code_location == nullptr)
-        ? app_code_location.c_str()
-        : real_app_code_location.get());
-    if (real_app_code_location_str == dex_location_real_path_str) {
-      // The dex location belongs to the application code paths. Nothing to record.
-      return false;
+    std::string real_path_str(real_path.get());
+    if (real_path_str == path_to_check) {
+      return true;
     }
   }
+  return false;
+}
 
+// After the call, dex_location_real_path will contain the marker's name.
+static bool CreateForeignDexMarker(const std::string& foreign_dex_profile_path,
+                                   /*in-out*/ std::string* dex_location_real_path) {
   // For foreign dex files we record a flag on disk. PackageManager will (potentially) take this
   // into account when deciding how to optimize the loaded dex file.
   // The expected flag name is the canonical path of the apk where '/' is substituted to '@'.
   // (it needs to be kept in sync with
   // frameworks/base/services/core/java/com/android/server/pm/PackageDexOptimizer.java)
-  std::replace(dex_location_real_path_str.begin(), dex_location_real_path_str.end(), '/', '@');
-  std::string flag_path = foreign_dex_profile_path + "/" + dex_location_real_path_str;
+  std::replace(dex_location_real_path->begin(), dex_location_real_path->end(), '/', '@');
+  std::string flag_path = foreign_dex_profile_path + "/" + *dex_location_real_path;
   // We use O_RDONLY as the access mode because we must supply some access
   // mode, and there is no access mode that means 'create but do not read' the
   // file. We will not not actually read from the file.
@@ -617,6 +579,57 @@ bool ProfileSaver::MaybeRecordDexUseInternal(
     }
     return true;
   }
+}
+
+bool ProfileSaver::MaybeRecordDexUseInternal(
+      const std::string& dex_location,
+      const std::set<std::string>& app_code_paths,
+      const std::string& foreign_dex_profile_path,
+      const std::set<std::string>& app_data_dirs) {
+  if (dex_location.empty()) {
+    LOG(WARNING) << "Asked to record foreign dex use with an empty dex location.";
+    return false;
+  }
+  if (foreign_dex_profile_path.empty()) {
+    LOG(WARNING) << "Asked to record foreign dex use without a valid profile path ";
+    return false;
+  }
+
+  if (app_code_paths.find(dex_location) != app_code_paths.end()) {
+    // The dex location belongs to the application code paths. Nothing to record.
+    return false;
+  }
+
+  if (app_data_dirs.find(dex_location) != app_data_dirs.end()) {
+    // The dex location is under the application folder. Nothing to record.
+    return false;
+  }
+
+  // Do another round of checks with the real paths.
+  // Application directory could be a symlink (e.g. /data/data instead of /data/user/0), and we
+  // don't have control over how the dex files are actually loaded (symlink or canonical path),
+
+  // Note that we could cache all the real locations in the saver (since it's an expensive
+  // operation). However we expect that app_code_paths is small (usually 1 element), and
+  // NotifyDexUse is called just a few times in the app lifetime. So we make the compromise
+  // to save some bytes of memory usage.
+
+  UniqueCPtr<const char[]> dex_location_real_path(realpath(dex_location.c_str(), nullptr));
+  if (dex_location_real_path == nullptr) {
+    PLOG(WARNING) << "Could not get realpath for " << dex_location;
+    return false;
+  }
+  std::string dex_location_real_path_str(dex_location_real_path.get());
+
+  if (CheckContainsWithRealPath(app_code_paths, dex_location_real_path_str)) {
+    return false;
+  }
+
+  if (CheckContainsWithRealPath(app_data_dirs, dex_location_real_path_str)) {
+    return false;
+  }
+
+  return CreateForeignDexMarker(foreign_dex_profile_path, &dex_location_real_path_str);
 }
 
 void ProfileSaver::DumpInstanceInfo(std::ostream& os) {
