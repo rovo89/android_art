@@ -1118,8 +1118,7 @@ class OatDumper {
       ScopedObjectAccess soa(Thread::Current());
       Runtime* const runtime = Runtime::Current();
       Handle<mirror::DexCache> dex_cache(
-          hs->NewHandle(runtime->GetClassLinker()->RegisterDexFile(*dex_file,
-                                                                   runtime->GetLinearAlloc())));
+          hs->NewHandle(runtime->GetClassLinker()->RegisterDexFile(*dex_file, nullptr)));
       DCHECK(options_.class_loader_ != nullptr);
       return verifier::MethodVerifier::VerifyMethodAndDump(
           soa.Self(), vios, dex_method_idx, dex_file, dex_cache, *options_.class_loader_,
@@ -2283,7 +2282,7 @@ static int DumpOatWithRuntime(Runtime* runtime, OatFile* oat_file, OatDumperOpti
     std::string error_msg;
     const DexFile* const dex_file = OpenDexFile(odf, &error_msg);
     CHECK(dex_file != nullptr) << error_msg;
-    class_linker->RegisterDexFile(*dex_file, runtime->GetLinearAlloc());
+    class_linker->RegisterDexFile(*dex_file, nullptr);
     class_path.push_back(dex_file);
   }
 
