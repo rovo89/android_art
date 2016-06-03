@@ -52,6 +52,7 @@ namespace verifier {
 class MethodVerifier;
 }  // namespace verifier
 
+class BitVector;
 class CompiledClass;
 class CompiledMethod;
 class CompilerOptions;
@@ -120,12 +121,12 @@ class CompilerDriver {
   void CompileAll(jobject class_loader,
                   const std::vector<const DexFile*>& dex_files,
                   TimingLogger* timings)
-      REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_);
+      REQUIRES(!Locks::mutator_lock_, !compiled_classes_lock_, !dex_to_dex_references_lock_);
 
   // Compile a single Method.
   void CompileOne(Thread* self, ArtMethod* method, TimingLogger* timings)
       SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!compiled_methods_lock_, !compiled_classes_lock_);
+      REQUIRES(!compiled_methods_lock_, !compiled_classes_lock_, !dex_to_dex_references_lock_);
 
   VerificationResults* GetVerificationResults() const {
     DCHECK(Runtime::Current()->IsAotCompiler());
@@ -475,6 +476,13 @@ class CompilerDriver {
     return true;
   }
 
+  void MarkForDexToDexCompilation(Thread* self, const MethodReference& method_ref)
+      REQUIRES(!dex_to_dex_references_lock_);
+
+  const BitVector* GetCurrentDexToDexMethods() const {
+    return current_dex_to_dex_methods_;
+  }
+
  private:
   // Return whether the declaring class of `resolved_member` is
   // available to `referrer_class` for read or write access using two
@@ -601,7 +609,7 @@ class CompilerDriver {
 
   void Compile(jobject class_loader,
                const std::vector<const DexFile*>& dex_files,
-               TimingLogger* timings);
+               TimingLogger* timings) REQUIRES(!dex_to_dex_references_lock_);
   void CompileDexFile(jobject class_loader,
                       const DexFile& dex_file,
                       const std::vector<const DexFile*>& dex_files,
@@ -702,6 +710,16 @@ class CompilerDriver {
   const ProfileCompilationInfo* const profile_compilation_info_;
 
   size_t max_arena_alloc_;
+
+  // Data for delaying dex-to-dex compilation.
+  Mutex dex_to_dex_references_lock_;
+  // In the first phase, dex_to_dex_references_ collects methods for dex-to-dex compilation.
+  class DexFileMethodSet;
+  std::vector<DexFileMethodSet> dex_to_dex_references_ GUARDED_BY(dex_to_dex_references_lock_);
+  // In the second phase, current_dex_to_dex_methods_ points to the BitVector with method
+  // indexes for dex-to-dex compilation in the current dex file.
+  const BitVector* current_dex_to_dex_methods_;
+
   friend class CompileClassVisitor;
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };
