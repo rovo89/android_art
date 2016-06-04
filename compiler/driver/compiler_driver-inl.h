@@ -390,8 +390,9 @@ inline int CompilerDriver::IsFastInvoke(
           *devirt_target->dex_file, devirt_target->dex_method_index, dex_cache, class_loader,
           nullptr, kVirtual);
     } else {
-      auto target_dex_cache(hs.NewHandle(class_linker->RegisterDexFile(*devirt_target->dex_file,
-                                                                       class_loader.Get())));
+      auto target_dex_cache(hs.NewHandle(class_linker->RegisterDexFile(
+          *devirt_target->dex_file,
+          class_linker->GetOrCreateAllocatorForClassLoader(class_loader.Get()))));
       called_method = class_linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
           *devirt_target->dex_file, devirt_target->dex_method_index, target_dex_cache,
           class_loader, nullptr, kVirtual);

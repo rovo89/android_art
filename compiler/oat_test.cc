@@ -199,7 +199,7 @@ class OatTest : public CommonCompilerTest {
     for (const std::unique_ptr<const DexFile>& dex_file : opened_dex_files) {
       dex_files.push_back(dex_file.get());
       ScopedObjectAccess soa(Thread::Current());
-      class_linker->RegisterDexFile(*dex_file, nullptr);
+      class_linker->RegisterDexFile(*dex_file, runtime->GetLinearAlloc());
     }
     linker::MultiOatRelativePatcher patcher(compiler_driver_->GetInstructionSet(),
                                             instruction_set_features_.get());
@@ -491,7 +491,10 @@ TEST_F(OatTest, EmptyTextSection) {
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
   for (const DexFile* dex_file : dex_files) {
     ScopedObjectAccess soa(Thread::Current());
-    class_linker->RegisterDexFile(*dex_file, soa.Decode<mirror::ClassLoader*>(class_loader));
+    class_linker->RegisterDexFile(
+        *dex_file,
+        class_linker->GetOrCreateAllocatorForClassLoader(
+            soa.Decode<mirror::ClassLoader*>(class_loader)));
   }
   compiler_driver_->SetDexFilesForOatFile(dex_files);
   compiler_driver_->CompileAll(class_loader, dex_files, &timings);
