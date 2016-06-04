@@ -146,15 +146,15 @@ uint32_t ClassTable::ClassDescriptorHashEquals::operator()(const char* descripto
   return ComputeModifiedUtf8Hash(descriptor);
 }
 
-bool ClassTable::InsertDexFile(mirror::Object* dex_file) {
+bool ClassTable::InsertStrongRoot(mirror::Object* obj) {
   WriterMutexLock mu(Thread::Current(), lock_);
-  DCHECK(dex_file != nullptr);
-  for (GcRoot<mirror::Object>& root : dex_files_) {
-    if (root.Read() == dex_file) {
+  DCHECK(obj != nullptr);
+  for (GcRoot<mirror::Object>& root : strong_roots_) {
+    if (root.Read() == obj) {
       return false;
     }
   }
-  dex_files_.push_back(GcRoot<mirror::Object>(dex_file));
+  strong_roots_.push_back(GcRoot<mirror::Object>(obj));
   return true;
 }
 
@@ -189,4 +189,8 @@ void ClassTable::AddClassSet(ClassSet&& set) {
   classes_.insert(classes_.begin(), std::move(set));
 }
 
+void ClassTable::ClearStrongRoots() {
+  WriterMutexLock mu(Thread::Current(), lock_);
+  strong_roots_.clear();
+}
 }  // namespace art

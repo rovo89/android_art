@@ -842,6 +842,10 @@ void ImageWriter::PruneNonImageClasses() {
   ClassLinker* class_linker = runtime->GetClassLinker();
   Thread* self = Thread::Current();
 
+  // Clear class table strong roots so that dex caches can get pruned. We require pruning the class
+  // path dex caches.
+  class_linker->ClearClassTableStrongRoots();
+
   // Make a list of classes we would like to prune.
   NonImageClassesVisitor visitor(this);
   class_linker->VisitClasses(&visitor);
