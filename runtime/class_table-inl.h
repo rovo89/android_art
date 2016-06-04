@@ -29,7 +29,7 @@ void ClassTable::VisitRoots(Visitor& visitor) {
       visitor.VisitRoot(root.AddressWithoutBarrier());
     }
   }
-  for (GcRoot<mirror::Object>& root : strong_roots_) {
+  for (GcRoot<mirror::Object>& root : dex_files_) {
     visitor.VisitRoot(root.AddressWithoutBarrier());
   }
 }
@@ -42,7 +42,7 @@ void ClassTable::VisitRoots(const Visitor& visitor) {
       visitor.VisitRoot(root.AddressWithoutBarrier());
     }
   }
-  for (GcRoot<mirror::Object>& root : strong_roots_) {
+  for (GcRoot<mirror::Object>& root : dex_files_) {
     visitor.VisitRoot(root.AddressWithoutBarrier());
   }
 }

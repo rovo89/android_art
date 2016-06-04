@@ -504,7 +504,8 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
     const DexFile* dex_file = boot_class_path[i];
     CHECK(dex_file != nullptr);
     StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->RegisterDexFile(*dex_file, nullptr)));
+    Handle<mirror::DexCache> dex_cache(
+        hs.NewHandle(linker->RegisterDexFile(*dex_file, runtime->GetLinearAlloc())));
 
     if (kPreloadDexCachesStrings) {
       for (size_t j = 0; j < dex_cache->NumStrings(); j++) {

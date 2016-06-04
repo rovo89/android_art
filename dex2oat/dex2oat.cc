@@ -1462,8 +1462,7 @@ class Dex2Oat FINAL {
     for (const auto& dex_file : dex_files_) {
       ScopedObjectAccess soa(self);
       dex_caches_.push_back(soa.AddLocalReference<jobject>(
-          class_linker->RegisterDexFile(*dex_file,
-                                        soa.Decode<mirror::ClassLoader*>(class_loader_))));
+          class_linker->RegisterDexFile(*dex_file, Runtime::Current()->GetLinearAlloc())));
     }
 
     return true;
