@@ -1158,17 +1158,23 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     return target_offset;
   }
 
-  mirror::Class* GetTargetType(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
-    mirror::DexCache* dex_cache = (dex_file_ == patch.TargetTypeDexFile())
+  mirror::DexCache* GetDexCache(const DexFile* target_dex_file)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    return (target_dex_file == dex_file_)
         ? dex_cache_
-        : class_linker_->FindDexCache(Thread::Current(), *patch.TargetTypeDexFile());
+        : class_linker_->FindDexCache(Thread::Current(), *target_dex_file);
+  }
+
+  mirror::Class* GetTargetType(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
+    mirror::DexCache* dex_cache = GetDexCache(patch.TargetTypeDexFile());
     mirror::Class* type = dex_cache->GetResolvedType(patch.TargetTypeIndex());
     CHECK(type != nullptr);
     return type;
   }
 
   mirror::String* GetTargetString(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
-    mirror::String* string = dex_cache_->GetResolvedString(patch.TargetStringIndex());
+    mirror::DexCache* dex_cache = GetDexCache(patch.TargetStringDexFile());
+    mirror::String* string = dex_cache->GetResolvedString(patch.TargetStringIndex());
     DCHECK(string != nullptr);
     DCHECK(writer_->HasBootImage() ||
            Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(string));
