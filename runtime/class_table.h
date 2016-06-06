@@ -133,8 +133,8 @@ class ClassTable {
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Return true if we inserted the dex file, false if it already exists.
-  bool InsertDexFile(mirror::Object* dex_file)
+  // Return true if we inserted the strong root, false if it already exists.
+  bool InsertStrongRoot(mirror::Object* obj)
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -153,6 +153,11 @@ class ClassTable {
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Clear strong roots (other than classes themselves).
+  void ClearStrongRoots()
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   ReaderWriterMutex& GetLock() {
     return lock_;
   }
@@ -162,9 +167,10 @@ class ClassTable {
   mutable ReaderWriterMutex lock_;
   // We have a vector to help prevent dirty pages after the zygote forks by calling FreezeSnapshot.
   std::vector<ClassSet> classes_ GUARDED_BY(lock_);
-  // Dex files used by the class loader which may not be owned by the class loader. We keep these
-  // live so that we do not have issues closing any of the dex files.
-  std::vector<GcRoot<mirror::Object>> dex_files_ GUARDED_BY(lock_);
+  // Extra strong roots that can be either dex files or dex caches. Dex files used by the class
+  // loader which may not be owned by the class loader must be held strongly live. Also dex caches
+  // are held live to prevent them being unloading once they have classes in them.
+  std::vector<GcRoot<mirror::Object>> strong_roots_ GUARDED_BY(lock_);
 };
 
 }  // namespace art

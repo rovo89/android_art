@@ -377,7 +377,8 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
-  mirror::DexCache* RegisterDexFile(const DexFile& dex_file, LinearAlloc* linear_alloc)
+  mirror::DexCache* RegisterDexFile(const DexFile& dex_file,
+                                    mirror::ClassLoader* class_loader)
       REQUIRES(!dex_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void RegisterDexFile(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
@@ -634,6 +635,11 @@ class ClassLinker {
   // Create the IMT and conflict tables for a class.
   void FillIMTAndConflictTables(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Clear class table strong roots (other than classes themselves). This is done by dex2oat to
+  // allow pruning dex caches.
+  void ClearClassTableStrongRoots() const
+      REQUIRES(!Locks::classlinker_classes_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   struct DexCacheData {
     // Weak root to the DexCache. Note: Do not decode this unnecessarily or else class unloading may

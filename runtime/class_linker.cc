@@ -2468,9 +2468,7 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
     self->AssertPendingOOMException();
     return nullptr;
   }
-  mirror::DexCache* dex_cache = RegisterDexFile(
-      dex_file,
-      GetOrCreateAllocatorForClassLoader(class_loader.Get()));
+  mirror::DexCache* dex_cache = RegisterDexFile(dex_file, class_loader.Get());
   if (dex_cache == nullptr) {
     self->AssertPendingOOMException();
     return nullptr;
@@ -3229,7 +3227,8 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
   dex_caches_.push_back(data);
 }
 
-mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file, LinearAlloc* linear_alloc) {
+mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file,
+                                               mirror::ClassLoader* class_loader) {
   Thread* self = Thread::Current();
   {
     ReaderMutexLock mu(self, dex_lock_);
@@ -3238,21 +3237,31 @@ mirror::DexCache* ClassLinker::RegisterDexFile(const DexFile& dex_file, LinearAl
       return dex_cache;
     }
   }
+  LinearAlloc* const linear_alloc = GetOrCreateAllocatorForClassLoader(class_loader);
+  DCHECK(linear_alloc != nullptr);
+  ClassTable* table;
+  {
+    WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+    table = InsertClassTableForClassLoader(class_loader);
+  }
   // Don't alloc while holding the lock, since allocation may need to
   // suspend all threads and another thread may need the dex_lock_ to
   // get to a suspend point.
   StackHandleScope<1> hs(self);
   Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(AllocDexCache(self, dex_file, linear_alloc)));
-  WriterMutexLock mu(self, dex_lock_);
-  mirror::DexCache* dex_cache = FindDexCacheLocked(self, dex_file, true);
-  if (dex_cache != nullptr) {
-    return dex_cache;
+  {
+    WriterMutexLock mu(self, dex_lock_);
+    mirror::DexCache* dex_cache = FindDexCacheLocked(self, dex_file, true);
+    if (dex_cache != nullptr) {
+      return dex_cache;
+    }
+    if (h_dex_cache.Get() == nullptr) {
+      self->AssertPendingOOMException();
+      return nullptr;
+    }
+    RegisterDexFileLocked(dex_file, h_dex_cache);
   }
-  if (h_dex_cache.Get() == nullptr) {
-    self->AssertPendingOOMException();
-    return nullptr;
-  }
-  RegisterDexFileLocked(dex_file, h_dex_cache);
+  table->InsertStrongRoot(h_dex_cache.Get());
   return h_dex_cache.Get();
 }
 
@@ -7971,6 +7980,16 @@ void ClassLinker::DropFindArrayClassCache() {
   find_array_class_cache_next_victim_ = 0;
 }
 
+void ClassLinker::ClearClassTableStrongRoots() const {
+  Thread* const self = Thread::Current();
+  WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+  for (const ClassLoaderData& data : class_loaders_) {
+    if (data.class_table != nullptr) {
+      data.class_table->ClearStrongRoots();
+    }
+  }
+}
+
 void ClassLinker::VisitClassLoaders(ClassLoaderVisitor* visitor) const {
   Thread* const self = Thread::Current();
   for (const ClassLoaderData& data : class_loaders_) {
@@ -7989,7 +8008,7 @@ void ClassLinker::InsertDexFileInToClassLoader(mirror::Object* dex_file,
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
   ClassTable* const table = ClassTableForClassLoader(class_loader);
   DCHECK(table != nullptr);
-  if (table->InsertDexFile(dex_file) && class_loader != nullptr) {
+  if (table->InsertStrongRoot(dex_file) && class_loader != nullptr) {
     // It was not already inserted, perform the write barrier to let the GC know the class loader's
     // class table was modified.
     Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);

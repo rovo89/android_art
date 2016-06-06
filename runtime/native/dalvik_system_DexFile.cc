@@ -278,9 +278,7 @@ static jclass DexFile_defineClassNative(JNIEnv* env,
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::ClassLoader> class_loader(
           hs.NewHandle(soa.Decode<mirror::ClassLoader*>(javaLoader)));
-      class_linker->RegisterDexFile(
-          *dex_file,
-          class_linker->GetOrCreateAllocatorForClassLoader(class_loader.Get()));
+      class_linker->RegisterDexFile(*dex_file, class_loader.Get());
       mirror::Class* result = class_linker->DefineClass(soa.Self(),
                                                         descriptor.c_str(),
                                                         hash,
