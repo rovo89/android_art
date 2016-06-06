@@ -41,6 +41,23 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   if (c != nullptr && c->IsResolved()) {
     return soa.AddLocalReference<jclass>(c);
   }
+  // If class is erroneous, throw the earlier failure, wrapped in certain cases. See b/28787733.
+  if (c != nullptr && c->IsErroneous()) {
+    cl->ThrowEarlierClassFailure(c);
+    Thread* self = soa.Self();
+    mirror::Class* eiie_class =
+        self->DecodeJObject(WellKnownClasses::java_lang_ExceptionInInitializerError)->AsClass();
+    mirror::Class* iae_class =
+        self->DecodeJObject(WellKnownClasses::java_lang_IllegalAccessError)->AsClass();
+    mirror::Class* ncdfe_class =
+        self->DecodeJObject(WellKnownClasses::java_lang_NoClassDefFoundError)->AsClass();
+    mirror::Class* exception = self->GetException()->GetClass();
+    if (exception == eiie_class || exception == iae_class || exception == ncdfe_class) {
+      self->ThrowNewWrappedException("Ljava/lang/ClassNotFoundException;",
+                                     PrettyDescriptor(c).c_str());
+    }
+    return nullptr;
+  }
   if (loader != nullptr) {
     // Try the common case.
     StackHandleScope<1> hs(soa.Self());

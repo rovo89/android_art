@@ -641,6 +641,12 @@ class ClassLinker {
       REQUIRES(!Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Throw the class initialization failure recorded when first trying to initialize the given
+  // class.
+  void ThrowEarlierClassFailure(mirror::Class* c, bool wrap_in_no_class_def = false)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!dex_lock_);
+
   struct DexCacheData {
     // Weak root to the DexCache. Note: Do not decode this unnecessarily or else class unloading may
     // not work properly.
@@ -1056,12 +1062,6 @@ class ClassLinker {
 
   // Return the quick generic JNI stub for testing.
   const void* GetRuntimeQuickGenericJniStub() const;
-
-  // Throw the class initialization failure recorded when first trying to initialize the given
-  // class.
-  void ThrowEarlierClassFailure(mirror::Class* c, bool wrap_in_no_class_def = false)
-      SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!dex_lock_);
 
   bool CanWeInitializeClass(mirror::Class* klass, bool can_init_statics, bool can_init_parents)
       SHARED_REQUIRES(Locks::mutator_lock_);
