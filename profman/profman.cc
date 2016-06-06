@@ -34,6 +34,7 @@
 #include "dex_file.h"
 #include "jit/offline_profiling_info.h"
 #include "utils.h"
+#include "zip_archive.h"
 #include "profile_assistant.h"
 
 namespace art {
@@ -100,10 +101,10 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("      accepts a file descriptor. Cannot be used together with");
   UsageError("      --reference-profile-file.");
   UsageError("");
-  UsageError("  --code-location=<string>: location string to use with corresponding");
-  UsageError("      code-fd to find dex files");
+  UsageError("  --dex-location=<string>: location string to use with corresponding");
+  UsageError("      apk-fd to find dex files");
   UsageError("");
-  UsageError("  --code-location-fd=<number>: file descriptor containing an open APK to");
+  UsageError("  --apk-fd=<number>: file descriptor containing an open APK to");
   UsageError("      search for dex files");
   UsageError("");
 
@@ -154,10 +155,10 @@ class ProfMan FINAL {
         reference_profile_file_ = option.substr(strlen("--reference-profile-file=")).ToString();
       } else if (option.starts_with("--reference-profile-file-fd=")) {
         ParseUintOption(option, "--reference-profile-file-fd", &reference_profile_file_fd_, Usage);
-      } else if (option.starts_with("--code-location=")) {
-        code_locations_.push_back(option.substr(strlen("--code-location=")).ToString());
-      } else if (option.starts_with("--code-location-fd=")) {
-        ParseFdForCollection(option, "--code-location-fd", &code_locations_fd_);
+      } else if (option.starts_with("--dex-location=")) {
+        dex_locations_.push_back(option.substr(strlen("--dex-location=")).ToString());
+      } else if (option.starts_with("--apk-fd=")) {
+        ParseFdForCollection(option, "--apk-fd", &apks_fd_);
       } else {
         Usage("Unknown argument '%s'", option.data());
       }
@@ -226,17 +227,45 @@ class ProfMan FINAL {
 
   int DumpProfileInfo() {
     static const char* kEmptyString = "";
-    static const char *kOrdinaryProfile = "=== profile ===";
-    static const char *kReferenceProfile = "=== reference profile ===";
-    const std::vector<const DexFile*>* dex_files = nullptr;
+    static const char* kOrdinaryProfile = "=== profile ===";
+    static const char* kReferenceProfile = "=== reference profile ===";
+
+    // Open apk/zip files and and read dex files.
+    MemMap::Init();  // for ZipArchive::OpenFromFd
+    std::vector<const DexFile*> dex_files;
+    assert(dex_locations_.size() == apks_fd_.size());
+    for (size_t i = 0; i < dex_locations_.size(); ++i) {
+      std::string error_msg;
+      std::vector<std::unique_ptr<const DexFile>> dex_files_for_location;
+      std::unique_ptr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(apks_fd_[i],
+                                                                     dex_locations_[i].c_str(),
+                                                                     &error_msg));
+      if (zip_archive == nullptr) {
+        LOG(WARNING) << "OpenFromFd failed for '" << dex_locations_[i] << "' " << error_msg;
+        continue;
+      }
+      if (DexFile::OpenFromZip(*zip_archive,
+                               dex_locations_[i],
+                               &error_msg,
+                               &dex_files_for_location)) {
+      } else {
+        LOG(WARNING) << "OpenFromZip failed for '" << dex_locations_[i] << "' " << error_msg;
+        continue;
+      }
+      for (std::unique_ptr<const DexFile>& dex_file : dex_files_for_location) {
+        dex_files.push_back(dex_file.release());
+      }
+    }
+
     std::string dump;
-
-    // TODO(sehr): open apk/zip files and and read dex files.
-
     // Dump individual profile files.
     if (!profile_files_fd_.empty()) {
       for (int profile_file_fd : profile_files_fd_) {
-        int ret = DumpOneProfile(kOrdinaryProfile, kEmptyString, profile_file_fd, dex_files, &dump);
+        int ret = DumpOneProfile(kOrdinaryProfile,
+                                 kEmptyString,
+                                 profile_file_fd,
+                                 &dex_files,
+                                 &dump);
         if (ret != 0) {
           return ret;
         }
@@ -244,7 +273,7 @@ class ProfMan FINAL {
     }
     if (!profile_files_.empty()) {
       for (const std::string& profile_file : profile_files_) {
-        int ret = DumpOneProfile(kOrdinaryProfile, profile_file, kInvalidFd, dex_files, &dump);
+        int ret = DumpOneProfile(kOrdinaryProfile, profile_file, kInvalidFd, &dex_files, &dump);
         if (ret != 0) {
           return ret;
         }
@@ -252,14 +281,20 @@ class ProfMan FINAL {
     }
     // Dump reference profile file.
     if (FdIsValid(reference_profile_file_fd_)) {
-      int ret = DumpOneProfile(kReferenceProfile, kEmptyString, reference_profile_file_fd_,
-                               dex_files, &dump);
+      int ret = DumpOneProfile(kReferenceProfile,
+                               kEmptyString,
+                               reference_profile_file_fd_,
+                               &dex_files,
+                               &dump);
       if (ret != 0) {
         return ret;
       }
     }
     if (!reference_profile_file_.empty()) {
-      int ret = DumpOneProfile(kReferenceProfile, reference_profile_file_, kInvalidFd, dex_files,
+      int ret = DumpOneProfile(kReferenceProfile,
+                               reference_profile_file_,
+                               kInvalidFd,
+                               &dex_files,
                                &dump);
       if (ret != 0) {
         return ret;
@@ -307,8 +342,8 @@ class ProfMan FINAL {
 
   std::vector<std::string> profile_files_;
   std::vector<int> profile_files_fd_;
-  std::vector<std::string> code_locations_;
-  std::vector<int> code_locations_fd_;
+  std::vector<std::string> dex_locations_;
+  std::vector<int> apks_fd_;
   std::string reference_profile_file_;
   int reference_profile_file_fd_;
   bool dump_only_;
