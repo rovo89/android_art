@@ -648,6 +648,10 @@ class Runtime {
     return zygote_no_threads_;
   }
 
+  // Returns if the code can be deoptimized. Code may be compiled with some
+  // optimization that makes it impossible to deoptimize.
+  bool IsDeoptimizeable(uintptr_t code) const SHARED_REQUIRES(Locks::mutator_lock_);
+
  private:
   static void InitPlatformSignalHandlers();
 

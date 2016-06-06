@@ -1088,7 +1088,7 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
   bool deoptimize = (visitor.caller != nullptr) &&
                     (interpreter_stubs_installed_ || IsDeoptimized(visitor.caller) ||
                     Dbg::IsForcedInterpreterNeededForUpcall(self, visitor.caller));
-  if (deoptimize) {
+  if (deoptimize && Runtime::Current()->IsDeoptimizeable(*return_pc)) {
     if (kVerboseInstrumentation) {
       LOG(INFO) << StringPrintf("Deoptimizing %s by returning from %s with result %#" PRIx64 " in ",
                                 PrettyMethod(visitor.caller).c_str(),
@@ -1110,7 +1110,7 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
   }
 }
 
-void Instrumentation::PopMethodForUnwind(Thread* self, bool is_deoptimization) const {
+uintptr_t Instrumentation::PopMethodForUnwind(Thread* self, bool is_deoptimization) const {
   // Do the pop.
   std::deque<instrumentation::InstrumentationStackFrame>* stack = self->GetInstrumentationStack();
   CHECK_GT(stack->size(), 0U);
@@ -1134,6 +1134,7 @@ void Instrumentation::PopMethodForUnwind(Thread* self, bool is_deoptimization) c
     uint32_t dex_pc = DexFile::kDexNoIndex;
     MethodUnwindEvent(self, instrumentation_frame.this_object_, method, dex_pc);
   }
+  return instrumentation_frame.return_pc_;
 }
 
 std::string InstrumentationStackFrame::Dump() const {

@@ -37,15 +37,18 @@ extern "C" JNIEXPORT void JNICALL Java_Main_disableStackFrameAsserts(JNIEnv* env
   asserts_enabled = false;
 }
 
-
-// public static native boolean isInterpreted();
-
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isInterpreted(JNIEnv* env, jclass) {
+static jboolean IsInterpreted(JNIEnv* env, jclass, size_t level) {
   ScopedObjectAccess soa(env);
-  NthCallerVisitor caller(soa.Self(), 1, false);
+  NthCallerVisitor caller(soa.Self(), level, false);
   caller.WalkStack();
   CHECK(caller.caller != nullptr);
   return caller.GetCurrentShadowFrame() != nullptr ? JNI_TRUE : JNI_FALSE;
+}
+
+// public static native boolean isInterpreted();
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isInterpreted(JNIEnv* env, jclass klass) {
+  return IsInterpreted(env, klass, 1);
 }
 
 // public static native void assertIsInterpreted();
@@ -56,10 +59,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_assertIsInterpreted(JNIEnv* env, jcl
   }
 }
 
-
-// public static native boolean isManaged();
-
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isManaged(JNIEnv* env, jclass cls) {
+static jboolean IsManaged(JNIEnv* env, jclass cls, size_t level) {
   ScopedObjectAccess soa(env);
 
   mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
@@ -71,11 +71,17 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isManaged(JNIEnv* env, jclass cl
     return JNI_FALSE;
   }
 
-  NthCallerVisitor caller(soa.Self(), 1, false);
+  NthCallerVisitor caller(soa.Self(), level, false);
   caller.WalkStack();
   CHECK(caller.caller != nullptr);
 
   return caller.GetCurrentShadowFrame() != nullptr ? JNI_FALSE : JNI_TRUE;
+}
+
+// public static native boolean isManaged();
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isManaged(JNIEnv* env, jclass cls) {
+  return IsManaged(env, cls, 1);
 }
 
 // public static native void assertIsManaged();
@@ -83,6 +89,34 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isManaged(JNIEnv* env, jclass cl
 extern "C" JNIEXPORT void JNICALL Java_Main_assertIsManaged(JNIEnv* env, jclass cls) {
   if (asserts_enabled) {
     CHECK(Java_Main_isManaged(env, cls));
+  }
+}
+
+// public static native boolean isCallerInterpreted();
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isCallerInterpreted(JNIEnv* env, jclass klass) {
+  return IsInterpreted(env, klass, 2);
+}
+
+// public static native void assertCallerIsInterpreted();
+
+extern "C" JNIEXPORT void JNICALL Java_Main_assertCallerIsInterpreted(JNIEnv* env, jclass klass) {
+  if (asserts_enabled) {
+    CHECK(Java_Main_isCallerInterpreted(env, klass));
+  }
+}
+
+// public static native boolean isCallerManaged();
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isCallerManaged(JNIEnv* env, jclass cls) {
+  return IsManaged(env, cls, 2);
+}
+
+// public static native void assertCallerIsManaged();
+
+extern "C" JNIEXPORT void JNICALL Java_Main_assertCallerIsManaged(JNIEnv* env, jclass cls) {
+  if (asserts_enabled) {
+    CHECK(Java_Main_isCallerManaged(env, cls));
   }
 }
 

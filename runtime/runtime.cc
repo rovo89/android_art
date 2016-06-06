@@ -1983,6 +1983,11 @@ bool Runtime::IsVerificationSoftFail() const {
   return verify_ == verifier::VerifyMode::kSoftFail;
 }
 
+bool Runtime::IsDeoptimizeable(uintptr_t code) const
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  return !heap_->IsInBootImageOatFile(reinterpret_cast<void *>(code));
+}
+
 LinearAlloc* Runtime::CreateLinearAlloc() {
   // For 64 bit compilers, it needs to be in low 4GB in the case where we are cross compiling for a
   // 32 bit target. In this case, we have 32 bit pointers in the dex cache arrays which can't hold

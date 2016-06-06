@@ -110,7 +110,6 @@ enum ThreadFlag {
 enum class StackedShadowFrameType {
   kShadowFrameUnderConstruction,
   kDeoptimizationShadowFrame,
-  kSingleFrameDeoptimizationShadowFrame
 };
 
 // This should match RosAlloc::kNumThreadLocalSizeBrackets.

@@ -50,7 +50,8 @@ QuickExceptionHandler::QuickExceptionHandler(Thread* self, bool is_deoptimizatio
       handler_method_(nullptr),
       handler_dex_pc_(0),
       clear_exception_(false),
-      handler_frame_depth_(kInvalidFrameDepth) {}
+      handler_frame_depth_(kInvalidFrameDepth),
+      full_fragment_done_(false) {}
 
 // Finds catch handler.
 class CatchBlockStackVisitor FINAL : public StackVisitor {
@@ -290,7 +291,8 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         single_frame_deopt_(single_frame),
         single_frame_done_(false),
         single_frame_deopt_method_(nullptr),
-        single_frame_deopt_quick_method_header_(nullptr) {
+        single_frame_deopt_quick_method_header_(nullptr),
+        callee_method_(nullptr) {
   }
 
   ArtMethod* GetSingleFrameDeoptMethod() const {
@@ -301,23 +303,34 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     return single_frame_deopt_quick_method_header_;
   }
 
+  void FinishStackWalk() SHARED_REQUIRES(Locks::mutator_lock_) {
+    // This is the upcall, or the next full frame in single-frame deopt, or the
+    // code isn't deoptimizeable. We remember the frame and last pc so that we
+    // may long jump to them.
+    exception_handler_->SetHandlerQuickFramePc(GetCurrentQuickFramePc());
+    exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
+    exception_handler_->SetHandlerMethodHeader(GetCurrentOatQuickMethodHeader());
+    if (!stacked_shadow_frame_pushed_) {
+      // In case there is no deoptimized shadow frame for this upcall, we still
+      // need to push a nullptr to the stack since there is always a matching pop after
+      // the long jump.
+      GetThread()->PushStackedShadowFrame(nullptr,
+                                          StackedShadowFrameType::kDeoptimizationShadowFrame);
+      stacked_shadow_frame_pushed_ = true;
+    }
+    if (GetMethod() == nullptr) {
+      exception_handler_->SetFullFragmentDone(true);
+    } else {
+      CHECK(callee_method_ != nullptr) << art::PrettyMethod(GetMethod(), false);
+      exception_handler_->SetHandlerQuickArg0(reinterpret_cast<uintptr_t>(callee_method_));
+    }
+  }
+
   bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
     exception_handler_->SetHandlerFrameDepth(GetFrameDepth());
     ArtMethod* method = GetMethod();
     if (method == nullptr || single_frame_done_) {
-      // This is the upcall (or the next full frame in single-frame deopt), we remember the frame
-      // and last pc so that we may long jump to them.
-      exception_handler_->SetHandlerQuickFramePc(GetCurrentQuickFramePc());
-      exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
-      exception_handler_->SetHandlerMethodHeader(GetCurrentOatQuickMethodHeader());
-      if (!stacked_shadow_frame_pushed_) {
-        // In case there is no deoptimized shadow frame for this upcall, we still
-        // need to push a nullptr to the stack since there is always a matching pop after
-        // the long jump.
-        GetThread()->PushStackedShadowFrame(nullptr,
-                                            StackedShadowFrameType::kDeoptimizationShadowFrame);
-        stacked_shadow_frame_pushed_ = true;
-      }
+      FinishStackWalk();
       return false;  // End stack walk.
     } else if (method->IsRuntimeMethod()) {
       // Ignore callee save method.
@@ -328,7 +341,14 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
       // the native method.
       // The top method is a runtime method, the native method comes next.
       CHECK_EQ(GetFrameDepth(), 1U);
+      callee_method_ = method;
       return true;
+    } else if (!single_frame_deopt_ &&
+               !Runtime::Current()->IsDeoptimizeable(GetCurrentQuickFramePc())) {
+      // We hit some code that's not deoptimizeable. However, Single-frame deoptimization triggered
+      // from compiled code is always allowed since HDeoptimize always saves the full environment.
+      FinishStackWalk();
+      return false;  // End stack walk.
     } else {
       // Check if a shadow frame already exists for debugger's set-local-value purpose.
       const size_t frame_id = GetFrameId();
@@ -356,20 +376,17 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
         // right before interpreter::EnterInterpreterFromDeoptimize().
         stacked_shadow_frame_pushed_ = true;
         GetThread()->PushStackedShadowFrame(
-            new_frame,
-            single_frame_deopt_
-                ? StackedShadowFrameType::kSingleFrameDeoptimizationShadowFrame
-                : StackedShadowFrameType::kDeoptimizationShadowFrame);
+            new_frame, StackedShadowFrameType::kDeoptimizationShadowFrame);
       }
       prev_shadow_frame_ = new_frame;
 
       if (single_frame_deopt_ && !IsInInlinedFrame()) {
         // Single-frame deopt ends at the first non-inlined frame and needs to store that method.
-        exception_handler_->SetHandlerQuickArg0(reinterpret_cast<uintptr_t>(method));
         single_frame_done_ = true;
         single_frame_deopt_method_ = method;
         single_frame_deopt_quick_method_header_ = GetCurrentOatQuickMethodHeader();
       }
+      callee_method_ = method;
       return true;
     }
   }
@@ -478,9 +495,29 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
   bool single_frame_done_;
   ArtMethod* single_frame_deopt_method_;
   const OatQuickMethodHeader* single_frame_deopt_quick_method_header_;
+  ArtMethod* callee_method_;
 
   DISALLOW_COPY_AND_ASSIGN(DeoptimizeStackVisitor);
 };
+
+void QuickExceptionHandler::PrepareForLongJumpToInvokeStubOrInterpreterBridge() {
+  if (full_fragment_done_) {
+    // Restore deoptimization exception. When returning from the invoke stub,
+    // ArtMethod::Invoke() will see the special exception to know deoptimization
+    // is needed.
+    self_->SetException(Thread::GetDeoptimizationException());
+  } else {
+    // PC needs to be of the quick-to-interpreter bridge.
+    int32_t offset;
+    #ifdef __LP64__
+        offset = GetThreadOffset<8>(kQuickQuickToInterpreterBridge).Int32Value();
+    #else
+        offset = GetThreadOffset<4>(kQuickQuickToInterpreterBridge).Int32Value();
+    #endif
+    handler_quick_frame_pc_ = *reinterpret_cast<uintptr_t*>(
+        reinterpret_cast<uint8_t*>(self_) + offset);
+  }
+}
 
 void QuickExceptionHandler::DeoptimizeStack() {
   DCHECK(is_deoptimization_);
@@ -490,9 +527,7 @@ void QuickExceptionHandler::DeoptimizeStack() {
 
   DeoptimizeStackVisitor visitor(self_, context_, this, false);
   visitor.WalkStack(true);
-
-  // Restore deoptimization exception
-  self_->SetException(Thread::GetDeoptimizationException());
+  PrepareForLongJumpToInvokeStubOrInterpreterBridge();
 }
 
 void QuickExceptionHandler::DeoptimizeSingleFrame() {
@@ -518,20 +553,21 @@ void QuickExceptionHandler::DeoptimizeSingleFrame() {
         deopt_method, GetQuickToInterpreterBridge());
   }
 
-  // PC needs to be of the quick-to-interpreter bridge.
-  int32_t offset;
-  #ifdef __LP64__
-      offset = GetThreadOffset<8>(kQuickQuickToInterpreterBridge).Int32Value();
-  #else
-      offset = GetThreadOffset<4>(kQuickQuickToInterpreterBridge).Int32Value();
-  #endif
-  handler_quick_frame_pc_ = *reinterpret_cast<uintptr_t*>(
-      reinterpret_cast<uint8_t*>(self_) + offset);
+  PrepareForLongJumpToInvokeStubOrInterpreterBridge();
 }
 
-void QuickExceptionHandler::DeoptimizeSingleFrameArchDependentFixup() {
-  // Architecture-dependent work. This is to get the LR right for x86 and x86-64.
+void QuickExceptionHandler::DeoptimizePartialFragmentFixup(uintptr_t return_pc) {
+  // At this point, the instrumentation stack has been updated. We need to install
+  // the real return pc on stack, in case instrumentation stub is stored there,
+  // so that the interpreter bridge code can return to the right place.
+  if (return_pc != 0) {
+    uintptr_t* pc_addr = reinterpret_cast<uintptr_t*>(handler_quick_frame_);
+    CHECK(pc_addr != nullptr);
+    pc_addr--;
+    *reinterpret_cast<uintptr_t*>(pc_addr) = return_pc;
+  }
 
+  // Architecture-dependent work. This is to get the LR right for x86 and x86-64.
   if (kRuntimeISA == InstructionSet::kX86 || kRuntimeISA == InstructionSet::kX86_64) {
     // On x86, the return address is on the stack, so just reuse it. Otherwise we would have to
     // change how longjump works.
@@ -581,7 +617,8 @@ class InstrumentationStackVisitor : public StackVisitor {
   DISALLOW_COPY_AND_ASSIGN(InstrumentationStackVisitor);
 };
 
-void QuickExceptionHandler::UpdateInstrumentationStack() {
+uintptr_t QuickExceptionHandler::UpdateInstrumentationStack() {
+  uintptr_t return_pc = 0;
   if (method_tracing_active_) {
     InstrumentationStackVisitor visitor(self_, handler_frame_depth_);
     visitor.WalkStack(true);
@@ -589,9 +626,10 @@ void QuickExceptionHandler::UpdateInstrumentationStack() {
     size_t instrumentation_frames_to_pop = visitor.GetInstrumentationFramesToPop();
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     for (size_t i = 0; i < instrumentation_frames_to_pop; ++i) {
-      instrumentation->PopMethodForUnwind(self_, is_deoptimization_);
+      return_pc = instrumentation->PopMethodForUnwind(self_, is_deoptimization_);
     }
   }
+  return return_pc;
 }
 
 void QuickExceptionHandler::DoLongJump(bool smash_caller_saves) {
