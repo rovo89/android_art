@@ -696,6 +696,16 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
     graph->SetArtMethod(method);
     ScopedObjectAccess soa(Thread::Current());
     interpreter_metadata = method->GetQuickenedInfo();
+    uint16_t type_index = method->GetDeclaringClass()->GetDexTypeIndex();
+
+    // Update the dex cache if the type is not in it yet. Note that under AOT,
+    // the verifier must have set it, but under JIT, there's no guarantee, as we
+    // don't necessarily run the verifier.
+    // The compiler and the compiler driver assume the compiling class is
+    // in the dex cache.
+    if (dex_cache->GetResolvedType(type_index) == nullptr) {
+      dex_cache->SetResolvedType(type_index, method->GetDeclaringClass());
+    }
   }
 
   std::unique_ptr<CodeGenerator> codegen(
