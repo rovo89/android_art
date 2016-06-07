@@ -1154,7 +1154,11 @@ class BCEVisitor : public HGraphVisitor {
           loop->IsDefinedOutOfTheLoop(array_get->InputAt(1))) {
         SideEffects loop_effects = side_effects_.GetLoopEffects(loop->GetHeader());
         if (!array_get->GetSideEffects().MayDependOn(loop_effects)) {
-          HoistToPreHeaderOrDeoptBlock(loop, array_get);
+          // We can hoist ArrayGet only if its execution is guaranteed on every iteration.
+          // In other words only if array_get_bb dominates all back branches.
+          if (loop->DominatesAllBackEdges(array_get->GetBlock())) {
+            HoistToPreHeaderOrDeoptBlock(loop, array_get);
+          }
         }
       }
     }
@@ -1379,13 +1383,7 @@ class BCEVisitor : public HGraphVisitor {
       }
       // Does the current basic block dominate all back edges? If not,
       // don't apply dynamic bce to something that may not be executed.
-      for (HBasicBlock* back_edge : loop->GetBackEdges()) {
-        if (!block->Dominates(back_edge)) {
-          return false;
-        }
-      }
-      // Success!
-      return true;
+      return loop->DominatesAllBackEdges(block);
     }
     return false;
   }

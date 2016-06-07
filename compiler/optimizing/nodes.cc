@@ -734,6 +734,15 @@ bool HLoopInformation::HasBackEdgeNotDominatedByHeader() const {
   return false;
 }
 
+bool HLoopInformation::DominatesAllBackEdges(HBasicBlock* block) {
+  for (HBasicBlock* back_edge : GetBackEdges()) {
+    if (!block->Dominates(back_edge)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool HBasicBlock::Dominates(HBasicBlock* other) const {
   // Walk up the dominator tree from `other`, to find out if `this`
   // is an ancestor.
