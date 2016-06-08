@@ -71,6 +71,21 @@ public class Main {
             throw new IllegalStateException("Expected Ex-A, found " + exValue);
         }
 
+        // Try to load a dex file with bad dex code. Use new instance to force verification.
+        try {
+          Class<?> badClass = Main.class.getClassLoader().loadClass("B");
+          badClass.newInstance();
+          System.out.println("Should not be able to load class from bad dex file.");
+        } catch (VerifyError e) {
+        }
+
+        // Make sure the same error is rethrown when reloading the bad class.
+        try {
+          Class<?> badClass = Main.class.getClassLoader().loadClass("B");
+          System.out.println("Should not be able to load class from bad dex file.");
+        } catch (VerifyError e) {
+        }
+
         System.out.println("Everything OK.");
     }
 }
