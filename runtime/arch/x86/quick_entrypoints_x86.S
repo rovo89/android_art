@@ -73,6 +73,38 @@ MACRO2(SETUP_REFS_ONLY_CALLEE_SAVE_FRAME, got_reg, temp_reg)
 #endif
 END_MACRO
 
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kRefsOnly)
+     * and preserves the value of got_reg at entry.
+     */
+MACRO2(SETUP_REFS_ONLY_CALLEE_SAVE_FRAME_PRESERVE_GOT_REG, got_reg, temp_reg)
+    PUSH edi  // Save callee saves (ebx is saved/restored by the upcall)
+    PUSH esi
+    PUSH ebp
+    pushl REG_VAR(got_reg)  // Save got_reg
+    subl MACRO_LITERAL(8), %esp  // Grow stack by 2 words.
+    CFI_ADJUST_CFA_OFFSET(8)
+
+    SETUP_GOT_NOSAVE RAW_VAR(got_reg)
+    // Load Runtime::instance_ from GOT.
+    movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg)), REG_VAR(temp_reg)
+    movl (REG_VAR(temp_reg)), REG_VAR(temp_reg)
+    // Push save all callee-save method.
+    pushl RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(REG_VAR(temp_reg))
+    CFI_ADJUST_CFA_OFFSET(4)
+    // Store esp as the top quick frame.
+    movl %esp, %fs:THREAD_TOP_QUICK_FRAME_OFFSET
+    // Restore got_reg.
+    movl 12(%esp), REG_VAR(got_reg)
+
+    // Ugly compile-time check, but we only have the preprocessor.
+    // Last +4: implicit return address pushed on stack when caller made call.
+#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 3*4 + 16 + 4)
+#error "REFS_ONLY_CALLEE_SAVE_FRAME(X86) size not as expected."
+#endif
+END_MACRO
+
 MACRO0(RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME)
     addl MACRO_LITERAL(16), %esp  // Unwind stack up to saved values
     CFI_ADJUST_CFA_OFFSET(-16)
@@ -686,14 +718,7 @@ END_MACRO
 
 MACRO3(FOUR_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
-    subl MACRO_LITERAL(12), %esp                 // alignment padding
-    CFI_ADJUST_CFA_OFFSET(12)
-    PUSH ebx                                     // Save ebx as the expansion of the
-                                                 //   SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
-                                                 //   macro below clobbers it.
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
-    movl 28(%esp), %ebx                          // restore ebx
-    CFI_RESTORE_REG ebx
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME_PRESERVE_GOT_REG  ebx, ebx  // save ref containing registers for GC
 
     // Outgoing argument set up
     subl MACRO_LITERAL(12), %esp                 // alignment padding
@@ -708,8 +733,6 @@ MACRO3(FOUR_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     addl MACRO_LITERAL(32), %esp                 // pop arguments
     CFI_ADJUST_CFA_OFFSET(-32)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME          // restore frame up to return address
-    addl MACRO_LITERAL(16), %esp                 // pop ebx + padding
-    CFI_ADJUST_CFA_OFFSET(-16)
     CALL_MACRO(return_macro)                     // return or deliver exception
     END_FUNCTION VAR(c_name)
 END_MACRO
