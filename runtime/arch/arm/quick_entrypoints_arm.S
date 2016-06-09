@@ -88,6 +88,36 @@
 #endif
 .endm
 
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kRefsOnly)
+     * and preserves the value of rTemp2 at entry.
+     */
+.macro SETUP_REFS_ONLY_CALLEE_SAVE_FRAME_PRESERVE_RTEMP2 rTemp1, rTemp2
+    push {r5-r8, r10-r11, lr}                     @ 7 words of callee saves
+    .cfi_adjust_cfa_offset 28
+    .cfi_rel_offset r5, 0
+    .cfi_rel_offset r6, 4
+    .cfi_rel_offset r7, 8
+    .cfi_rel_offset r8, 12
+    .cfi_rel_offset r10, 16
+    .cfi_rel_offset r11, 20
+    .cfi_rel_offset lr, 24
+    sub sp, #4                                    @ bottom word will hold Method*
+    .cfi_adjust_cfa_offset 4
+    str \rTemp2, [sp, #0]                         @ save rTemp2
+    RUNTIME_CURRENT2 \rTemp1, \rTemp2             @ Load Runtime::Current into rTemp1.
+    ldr \rTemp1, [\rTemp1, #RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET] @ rTemp1 is kRefsOnly Method*.
+    ldr \rTemp2, [sp, #0]                         @ restore rTemp2
+    str \rTemp1, [sp, #0]                         @ Place Method* at bottom of stack.
+    str sp, [r9, #THREAD_TOP_QUICK_FRAME_OFFSET]  @ Place sp in Thread::Current()->top_quick_frame.
+
+    // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 28 + 4)
+#error "REFS_ONLY_CALLEE_SAVE_FRAME(ARM) size not as expected."
+#endif
+.endm
+
 .macro RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     add sp, #4               @ bottom word holds Method*
     .cfi_adjust_cfa_offset -4
@@ -831,23 +861,13 @@ END \name
 .macro FOUR_ARG_DOWNCALL name, entrypoint, return
     .extern \entrypoint
 ENTRY \name
-    sub    sp, #12                    @ alignment padding
-    .cfi_adjust_cfa_offset 12
-    push   {r3}                       @ Save r3 as is it used as a temp register in the
-    .cfi_adjust_cfa_offset 4          @   expansion of the SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
-    .cfi_rel_offset r3, 0             @   macro below, which clobbers its arguments.
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  r3, r12  @ save callee saves in case of GC
-    ldr    r3, [sp, 32]               @ restore r3
-    .cfi_restore r3
-
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME_PRESERVE_RTEMP2  r12, r3  @ save callee saves in case of GC
     str    r9, [sp, #-16]!            @ expand the frame and pass Thread::Current
     .cfi_adjust_cfa_offset 16
     bl     \entrypoint
     add    sp, #16                    @ strip the extra frame
     .cfi_adjust_cfa_offset -16
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
-    add    sp, #16                    @ pop r3 + padding
-    .cfi_adjust_cfa_offset -16
     \return
 END \name
 .endm
