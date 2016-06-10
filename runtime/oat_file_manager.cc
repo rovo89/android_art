@@ -185,11 +185,6 @@ class DexFileAndClassPair : ValueObject {
     return dex_file_;
   }
 
-  void DeleteDexFile() {
-    delete dex_file_;
-    dex_file_ = nullptr;
-  }
-
  private:
   static const char* GetClassDescriptor(const DexFile* dex_file, size_t index) {
     DCHECK(IsUint<16>(index));
@@ -208,36 +203,25 @@ class DexFileAndClassPair : ValueObject {
 
 static void AddDexFilesFromOat(const OatFile* oat_file,
                                bool already_loaded,
-                               /*out*/std::priority_queue<DexFileAndClassPair>* heap) {
+                               /*out*/std::priority_queue<DexFileAndClassPair>* heap,
+                               std::vector<std::unique_ptr<const DexFile>>* opened_dex_files) {
   for (const OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
     std::string error;
     std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error);
     if (dex_file == nullptr) {
       LOG(WARNING) << "Could not create dex file from oat file: " << error;
     } else if (dex_file->NumClassDefs() > 0U) {
-      heap->emplace(dex_file.release(), /*current_class_index*/0U, already_loaded);
+      heap->emplace(dex_file.get(), /*current_class_index*/0U, already_loaded);
+      opened_dex_files->push_back(std::move(dex_file));
     }
   }
 }
 
 static void AddNext(/*inout*/DexFileAndClassPair* original,
-                    /*inout*/std::priority_queue<DexFileAndClassPair>* heap,
-                    bool owning_dex_files) {
+                    /*inout*/std::priority_queue<DexFileAndClassPair>* heap) {
   if (original->DexFileHasMoreClasses()) {
     original->Next();
     heap->push(std::move(*original));
-  } else if (owning_dex_files) {
-    original->DeleteDexFile();
-  }
-}
-
-static void FreeDexFilesInHeap(std::priority_queue<DexFileAndClassPair>* heap,
-                               bool owning_dex_files) {
-  if (owning_dex_files) {
-    while (!heap->empty()) {
-      delete heap->top().GetDexFile();
-      heap->pop();
-    }
   }
 }
 
@@ -451,7 +435,6 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
   DCHECK(error_msg != nullptr);
 
   std::priority_queue<DexFileAndClassPair> queue;
-  bool owning_dex_files = false;
 
   // Try to get dex files from the given class loader. If the class loader is null, or we do
   // not support one of the class loaders in the chain, conservatively compare against all
@@ -481,6 +464,9 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
   // against the open oat files. Take the oat_file_manager_lock_ that protects oat_files_ accesses.
   ReaderMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
 
+  // Vector that holds the newly opened dex files live, this is done to prevent leaks.
+  std::vector<std::unique_ptr<const DexFile>> opened_dex_files;
+
   if (!class_loader_ok) {
     // Add dex files from already loaded oat files, but skip boot.
 
@@ -488,9 +474,6 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
     while (!queue.empty()) {
       queue.pop();
     }
-
-    // Anything we load now is something we own and must be released later.
-    owning_dex_files = true;
 
     std::vector<const OatFile*> boot_oat_files = GetBootOatFiles();
     // The same OatFile can be loaded multiple times at different addresses. In this case, we don't
@@ -504,7 +487,10 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
           boot_oat_files.end() && location != oat_file->GetLocation() &&
           unique_locations.find(location) == unique_locations.end()) {
         unique_locations.insert(location);
-        AddDexFilesFromOat(loaded_oat_file.get(), /*already_loaded*/true, &queue);
+        AddDexFilesFromOat(loaded_oat_file.get(),
+                           /*already_loaded*/true,
+                           &queue,
+                           /*out*/&opened_dex_files);
       }
     }
   }
@@ -513,12 +499,11 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
   const std::string
       shared_libraries(oat_file->GetOatHeader().GetStoreValueByKey(OatHeader::kClassPathKey));
   if (AreSharedLibrariesOk(shared_libraries, queue)) {
-    FreeDexFilesInHeap(&queue, owning_dex_files);
     return false;
   }
 
   // Add dex files from the oat file to check.
-  AddDexFilesFromOat(oat_file, /*already_loaded*/false, &queue);
+  AddDexFilesFromOat(oat_file, /*already_loaded*/false, &queue, &opened_dex_files);
 
   // Now drain the queue.
   while (!queue.empty()) {
@@ -538,17 +523,16 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
                            compare_pop.GetCachedDescriptor(),
                            compare_pop.GetDexFile()->GetLocation().c_str(),
                            top.GetDexFile()->GetLocation().c_str());
-          FreeDexFilesInHeap(&queue, owning_dex_files);
           return true;
         }
         queue.pop();
-        AddNext(&top, &queue, owning_dex_files);
+        AddNext(&top, &queue);
       } else {
         // Something else. Done here.
         break;
       }
     }
-    AddNext(&compare_pop, &queue, owning_dex_files);
+    AddNext(&compare_pop, &queue);
   }
 
   return false;
