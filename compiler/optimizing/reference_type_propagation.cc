@@ -46,10 +46,10 @@ static inline ReferenceTypeInfo::TypeHandle GetRootHandle(StackHandleScopeCollec
   return *cache;
 }
 
-// Returns true if klass is admissible to the propagation: non-null and non-erroneous.
+// Returns true if klass is admissible to the propagation: non-null and resolved.
 // For an array type, we also check if the component type is admissible.
 static bool IsAdmissible(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_) {
-  return klass != nullptr && !klass->IsErroneous() &&
+  return klass != nullptr && klass->IsResolved() &&
       (!klass->IsArrayClass() || IsAdmissible(klass->GetComponentType()));
 }
 
