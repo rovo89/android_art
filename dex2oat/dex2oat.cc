@@ -1232,18 +1232,6 @@ class Dex2Oat FINAL {
       unlink(swap_file_name_.c_str());
     }
 
-    // If we use a swap file, ensure we are above the threshold to make it necessary.
-    if (swap_fd_ != -1) {
-      if (!UseSwap(IsBootImage(), dex_files_)) {
-        close(swap_fd_);
-        swap_fd_ = -1;
-        VLOG(compiler) << "Decided to run without swap.";
-      } else {
-        LOG(INFO) << "Large app, accepted running with swap.";
-      }
-    }
-    // Note that dex2oat won't close the swap_fd_. The compiler driver's swap space will do that.
-
     return true;
   }
 
@@ -1414,6 +1402,24 @@ class Dex2Oat FINAL {
     }
 
     dex_files_ = MakeNonOwningPointerVector(opened_dex_files_);
+
+    // We had to postpone the swap decision till now, as this is the point when we actually
+    // know about the dex files we're going to use.
+
+    // Make sure that we didn't create the driver, yet.
+    CHECK(driver_ == nullptr);
+    // If we use a swap file, ensure we are above the threshold to make it necessary.
+    if (swap_fd_ != -1) {
+      if (!UseSwap(IsBootImage(), dex_files_)) {
+        close(swap_fd_);
+        swap_fd_ = -1;
+        VLOG(compiler) << "Decided to run without swap.";
+      } else {
+        LOG(INFO) << "Large app, accepted running with swap.";
+      }
+    }
+    // Note that dex2oat won't close the swap_fd_. The compiler driver's swap space will do that.
+
     if (IsBootImage()) {
       // For boot image, pass opened dex files to the Runtime::Create().
       // Note: Runtime acquires ownership of these dex files.
