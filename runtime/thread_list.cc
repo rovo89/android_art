@@ -235,7 +235,12 @@ void ThreadList::Dump(std::ostream& os, bool dump_native_stack) {
     os << "DALVIK THREADS (" << list_.size() << "):\n";
   }
   DumpCheckpoint checkpoint(&os, dump_native_stack);
-  size_t threads_running_checkpoint = RunCheckpoint(&checkpoint);
+  size_t threads_running_checkpoint;
+  {
+    // Use SOA to prevent deadlocks if multiple threads are calling Dump() at the same time.
+    ScopedObjectAccess soa(Thread::Current());
+    threads_running_checkpoint = RunCheckpoint(&checkpoint);
+  }
   if (threads_running_checkpoint != 0) {
     checkpoint.WaitForThreadsToRunThroughCheckpoint(threads_running_checkpoint);
   }
