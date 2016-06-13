@@ -59,7 +59,8 @@ static constexpr useconds_t kThreadSuspendMaxSleepUs = 5000;
 
 // Whether we should try to dump the native stack of unattached threads. See commit ed8b723 for
 // some history.
-static constexpr bool kDumpUnattachedThreadNativeStack = true;
+// Turned off again. b/29248079
+static constexpr bool kDumpUnattachedThreadNativeStack = false;
 
 ThreadList::ThreadList()
     : suspend_all_count_(0),
