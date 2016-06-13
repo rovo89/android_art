@@ -55,7 +55,6 @@ inline Class* DexCache::GetResolvedType(uint32_t type_idx) {
 inline void DexCache::SetResolvedType(uint32_t type_idx, Class* resolved) {
   DCHECK_LT(type_idx, NumResolvedTypes());  // NOTE: Unchecked, i.e. not throwing AIOOB.
   // TODO default transaction support.
-  DCHECK(resolved == nullptr || !resolved->IsErroneous());
   GetResolvedTypes()[type_idx] = GcRoot<Class>(resolved);
   // TODO: Fine-grained marking, so that we don't need to go through all arrays in full.
   Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(this);
