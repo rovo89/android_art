@@ -282,22 +282,11 @@ void SemiSpace::MarkingPhase() {
   }
 }
 
-class SemiSpaceScanObjectVisitor {
- public:
-  explicit SemiSpaceScanObjectVisitor(SemiSpace* ss) : semi_space_(ss) {}
-  void operator()(Object* obj) const REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
-    DCHECK(obj != nullptr);
-    semi_space_->ScanObject(obj);
-  }
- private:
-  SemiSpace* const semi_space_;
-};
-
 // Used to verify that there's no references to the from-space.
-class SemiSpaceVerifyNoFromSpaceReferencesVisitor {
+class SemiSpace::VerifyNoFromSpaceReferencesVisitor {
  public:
-  explicit SemiSpaceVerifyNoFromSpaceReferencesVisitor(space::ContinuousMemMapAllocSpace* from_space) :
-      from_space_(from_space) {}
+  explicit VerifyNoFromSpaceReferencesVisitor(space::ContinuousMemMapAllocSpace* from_space)
+      : from_space_(from_space) {}
 
   void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const
       SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
@@ -331,22 +320,9 @@ class SemiSpaceVerifyNoFromSpaceReferencesVisitor {
 
 void SemiSpace::VerifyNoFromSpaceReferences(Object* obj) {
   DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
-  SemiSpaceVerifyNoFromSpaceReferencesVisitor visitor(from_space_);
+  VerifyNoFromSpaceReferencesVisitor visitor(from_space_);
   obj->VisitReferences(visitor, VoidFunctor());
 }
-
-class SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor {
- public:
-  explicit SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor(SemiSpace* ss) : semi_space_(ss) {}
-  void operator()(Object* obj) const
-      SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    DCHECK(obj != nullptr);
-    semi_space_->VerifyNoFromSpaceReferences(obj);
-  }
-
- private:
-  SemiSpace* const semi_space_;
-};
 
 void SemiSpace::MarkReachableObjects() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
@@ -390,10 +366,12 @@ void SemiSpace::MarkReachableObjects() {
       } else {
         TimingLogger::ScopedTiming t2("VisitLiveBits", GetTimings());
         accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
-        SemiSpaceScanObjectVisitor visitor(this);
         live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
                                       reinterpret_cast<uintptr_t>(space->End()),
-                                      visitor);
+                                      [this](mirror::Object* obj)
+           REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+          ScanObject(obj);
+        });
       }
       if (kIsDebugBuild) {
         // Verify that there are no from-space references that
@@ -401,10 +379,13 @@ void SemiSpace::MarkReachableObjects() {
         // card table) didn't miss any from-space references in the
         // space.
         accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
-        SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor visitor(this);
         live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
                                       reinterpret_cast<uintptr_t>(space->End()),
-                                      visitor);
+                                      [this](Object* obj)
+            SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+          DCHECK(obj != nullptr);
+          VerifyNoFromSpaceReferences(obj);
+        });
       }
     }
   }
@@ -424,10 +405,12 @@ void SemiSpace::MarkReachableObjects() {
     // classes (primitive array classes) that could move though they
     // don't contain any other references.
     accounting::LargeObjectBitmap* large_live_bitmap = los->GetLiveBitmap();
-    SemiSpaceScanObjectVisitor visitor(this);
     large_live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(los->Begin()),
                                         reinterpret_cast<uintptr_t>(los->End()),
-                                        visitor);
+                                        [this](mirror::Object* obj)
+        REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      ScanObject(obj);
+    });
   }
   // Recursively process the mark stack.
   ProcessMarkStack();
@@ -697,10 +680,9 @@ void SemiSpace::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* 
   heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, reference, this);
 }
 
-class SemiSpaceMarkObjectVisitor {
+class SemiSpace::MarkObjectVisitor {
  public:
-  explicit SemiSpaceMarkObjectVisitor(SemiSpace* collector) : collector_(collector) {
-  }
+  explicit MarkObjectVisitor(SemiSpace* collector) : collector_(collector) {}
 
   void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const ALWAYS_INLINE
       REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
@@ -739,7 +721,7 @@ class SemiSpaceMarkObjectVisitor {
 // Visit all of the references of an object and update.
 void SemiSpace::ScanObject(Object* obj) {
   DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
-  SemiSpaceMarkObjectVisitor visitor(this);
+  MarkObjectVisitor visitor(this);
   obj->VisitReferences(visitor, visitor);
 }
 

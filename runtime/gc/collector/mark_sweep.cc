@@ -266,7 +266,7 @@ void MarkSweep::MarkingPhase() {
   PreCleanCards();
 }
 
-class ScanObjectVisitor {
+class MarkSweep::ScanObjectVisitor {
  public:
   explicit ScanObjectVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE
       : mark_sweep_(mark_sweep) {}
@@ -393,12 +393,14 @@ bool MarkSweep::IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* ref
   return IsMarked(ref->AsMirrorPtr());
 }
 
-class MarkSweepMarkObjectSlowPath {
+class MarkSweep::MarkObjectSlowPath {
  public:
-  explicit MarkSweepMarkObjectSlowPath(MarkSweep* mark_sweep,
-                                       mirror::Object* holder = nullptr,
-                                       MemberOffset offset = MemberOffset(0))
-      : mark_sweep_(mark_sweep), holder_(holder), offset_(offset) {}
+  explicit MarkObjectSlowPath(MarkSweep* mark_sweep,
+                              mirror::Object* holder = nullptr,
+                              MemberOffset offset = MemberOffset(0))
+      : mark_sweep_(mark_sweep),
+        holder_(holder),
+        offset_(offset) {}
 
   void operator()(const mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
     if (kProfileLargeObjects) {
@@ -499,7 +501,7 @@ inline void MarkSweep::MarkObjectNonNull(mirror::Object* obj,
     if (kCountMarkedObjects) {
       ++mark_slowpath_count_;
     }
-    MarkSweepMarkObjectSlowPath visitor(this, holder, offset);
+    MarkObjectSlowPath visitor(this, holder, offset);
     // TODO: We already know that the object is not in the current_space_bitmap_ but MarkBitmap::Set
     // will check again.
     if (!mark_bitmap_->Set(obj, visitor)) {
@@ -534,7 +536,7 @@ inline bool MarkSweep::MarkObjectParallel(mirror::Object* obj) {
   if (LIKELY(object_bitmap->HasAddress(obj))) {
     return !object_bitmap->AtomicTestAndSet(obj);
   }
-  MarkSweepMarkObjectSlowPath visitor(this);
+  MarkObjectSlowPath visitor(this);
   return !mark_bitmap_->AtomicTestAndSet(obj, visitor);
 }
 
@@ -553,7 +555,7 @@ inline void MarkSweep::MarkObject(mirror::Object* obj,
   }
 }
 
-class VerifyRootMarkedVisitor : public SingleRootVisitor {
+class MarkSweep::VerifyRootMarkedVisitor : public SingleRootVisitor {
  public:
   explicit VerifyRootMarkedVisitor(MarkSweep* collector) : collector_(collector) { }
 
@@ -582,7 +584,7 @@ void MarkSweep::VisitRoots(mirror::CompressedReference<mirror::Object>** roots,
   }
 }
 
-class VerifyRootVisitor : public SingleRootVisitor {
+class MarkSweep::VerifyRootVisitor : public SingleRootVisitor {
  public:
   void VisitRoot(mirror::Object* root, const RootInfo& info) OVERRIDE
       SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
@@ -629,7 +631,7 @@ void MarkSweep::MarkConcurrentRoots(VisitRootFlags flags) {
       this, static_cast<VisitRootFlags>(flags | kVisitRootFlagNonMoving));
 }
 
-class DelayReferenceReferentVisitor {
+class MarkSweep::DelayReferenceReferentVisitor {
  public:
   explicit DelayReferenceReferentVisitor(MarkSweep* collector) : collector_(collector) {}
 
@@ -644,7 +646,7 @@ class DelayReferenceReferentVisitor {
 };
 
 template <bool kUseFinger = false>
-class MarkStackTask : public Task {
+class MarkSweep::MarkStackTask : public Task {
  public:
   MarkStackTask(ThreadPool* thread_pool,
                 MarkSweep* mark_sweep,
@@ -802,7 +804,7 @@ class MarkStackTask : public Task {
   }
 };
 
-class CardScanTask : public MarkStackTask<false> {
+class MarkSweep::CardScanTask : public MarkStackTask<false> {
  public:
   CardScanTask(ThreadPool* thread_pool,
                MarkSweep* mark_sweep,
@@ -967,7 +969,7 @@ void MarkSweep::ScanGrayObjects(bool paused, uint8_t minimum_age) {
   }
 }
 
-class RecursiveMarkTask : public MarkStackTask<false> {
+class MarkSweep::RecursiveMarkTask : public MarkStackTask<false> {
  public:
   RecursiveMarkTask(ThreadPool* thread_pool,
                     MarkSweep* mark_sweep,
@@ -1080,7 +1082,7 @@ void MarkSweep::SweepSystemWeaks(Thread* self) {
   Runtime::Current()->SweepSystemWeaks(this);
 }
 
-class VerifySystemWeakVisitor : public IsMarkedVisitor {
+class MarkSweep::VerifySystemWeakVisitor : public IsMarkedVisitor {
  public:
   explicit VerifySystemWeakVisitor(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {}
 
@@ -1109,7 +1111,7 @@ void MarkSweep::VerifySystemWeaks() {
   Runtime::Current()->SweepSystemWeaks(&visitor);
 }
 
-class CheckpointMarkThreadRoots : public Closure, public RootVisitor {
+class MarkSweep::CheckpointMarkThreadRoots : public Closure, public RootVisitor {
  public:
   CheckpointMarkThreadRoots(MarkSweep* mark_sweep,
                             bool revoke_ros_alloc_thread_local_buffers_at_checkpoint)
