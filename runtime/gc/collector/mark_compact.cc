@@ -129,7 +129,7 @@ void MarkCompact::ProcessReferences(Thread* self) {
       false, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(), this);
 }
 
-class BitmapSetSlowPathVisitor {
+class MCBitmapSetSlowPathVisitor {
  public:
   void operator()(const mirror::Object* obj) const SHARED_REQUIRES(Locks::mutator_lock_) {
     // Marking a large object, make sure its aligned as a sanity check.
@@ -155,7 +155,7 @@ inline mirror::Object* MarkCompact::MarkObject(mirror::Object* obj) {
       }
     } else {
       DCHECK(!space_->HasAddress(obj));
-      BitmapSetSlowPathVisitor visitor;
+      MCBitmapSetSlowPathVisitor visitor;
       if (!mark_bitmap_->Set(obj, visitor)) {
         // This object was not previously marked.
         MarkStackPush(obj);
