@@ -1390,11 +1390,6 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
 }
 
 void Runtime::DumpForSigQuit(std::ostream& os) {
-  // Dumping for SIGQIT may cause deadlocks if the the debugger is active. b/26118154
-  if (Dbg::IsDebuggerActive()) {
-    LOG(INFO) << "Skipping DumpForSigQuit due to active debugger";
-    return;
-  }
   GetClassLinker()->DumpForSigQuit(os);
   GetInternTable()->DumpForSigQuit(os);
   GetJavaVM()->DumpForSigQuit(os);
