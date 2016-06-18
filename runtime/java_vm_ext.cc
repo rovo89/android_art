@@ -742,8 +742,14 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env,
     // As the incoming class loader is reachable/alive during the call of this function,
     // it's okay to decode it without worrying about unexpectedly marking it alive.
     mirror::ClassLoader* loader = soa.Decode<mirror::ClassLoader*>(class_loader);
-    class_loader_allocator =
-        Runtime::Current()->GetClassLinker()->GetAllocatorForClassLoader(loader);
+
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    if (class_linker->IsBootClassLoader(soa, loader)) {
+      loader = nullptr;
+      class_loader = nullptr;
+    }
+
+    class_loader_allocator = class_linker->GetAllocatorForClassLoader(loader);
     CHECK(class_loader_allocator != nullptr);
   }
   if (library != nullptr) {
