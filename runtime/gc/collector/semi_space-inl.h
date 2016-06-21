@@ -26,21 +26,6 @@ namespace art {
 namespace gc {
 namespace collector {
 
-class BitmapSetSlowPathVisitor {
- public:
-  explicit BitmapSetSlowPathVisitor(SemiSpace* semi_space) : semi_space_(semi_space) {
-  }
-
-  void operator()(const mirror::Object* obj) const {
-    CHECK(!semi_space_->to_space_->HasAddress(obj)) << "Marking " << obj << " in to_space_";
-    // Marking a large object, make sure its aligned as a sanity check.
-    CHECK_ALIGNED(obj, kPageSize);
-  }
-
- private:
-  SemiSpace* const semi_space_;
-};
-
 inline mirror::Object* SemiSpace::GetForwardingAddressInFromSpace(mirror::Object* obj) const {
   DCHECK(from_space_->HasAddress(obj));
   LockWord lock_word = obj->GetLockWord(false);
@@ -76,8 +61,12 @@ inline void SemiSpace::MarkObject(
     obj_ptr->Assign(forward_address);
   } else if (!collect_from_space_only_ && !immune_spaces_.IsInImmuneRegion(obj)) {
     DCHECK(!to_space_->HasAddress(obj)) << "Tried to mark " << obj << " in to-space";
-    BitmapSetSlowPathVisitor visitor(this);
-    if (!mark_bitmap_->Set(obj, visitor)) {
+    auto slow_path = [this](const mirror::Object* ref) {
+      CHECK(!to_space_->HasAddress(ref)) << "Marking " << ref << " in to_space_";
+      // Marking a large object, make sure its aligned as a sanity check.
+      CHECK_ALIGNED(ref, kPageSize);
+    };
+    if (!mark_bitmap_->Set(obj, slow_path)) {
       // This object was not previously marked.
       MarkStackPush(obj);
     }

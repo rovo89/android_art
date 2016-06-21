@@ -272,7 +272,9 @@ class SemiSpace : public GarbageCollector {
   bool swap_semi_spaces_;
 
  private:
-  friend class BitmapSetSlowPathVisitor;
+  class BitmapSetSlowPathVisitor;
+  class MarkObjectVisitor;
+  class VerifyNoFromSpaceReferencesVisitor;
   DISALLOW_IMPLICIT_CONSTRUCTORS(SemiSpace);
 };
 

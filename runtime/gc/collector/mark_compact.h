@@ -222,13 +222,10 @@ class MarkCompact : public GarbageCollector {
   bool updating_references_;
 
  private:
-  friend class BitmapSetSlowPathVisitor;
-  friend class CalculateObjectForwardingAddressVisitor;
-  friend class MarkCompactMarkObjectVisitor;
-  friend class MoveObjectVisitor;
-  friend class UpdateObjectReferencesVisitor;
-  friend class UpdateReferenceVisitor;
-  friend class UpdateRootVisitor;
+  class MarkObjectVisitor;
+  class UpdateObjectReferencesVisitor;
+  class UpdateReferenceVisitor;
+  class UpdateRootVisitor;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(MarkCompact);
 };

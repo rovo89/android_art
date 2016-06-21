@@ -52,8 +52,9 @@ void MarkCompact::BindBitmaps() {
 
 MarkCompact::MarkCompact(Heap* heap, const std::string& name_prefix)
     : GarbageCollector(heap, name_prefix + (name_prefix.empty() ? "" : " ") + "mark compact"),
-      space_(nullptr), collector_name_(name_), updating_references_(false) {
-}
+      space_(nullptr),
+      collector_name_(name_),
+      updating_references_(false) {}
 
 void MarkCompact::RunPhases() {
   Thread* self = Thread::Current();
@@ -85,30 +86,20 @@ void MarkCompact::ForwardObject(mirror::Object* obj) {
   ++live_objects_in_space_;
 }
 
-class CalculateObjectForwardingAddressVisitor {
- public:
-  explicit CalculateObjectForwardingAddressVisitor(MarkCompact* collector)
-      : collector_(collector) {}
-  void operator()(mirror::Object* obj) const REQUIRES(Locks::mutator_lock_,
-                                                                      Locks::heap_bitmap_lock_) {
-    DCHECK_ALIGNED(obj, space::BumpPointerSpace::kAlignment);
-    DCHECK(collector_->IsMarked(obj) != nullptr);
-    collector_->ForwardObject(obj);
-  }
-
- private:
-  MarkCompact* const collector_;
-};
 
 void MarkCompact::CalculateObjectForwardingAddresses() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // The bump pointer in the space where the next forwarding address will be.
   bump_pointer_ = reinterpret_cast<uint8_t*>(space_->Begin());
   // Visit all the marked objects in the bitmap.
-  CalculateObjectForwardingAddressVisitor visitor(this);
   objects_before_forwarding_->VisitMarkedRange(reinterpret_cast<uintptr_t>(space_->Begin()),
                                                reinterpret_cast<uintptr_t>(space_->End()),
-                                               visitor);
+                                               [this](mirror::Object* obj)
+      REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+    DCHECK_ALIGNED(obj, space::BumpPointerSpace::kAlignment);
+    DCHECK(IsMarked(obj) != nullptr);
+    ForwardObject(obj);
+  });
 }
 
 void MarkCompact::InitializePhase() {
@@ -129,17 +120,6 @@ void MarkCompact::ProcessReferences(Thread* self) {
       false, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(), this);
 }
 
-class BitmapSetSlowPathVisitor {
- public:
-  void operator()(const mirror::Object* obj) const SHARED_REQUIRES(Locks::mutator_lock_) {
-    // Marking a large object, make sure its aligned as a sanity check.
-    if (!IsAligned<kPageSize>(obj)) {
-      Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
-      LOG(FATAL) << obj;
-    }
-  }
-};
-
 inline mirror::Object* MarkCompact::MarkObject(mirror::Object* obj) {
   if (obj == nullptr) {
     return nullptr;
@@ -155,8 +135,15 @@ inline mirror::Object* MarkCompact::MarkObject(mirror::Object* obj) {
       }
     } else {
       DCHECK(!space_->HasAddress(obj));
-      BitmapSetSlowPathVisitor visitor;
-      if (!mark_bitmap_->Set(obj, visitor)) {
+      auto slow_path = [this](const mirror::Object* ref)
+          SHARED_REQUIRES(Locks::mutator_lock_) {
+        // Marking a large object, make sure its aligned as a sanity check.
+        if (!IsAligned<kPageSize>(ref)) {
+          Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
+          LOG(FATAL) << ref;
+        }
+      };
+      if (!mark_bitmap_->Set(obj, slow_path)) {
         // This object was not previously marked.
         MarkStackPush(obj);
       }
@@ -296,10 +283,9 @@ void MarkCompact::VisitRoots(
   }
 }
 
-class UpdateRootVisitor : public RootVisitor {
+class MarkCompact::UpdateRootVisitor : public RootVisitor {
  public:
-  explicit UpdateRootVisitor(MarkCompact* collector) : collector_(collector) {
-  }
+  explicit UpdateRootVisitor(MarkCompact* collector) : collector_(collector) {}
 
   void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED)
       OVERRIDE REQUIRES(Locks::mutator_lock_)
@@ -332,10 +318,10 @@ class UpdateRootVisitor : public RootVisitor {
   MarkCompact* const collector_;
 };
 
-class UpdateObjectReferencesVisitor {
+class MarkCompact::UpdateObjectReferencesVisitor {
  public:
-  explicit UpdateObjectReferencesVisitor(MarkCompact* collector) : collector_(collector) {
-  }
+  explicit UpdateObjectReferencesVisitor(MarkCompact* collector) : collector_(collector) {}
+
   void operator()(mirror::Object* obj) const SHARED_REQUIRES(Locks::heap_bitmap_lock_)
           REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     collector_->UpdateObjectReferences(obj);
@@ -423,10 +409,9 @@ inline void MarkCompact::UpdateHeapReference(mirror::HeapReference<mirror::Objec
   }
 }
 
-class UpdateReferenceVisitor {
+class MarkCompact::UpdateReferenceVisitor {
  public:
-  explicit UpdateReferenceVisitor(MarkCompact* collector) : collector_(collector) {
-  }
+  explicit UpdateReferenceVisitor(MarkCompact* collector) : collector_(collector) {}
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool /*is_static*/) const
       ALWAYS_INLINE REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
@@ -501,19 +486,6 @@ bool MarkCompact::ShouldSweepSpace(space::ContinuousSpace* space) const {
   return space != space_ && !immune_spaces_.ContainsSpace(space);
 }
 
-class MoveObjectVisitor {
- public:
-  explicit MoveObjectVisitor(MarkCompact* collector) : collector_(collector) {
-  }
-  void operator()(mirror::Object* obj) const SHARED_REQUIRES(Locks::heap_bitmap_lock_)
-          REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
-      collector_->MoveObject(obj, obj->SizeOf());
-  }
-
- private:
-  MarkCompact* const collector_;
-};
-
 void MarkCompact::MoveObject(mirror::Object* obj, size_t len) {
   // Look at the forwarding address stored in the lock word to know where to copy.
   DCHECK(space_->HasAddress(obj)) << obj;
@@ -534,10 +506,13 @@ void MarkCompact::MoveObject(mirror::Object* obj, size_t len) {
 void MarkCompact::MoveObjects() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // Move the objects in the before forwarding bitmap.
-  MoveObjectVisitor visitor(this);
   objects_before_forwarding_->VisitMarkedRange(reinterpret_cast<uintptr_t>(space_->Begin()),
                                                reinterpret_cast<uintptr_t>(space_->End()),
-                                               visitor);
+                                               [this](mirror::Object* obj)
+      SHARED_REQUIRES(Locks::heap_bitmap_lock_)
+      REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
+    MoveObject(obj, obj->SizeOf());
+  });
   CHECK(lock_words_to_restore_.empty());
 }
 
@@ -572,10 +547,9 @@ void MarkCompact::DelayReferenceReferent(mirror::Class* klass, mirror::Reference
   heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, reference, this);
 }
 
-class MarkCompactMarkObjectVisitor {
+class MarkCompact::MarkObjectVisitor {
  public:
-  explicit MarkCompactMarkObjectVisitor(MarkCompact* collector) : collector_(collector) {
-  }
+  explicit MarkObjectVisitor(MarkCompact* collector) : collector_(collector) {}
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool /*is_static*/) const ALWAYS_INLINE
       REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
@@ -608,7 +582,7 @@ class MarkCompactMarkObjectVisitor {
 
 // Visit all of the references of an object and update.
 void MarkCompact::ScanObject(mirror::Object* obj) {
-  MarkCompactMarkObjectVisitor visitor(this);
+  MarkObjectVisitor visitor(this);
   obj->VisitReferences(visitor, visitor);
 }
 
