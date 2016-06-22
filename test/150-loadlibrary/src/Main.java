@@ -49,7 +49,7 @@ public class Main {
     // log that we'd have to strip (it contains the pid).
     Method m = Runtime.class.getDeclaredMethod("doLoad", String.class, ClassLoader.class);
     m.setAccessible(true);
-    Object result = m.invoke(Runtime.getRuntime(), libName, bootClassLoader);
+    Object result = m.invoke(Runtime.getRuntime(), fileName, bootClassLoader);
     if (result != null) {
       throw new IllegalStateException(result.toString());
     }
