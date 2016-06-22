@@ -46,6 +46,16 @@ static void EnableDebugger() {
   if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) == -1) {
     PLOG(ERROR) << "prctl(PR_SET_DUMPABLE) failed for pid " << getpid();
   }
+
+  // Even if Yama is on a non-privileged native debugger should
+  // be able to attach to the debuggable app.
+  if (prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0) == -1) {
+    // if Yama is off prctl(PR_SET_PTRACER) returns EINVAL - don't log in this
+    // case since it's expected behaviour.
+    if (errno != EINVAL) {
+      PLOG(ERROR) << "prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY) failed for pid " << getpid();
+    }
+  }
 #endif
   // We don't want core dumps, though, so set the core dump size to 0.
   rlimit rl;
