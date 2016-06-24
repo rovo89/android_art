@@ -65,15 +65,18 @@ $(ART_TEST_TARGET_GTEST_MainStripped_DEX): $(ART_TEST_TARGET_GTEST_Main_DEX)
 	$(call dexpreopt-remove-classes.dex,$@)
 
 # Dex file dependencies for each gtest.
+ART_GTEST_dex2oat_environment_tests_DEX_DEPS := Main MainStripped MultiDex MultiDexModifiedSecondary Nested
+
 ART_GTEST_class_linker_test_DEX_DEPS := Interfaces MultiDex MyClass Nested Statics StaticsFromCode
 ART_GTEST_compiler_driver_test_DEX_DEPS := AbstractMethod StaticLeafMethods ProfileTestMultiDex
 ART_GTEST_dex_cache_test_DEX_DEPS := Main
 ART_GTEST_dex_file_test_DEX_DEPS := GetMethodSignature Main Nested
+ART_GTEST_dex2oat_test_DEX_DEPS := $(ART_GTEST_dex2oat_environment_tests_DEX_DEPS)
 ART_GTEST_exception_test_DEX_DEPS := ExceptionHandle
 ART_GTEST_instrumentation_test_DEX_DEPS := Instrumentation
 ART_GTEST_jni_compiler_test_DEX_DEPS := MyClassNatives
 ART_GTEST_jni_internal_test_DEX_DEPS := AllFields StaticLeafMethods
-ART_GTEST_oat_file_assistant_test_DEX_DEPS := Main MainStripped MultiDex MultiDexModifiedSecondary Nested
+ART_GTEST_oat_file_assistant_test_DEX_DEPS := $(ART_GTEST_dex2oat_environment_tests_DEX_DEPS)
 ART_GTEST_oat_file_test_DEX_DEPS := Main MultiDex
 ART_GTEST_oat_test_DEX_DEPS := Main
 ART_GTEST_object_test_DEX_DEPS := ProtoCompare ProtoCompare2 StaticsFromCode XandY
@@ -89,14 +92,25 @@ ART_GTEST_type_lookup_table_test_DEX_DEPS := Lookup
 ART_GTEST_elf_writer_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
 ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_default_no-pic_64) $(TARGET_CORE_IMAGE_default_no-pic_32)
 
-ART_GTEST_oat_file_assistant_test_HOST_DEPS := \
+ART_GTEST_dex2oat_environment_tests_HOST_DEPS := \
   $(HOST_CORE_IMAGE_default_no-pic_64) \
-  $(HOST_CORE_IMAGE_default_no-pic_32) \
-  $(HOST_OUT_EXECUTABLES)/patchoatd
-ART_GTEST_oat_file_assistant_test_TARGET_DEPS := \
+  $(HOST_CORE_IMAGE_default_no-pic_32)
+ART_GTEST_dex2oat_environment_tests_TARGET_DEPS := \
   $(TARGET_CORE_IMAGE_default_no-pic_64) \
-  $(TARGET_CORE_IMAGE_default_no-pic_32) \
-  $(TARGET_OUT_EXECUTABLES)/patchoatd
+  $(TARGET_CORE_IMAGE_default_no-pic_32)
+
+ART_GTEST_oat_file_assistant_test_HOST_DEPS := \
+   $(ART_GTEST_dex2oat_environment_tests_HOST_DEPS) \
+   $(HOST_OUT_EXECUTABLES)/patchoatd
+ART_GTEST_oat_file_assistant_test_TARGET_DEPS := \
+   $(ART_GTEST_dex2oat_environment_tests_TARGET_DEPS) \
+   $(TARGET_OUT_EXECUTABLES)/patchoatd
+
+
+ART_GTEST_dex2oat_test_HOST_DEPS := \
+  $(ART_GTEST_dex2oat_environment_tests_HOST_DEPS)
+ART_GTEST_dex2oat_test_TARGET_DEPS := \
+  $(ART_GTEST_dex2oat_environment_tests_TARGET_DEPS)
 
 # TODO: document why this is needed.
 ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
@@ -157,6 +171,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   cmdline/cmdline_parser_test.cc \
   dexdump/dexdump_test.cc \
   dexlist/dexlist_test.cc \
+  dex2oat/dex2oat_test.cc \
   imgdiag/imgdiag_test.cc \
   oatdump/oatdump_test.cc \
   profman/profile_assistant_test.cc \
@@ -749,11 +764,15 @@ ART_GTEST_jni_internal_test_DEX_DEPS :=
 ART_GTEST_oat_file_assistant_test_DEX_DEPS :=
 ART_GTEST_oat_file_assistant_test_HOST_DEPS :=
 ART_GTEST_oat_file_assistant_test_TARGET_DEPS :=
+ART_GTEST_dex2oat_test_DEX_DEPS :=
+ART_GTEST_dex2oat_test_HOST_DEPS :=
+ART_GTEST_dex2oat_test_TARGET_DEPS :=
 ART_GTEST_object_test_DEX_DEPS :=
 ART_GTEST_proxy_test_DEX_DEPS :=
 ART_GTEST_reflection_test_DEX_DEPS :=
 ART_GTEST_stub_test_DEX_DEPS :=
 ART_GTEST_transaction_test_DEX_DEPS :=
+ART_GTEST_dex2oat_environment_tests_DEX_DEPS :=
 ART_VALGRIND_DEPENDENCIES :=
 $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval ART_TEST_TARGET_GTEST_$(dir)_DEX :=))
 $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval ART_TEST_HOST_GTEST_$(dir)_DEX :=))

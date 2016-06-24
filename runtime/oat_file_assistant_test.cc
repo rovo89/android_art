@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "oat_file_assistant.h"
-
 #include <algorithm>
 #include <fstream>
 #include <string>
@@ -29,8 +27,10 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "compiler_callbacks.h"
+#include "dex2oat_environment_test.h"
 #include "gc/space/image_space.h"
 #include "mem_map.h"
+#include "oat_file_assistant.h"
 #include "oat_file_manager.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
@@ -39,51 +39,11 @@
 
 namespace art {
 
-class OatFileAssistantTest : public CommonRuntimeTest {
+class OatFileAssistantTest : public Dex2oatEnvironmentTest {
  public:
-  virtual void SetUp() {
+  virtual void SetUp() OVERRIDE {
     ReserveImageSpace();
-    CommonRuntimeTest::SetUp();
-
-    // Create a scratch directory to work from.
-    scratch_dir_ = android_data_ + "/OatFileAssistantTest";
-    ASSERT_EQ(0, mkdir(scratch_dir_.c_str(), 0700));
-
-    // Create a subdirectory in scratch for odex files.
-    odex_oat_dir_ = scratch_dir_ + "/oat";
-    ASSERT_EQ(0, mkdir(odex_oat_dir_.c_str(), 0700));
-
-    odex_dir_ = odex_oat_dir_ + "/" + std::string(GetInstructionSetString(kRuntimeISA));
-    ASSERT_EQ(0, mkdir(odex_dir_.c_str(), 0700));
-
-    // Verify the environment is as we expect
-    uint32_t checksum;
-    std::string error_msg;
-    ASSERT_TRUE(OS::FileExists(GetSystemImageFile().c_str()))
-      << "Expected pre-compiled boot image to be at: " << GetSystemImageFile();
-    ASSERT_TRUE(OS::FileExists(GetDexSrc1().c_str()))
-      << "Expected dex file to be at: " << GetDexSrc1();
-    ASSERT_TRUE(OS::FileExists(GetStrippedDexSrc1().c_str()))
-      << "Expected stripped dex file to be at: " << GetStrippedDexSrc1();
-    ASSERT_FALSE(DexFile::GetChecksum(GetStrippedDexSrc1().c_str(), &checksum, &error_msg))
-      << "Expected stripped dex file to be stripped: " << GetStrippedDexSrc1();
-    ASSERT_TRUE(OS::FileExists(GetDexSrc2().c_str()))
-      << "Expected dex file to be at: " << GetDexSrc2();
-
-    // GetMultiDexSrc2 should have the same primary dex checksum as
-    // GetMultiDexSrc1, but a different secondary dex checksum.
-    std::vector<std::unique_ptr<const DexFile>> multi1;
-    ASSERT_TRUE(DexFile::Open(GetMultiDexSrc1().c_str(),
-          GetMultiDexSrc1().c_str(), &error_msg, &multi1)) << error_msg;
-    ASSERT_GT(multi1.size(), 1u);
-
-    std::vector<std::unique_ptr<const DexFile>> multi2;
-    ASSERT_TRUE(DexFile::Open(GetMultiDexSrc2().c_str(),
-          GetMultiDexSrc2().c_str(), &error_msg, &multi2)) << error_msg;
-    ASSERT_GT(multi2.size(), 1u);
-
-    ASSERT_EQ(multi1[0]->GetLocationChecksum(), multi2[0]->GetLocationChecksum());
-    ASSERT_NE(multi1[1]->GetLocationChecksum(), multi2[1]->GetLocationChecksum());
+    Dex2oatEnvironmentTest::SetUp();
   }
 
   // Pre-Relocate the image to a known non-zero offset so we don't have to
@@ -107,17 +67,6 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     return Exec(argv, error_msg);
   }
 
-  virtual void SetUpRuntimeOptions(RuntimeOptions* options) {
-    // options->push_back(std::make_pair("-verbose:oat", nullptr));
-
-    // Set up the image location.
-    options->push_back(std::make_pair("-Ximage:" + GetImageLocation(),
-          nullptr));
-    // Make sure compilercallbacks are not set so that relocation will be
-    // enabled.
-    callbacks_.reset();
-  }
-
   virtual void PreRuntimeCreate() {
     std::string error_msg;
     ASSERT_TRUE(PreRelocateImage(&error_msg)) << error_msg;
@@ -125,92 +74,8 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     UnreserveImageSpace();
   }
 
-  virtual void PostRuntimeCreate() {
+  virtual void PostRuntimeCreate() OVERRIDE {
     ReserveImageSpace();
-  }
-
-  virtual void TearDown() {
-    ClearDirectory(odex_dir_.c_str());
-    ASSERT_EQ(0, rmdir(odex_dir_.c_str()));
-
-    ClearDirectory(odex_oat_dir_.c_str());
-    ASSERT_EQ(0, rmdir(odex_oat_dir_.c_str()));
-
-    ClearDirectory(scratch_dir_.c_str());
-    ASSERT_EQ(0, rmdir(scratch_dir_.c_str()));
-
-    CommonRuntimeTest::TearDown();
-  }
-
-  void Copy(std::string src, std::string dst) {
-    std::ifstream  src_stream(src, std::ios::binary);
-    std::ofstream  dst_stream(dst, std::ios::binary);
-
-    dst_stream << src_stream.rdbuf();
-  }
-
-  // Returns the directory where the pre-compiled core.art can be found.
-  // TODO: We should factor out this into common tests somewhere rather than
-  // re-hardcoding it here (This was copied originally from the elf writer
-  // test).
-  std::string GetImageDirectory() {
-    if (IsHost()) {
-      const char* host_dir = getenv("ANDROID_HOST_OUT");
-      CHECK(host_dir != nullptr);
-      return std::string(host_dir) + "/framework";
-    } else {
-      return std::string("/data/art-test");
-    }
-  }
-
-  std::string GetImageLocation() {
-    return GetImageDirectory() + "/core.art";
-  }
-
-  std::string GetSystemImageFile() {
-    return GetImageDirectory() + "/" + GetInstructionSetString(kRuntimeISA)
-      + "/core.art";
-  }
-
-  bool GetCachedImageFile(/*out*/std::string* image, std::string* error_msg) {
-    std::string cache = GetDalvikCache(GetInstructionSetString(kRuntimeISA), true);
-    return GetDalvikCacheFilename(GetImageLocation().c_str(), cache.c_str(), image, error_msg);
-  }
-
-  std::string GetDexSrc1() {
-    return GetTestDexFileName("Main");
-  }
-
-  // Returns the path to a dex file equivalent to GetDexSrc1, but with the dex
-  // file stripped.
-  std::string GetStrippedDexSrc1() {
-    return GetTestDexFileName("MainStripped");
-  }
-
-  std::string GetMultiDexSrc1() {
-    return GetTestDexFileName("MultiDex");
-  }
-
-  // Returns the path to a multidex file equivalent to GetMultiDexSrc2, but
-  // with the contents of the secondary dex file changed.
-  std::string GetMultiDexSrc2() {
-    return GetTestDexFileName("MultiDexModifiedSecondary");
-  }
-
-  std::string GetDexSrc2() {
-    return GetTestDexFileName("Nested");
-  }
-
-  // Scratch directory, for dex and odex files (oat files will go in the
-  // dalvik cache).
-  std::string GetScratchDir() {
-    return scratch_dir_;
-  }
-
-  // Odex directory is the subdirectory in the scratch directory where odex
-  // files should be located.
-  std::string GetOdexDir() {
-    return odex_dir_;
   }
 
   // Generate a non-PIC odex file for the purposes of test.
@@ -333,9 +198,6 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     image_reservation_.clear();
   }
 
-  std::string scratch_dir_;
-  std::string odex_oat_dir_;
-  std::string odex_dir_;
   std::vector<std::unique_ptr<MemMap>> image_reservation_;
 };
 
