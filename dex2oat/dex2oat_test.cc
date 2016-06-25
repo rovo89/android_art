@@ -24,6 +24,8 @@
 #include "base/macros.h"
 #include "base/stringprintf.h"
 #include "dex2oat_environment_test.h"
+#include "oat.h"
+#include "oat_file.h"
 #include "utils.h"
 
 #include <sys/wait.h>
@@ -282,6 +284,136 @@ TEST_F(Dex2oatSwapTest, DoUseSwapSingleSmall) {
   RunTest(true /* use_fd */,
           true /* expect_use */,
           { "--swap-dex-size-threshold=0", "--swap-dex-count-threshold=0" });
+}
+
+class Dex2oatVeryLargeTest : public Dex2oatTest {
+ protected:
+  void CheckFilter(CompilerFilter::Filter input ATTRIBUTE_UNUSED,
+                   CompilerFilter::Filter result ATTRIBUTE_UNUSED) OVERRIDE {
+    // Ignore, we'll do our own checks.
+  }
+
+  void RunTest(CompilerFilter::Filter filter,
+               bool expect_large,
+               const std::vector<std::string>& extra_args = {}) {
+    std::string dex_location = GetScratchDir() + "/DexNoOat.jar";
+    std::string odex_location = GetOdexDir() + "/DexOdexNoOat.odex";
+
+    Copy(GetDexSrc1(), dex_location);
+
+    std::vector<std::string> copy(extra_args);
+
+    GenerateOdexForTest(dex_location, odex_location, filter, copy);
+
+    CheckValidity();
+    ASSERT_TRUE(success_);
+    CheckResult(dex_location, odex_location, filter, expect_large);
+  }
+
+  void CheckResult(const std::string& dex_location,
+                   const std::string& odex_location,
+                   CompilerFilter::Filter filter,
+                   bool expect_large) {
+    // Host/target independent checks.
+    std::string error_msg;
+    std::unique_ptr<OatFile> odex_file(OatFile::Open(odex_location.c_str(),
+                                                     odex_location.c_str(),
+                                                     nullptr,
+                                                     nullptr,
+                                                     false,
+                                                     /*low_4gb*/false,
+                                                     dex_location.c_str(),
+                                                     &error_msg));
+    ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
+    if (expect_large) {
+      // Note: we cannot check the following:
+      //   EXPECT_TRUE(CompilerFilter::IsAsGoodAs(CompilerFilter::kVerifyAtRuntime,
+      //                                          odex_file->GetCompilerFilter()));
+      // The reason is that the filter override currently happens when the dex files are
+      // loaded in dex2oat, which is after the oat file has been started. Thus, the header
+      // store cannot be changed, and the original filter is set in stone.
+
+      for (const OatDexFile* oat_dex_file : odex_file->GetOatDexFiles()) {
+        std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error_msg);
+        ASSERT_TRUE(dex_file != nullptr);
+        uint32_t class_def_count = dex_file->NumClassDefs();
+        ASSERT_LT(class_def_count, std::numeric_limits<uint16_t>::max());
+        for (uint16_t class_def_index = 0; class_def_index < class_def_count; ++class_def_index) {
+          OatFile::OatClass oat_class = oat_dex_file->GetOatClass(class_def_index);
+          EXPECT_EQ(oat_class.GetType(), OatClassType::kOatClassNoneCompiled);
+        }
+      }
+
+      // If the input filter was "below," it should have been used.
+      if (!CompilerFilter::IsAsGoodAs(CompilerFilter::kVerifyAtRuntime, filter)) {
+        EXPECT_EQ(odex_file->GetCompilerFilter(), filter);
+      }
+    } else {
+      EXPECT_EQ(odex_file->GetCompilerFilter(), filter);
+    }
+
+    // Host/target dependent checks.
+    if (kIsTargetBuild) {
+      CheckTargetResult(expect_large);
+    } else {
+      CheckHostResult(expect_large);
+    }
+  }
+
+  void CheckTargetResult(bool expect_large ATTRIBUTE_UNUSED) {
+    // TODO: Ignore for now. May do something for fd things.
+  }
+
+  void CheckHostResult(bool expect_large) {
+    if (!kIsTargetBuild) {
+      if (expect_large) {
+        EXPECT_NE(output_.find("Very large app, downgrading to verify-at-runtime."),
+                  std::string::npos)
+            << output_;
+      } else {
+        EXPECT_EQ(output_.find("Very large app, downgrading to verify-at-runtime."),
+                  std::string::npos)
+            << output_;
+      }
+    }
+  }
+
+  // Check whether the dex2oat run was really successful.
+  void CheckValidity() {
+    if (kIsTargetBuild) {
+      CheckTargetValidity();
+    } else {
+      CheckHostValidity();
+    }
+  }
+
+  void CheckTargetValidity() {
+    // TODO: Ignore for now.
+  }
+
+  // On the host, we can get the dex2oat output. Here, look for "dex2oat took."
+  void CheckHostValidity() {
+    EXPECT_NE(output_.find("dex2oat took"), std::string::npos) << output_;
+  }
+};
+
+TEST_F(Dex2oatVeryLargeTest, DontUseVeryLarge) {
+  RunTest(CompilerFilter::kVerifyNone, false);
+  RunTest(CompilerFilter::kVerifyAtRuntime, false);
+  RunTest(CompilerFilter::kInterpretOnly, false);
+  RunTest(CompilerFilter::kSpeed, false);
+
+  RunTest(CompilerFilter::kVerifyNone, false, { "--very-large-app-threshold=1000000" });
+  RunTest(CompilerFilter::kVerifyAtRuntime, false, { "--very-large-app-threshold=1000000" });
+  RunTest(CompilerFilter::kInterpretOnly, false, { "--very-large-app-threshold=1000000" });
+  RunTest(CompilerFilter::kSpeed, false, { "--very-large-app-threshold=1000000" });
+}
+
+TEST_F(Dex2oatVeryLargeTest, UseVeryLarge) {
+  RunTest(CompilerFilter::kVerifyNone, false, { "--very-large-app-threshold=100" });
+  RunTest(CompilerFilter::kVerifyAtRuntime, false, { "--very-large-app-threshold=100" });
+  RunTest(CompilerFilter::kInterpretOnly, true, { "--very-large-app-threshold=100" });
+  RunTest(CompilerFilter::kSpeed, true, { "--very-large-app-threshold=100" });
 }
 
 }  // namespace art
