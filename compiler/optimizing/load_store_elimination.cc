@@ -65,6 +65,16 @@ class ReferenceInfo : public ArenaObject<kArenaAllocMisc> {
         is_singleton_and_not_returned_ = false;
         return;
       }
+      if ((user->IsUnresolvedInstanceFieldGet() && (reference_ == user->InputAt(0))) ||
+          (user->IsUnresolvedInstanceFieldSet() && (reference_ == user->InputAt(0)))) {
+        // The field is accessed in an unresolved way. We mark the object as a singleton to
+        // disable load/store optimizations on it.
+        // Note that we could optimize this case and still perform some optimizations until
+        // we hit the unresolved access, but disabling is the simplest.
+        is_singleton_ = false;
+        is_singleton_and_not_returned_ = false;
+        return;
+      }
       if (user->IsReturn()) {
         is_singleton_and_not_returned_ = false;
       }
