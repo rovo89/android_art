@@ -293,7 +293,8 @@ TEST_ART_BROKEN_NO_PREBUILD_TESTS := \
   147-stripped-dex-fallback \
   554-jit-profile-file \
   529-checker-unresolved \
-  555-checker-regression-x86const
+  555-checker-regression-x86const \
+  608-checker-unresolved-lse
 
 ifneq (,$(filter no-prebuild,$(PREBUILD_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),no-prebuild, \
