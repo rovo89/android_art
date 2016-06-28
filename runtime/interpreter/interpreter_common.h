@@ -679,7 +679,7 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
     return false;
   }
   const uint32_t vtable_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
-  CHECK(receiver->GetClass()->ShouldHaveEmbeddedVTable());
+  CHECK(receiver->GetClass()->ShouldHaveEmbeddedImtAndVTable());
   ArtMethod* const called_method = receiver->GetClass()->GetEmbeddedVTableEntry(
       vtable_idx, sizeof(void*));
   if (UNLIKELY(called_method == nullptr)) {

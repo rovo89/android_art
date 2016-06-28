@@ -3527,6 +3527,8 @@ void InstructionCodeGeneratorARM64::VisitInvokeInterface(HInvokeInterface* invok
   // TODO: b/18116999, our IMTs can miss an IncompatibleClassChangeError.
   LocationSummary* locations = invoke->GetLocations();
   Register temp = XRegisterFrom(locations->GetTemp(0));
+  uint32_t method_offset = mirror::Class::EmbeddedImTableEntryOffset(
+      invoke->GetImtIndex() % mirror::Class::kImtSize, kArm64PointerSize).Uint32Value();
   Location receiver = locations->InAt(0);
   Offset class_offset = mirror::Object::ClassOffset();
   Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize);
@@ -3556,10 +3558,6 @@ void InstructionCodeGeneratorARM64::VisitInvokeInterface(HInvokeInterface* invok
   // intact/accessible until the end of the marking phase (the
   // concurrent copying collector may not in the future).
   GetAssembler()->MaybeUnpoisonHeapReference(temp.W());
-  __ Ldr(temp,
-      MemOperand(temp, mirror::Class::ImtPtrOffset(kArm64PointerSize).Uint32Value()));
-  uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-      invoke->GetImtIndex() % ImTable::kSize, kArm64PointerSize));
   // temp = temp->GetImtEntryAt(method_offset);
   __ Ldr(temp, MemOperand(temp, method_offset));
   // lr = temp->GetEntryPoint();
@@ -5187,10 +5185,8 @@ void InstructionCodeGeneratorARM64::VisitClassTableGet(HClassTableGet* instructi
     method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kArm64PointerSize).SizeValue();
   } else {
-    __ Ldr(XRegisterFrom(locations->Out()), MemOperand(XRegisterFrom(locations->InAt(0)),
-        mirror::Class::ImtPtrOffset(kArm64PointerSize).Uint32Value()));
-    method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-        instruction->GetIndex() % ImTable::kSize, kArm64PointerSize));
+    method_offset = mirror::Class::EmbeddedImTableEntryOffset(
+        instruction->GetIndex() % mirror::Class::kImtSize, kArm64PointerSize).Uint32Value();
   }
   __ Ldr(XRegisterFrom(locations->Out()),
          MemOperand(XRegisterFrom(locations->InAt(0)), method_offset));

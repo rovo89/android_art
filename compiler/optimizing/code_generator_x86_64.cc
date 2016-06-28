@@ -2220,6 +2220,8 @@ void InstructionCodeGeneratorX86_64::VisitInvokeInterface(HInvokeInterface* invo
   LocationSummary* locations = invoke->GetLocations();
   CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
   CpuRegister hidden_reg = locations->GetTemp(1).AsRegister<CpuRegister>();
+  uint32_t method_offset = mirror::Class::EmbeddedImTableEntryOffset(
+      invoke->GetImtIndex() % mirror::Class::kImtSize, kX86_64PointerSize).Uint32Value();
   Location receiver = locations->InAt(0);
   size_t class_offset = mirror::Object::ClassOffset().SizeValue();
 
@@ -2245,12 +2247,6 @@ void InstructionCodeGeneratorX86_64::VisitInvokeInterface(HInvokeInterface* invo
   // intact/accessible until the end of the marking phase (the
   // concurrent copying collector may not in the future).
   __ MaybeUnpoisonHeapReference(temp);
-  // temp = temp->GetAddressOfIMT()
-  __ movq(temp,
-      Address(temp, mirror::Class::ImtPtrOffset(kX86_64PointerSize).Uint32Value()));
-  // temp = temp->GetImtEntryAt(method_offset);
-  uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-      invoke->GetImtIndex() % ImTable::kSize, kX86_64PointerSize));
   // temp = temp->GetImtEntryAt(method_offset);
   __ movq(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
@@ -3985,11 +3981,8 @@ void InstructionCodeGeneratorX86_64::VisitClassTableGet(HClassTableGet* instruct
     method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kX86_64PointerSize).SizeValue();
   } else {
-    __ movq(locations->Out().AsRegister<CpuRegister>(),
-            Address(locations->InAt(0).AsRegister<CpuRegister>(),
-            mirror::Class::ImtPtrOffset(kX86_64PointerSize).Uint32Value()));
-    method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-        instruction->GetIndex() % ImTable::kSize, kX86_64PointerSize));
+    method_offset = mirror::Class::EmbeddedImTableEntryOffset(
+        instruction->GetIndex() % mirror::Class::kImtSize, kX86_64PointerSize).Uint32Value();
   }
   __ movq(locations->Out().AsRegister<CpuRegister>(),
           Address(locations->InAt(0).AsRegister<CpuRegister>(), method_offset));

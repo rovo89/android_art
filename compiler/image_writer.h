@@ -169,8 +169,6 @@ class ImageWriter FINAL {
     // ArtMethods may be dirty if the class has native methods or a declaring class that isn't
     // initialized.
     kBinArtMethodDirty,
-    // IMT (clean)
-    kBinImTable,
     // Conflict tables (clean).
     kBinIMTConflictTable,
     // Runtime methods (always clean, do not have a length prefix array).
@@ -193,7 +191,6 @@ class ImageWriter FINAL {
     kNativeObjectRelocationTypeArtMethodDirty,
     kNativeObjectRelocationTypeArtMethodArrayDirty,
     kNativeObjectRelocationTypeRuntimeMethod,
-    kNativeObjectRelocationTypeIMTable,
     kNativeObjectRelocationTypeIMTConflictTable,
     kNativeObjectRelocationTypeDexCacheArray,
   };
@@ -404,7 +401,6 @@ class ImageWriter FINAL {
   void CopyAndFixupObject(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
   void CopyAndFixupMethod(ArtMethod* orig, ArtMethod* copy, const ImageInfo& image_info)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  void CopyAndFixupImTable(ImTable* orig, ImTable* copy) SHARED_REQUIRES(Locks::mutator_lock_);
   void CopyAndFixupImtConflictTable(ImtConflictTable* orig, ImtConflictTable* copy)
       SHARED_REQUIRES(Locks::mutator_lock_);
   void FixupClass(mirror::Class* orig, mirror::Class* copy)
@@ -436,8 +432,6 @@ class ImageWriter FINAL {
                           NativeObjectRelocationType type,
                           size_t oat_index)
       SHARED_REQUIRES(Locks::mutator_lock_);
-
-  void TryAssignImTableOffset(ImTable* imt, size_t oat_index) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Assign the offset for an IMT conflict table. Does nothing if the table already has a native
   // relocation.

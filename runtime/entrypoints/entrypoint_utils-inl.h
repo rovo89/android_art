@@ -559,10 +559,9 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
       }
     }
     case kInterface: {
-      uint32_t imt_index = resolved_method->GetDexMethodIndex() % ImTable::kSize;
-      size_t pointer_size = class_linker->GetImagePointerSize();
-      ArtMethod* imt_method = (*this_object)->GetClass()->GetImt(pointer_size)->
-          Get(imt_index, pointer_size);
+      uint32_t imt_index = resolved_method->GetDexMethodIndex() % mirror::Class::kImtSize;
+      ArtMethod* imt_method = (*this_object)->GetClass()->GetEmbeddedImTableEntry(
+          imt_index, class_linker->GetImagePointerSize());
       if (!imt_method->IsRuntimeMethod()) {
         if (kIsDebugBuild) {
           mirror::Class* klass = (*this_object)->GetClass();

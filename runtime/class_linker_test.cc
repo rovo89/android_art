@@ -148,8 +148,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_EQ(0U, array->NumInstanceFields());
     EXPECT_EQ(0U, array->NumStaticFields());
     EXPECT_EQ(2U, array->NumDirectInterfaces());
-    EXPECT_FALSE(array->ShouldHaveImt());
-    EXPECT_TRUE(array->ShouldHaveEmbeddedVTable());
+    EXPECT_TRUE(array->ShouldHaveEmbeddedImtAndVTable());
     EXPECT_EQ(2, array->GetIfTableCount());
     ASSERT_TRUE(array->GetIfTable() != nullptr);
     mirror::Class* direct_interface0 = mirror::Class::GetDirectInterface(self, array, 0);

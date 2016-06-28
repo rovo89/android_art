@@ -1232,10 +1232,9 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
       }
       // Assign offsets for all runtime methods in the IMT since these may hold conflict tables
       // live.
-      if (as_klass->ShouldHaveImt()) {
-        ImTable* imt = as_klass->GetImt(target_ptr_size_);
-        for (size_t i = 0; i < ImTable::kSize; ++i) {
-          ArtMethod* imt_method = imt->Get(i, target_ptr_size_);
+      if (as_klass->ShouldHaveEmbeddedImtAndVTable()) {
+        for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
+          ArtMethod* imt_method = as_klass->GetEmbeddedImTableEntry(i, target_ptr_size_);
           DCHECK(imt_method != nullptr);
           if (imt_method->IsRuntimeMethod() &&
               !IsInBootImage(imt_method) &&
@@ -1243,11 +1242,6 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
             AssignMethodOffset(imt_method, kNativeObjectRelocationTypeRuntimeMethod, oat_index);
           }
         }
-      }
-
-      if (as_klass->ShouldHaveImt()) {
-        ImTable* imt = as_klass->GetImt(target_ptr_size_);
-        TryAssignImTableOffset(imt, oat_index);
       }
     } else if (h_obj->IsObjectArray()) {
       // Walk elements of an object array.
@@ -1273,23 +1267,6 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
 
 bool ImageWriter::NativeRelocationAssigned(void* ptr) const {
   return native_object_relocations_.find(ptr) != native_object_relocations_.end();
-}
-
-void ImageWriter::TryAssignImTableOffset(ImTable* imt, size_t oat_index) {
-  // No offset, or already assigned.
-  if (imt == nullptr || IsInBootImage(imt) || NativeRelocationAssigned(imt)) {
-    return;
-  }
-  // If the method is a conflict method we also want to assign the conflict table offset.
-  ImageInfo& image_info = GetImageInfo(oat_index);
-  const size_t size = ImTable::SizeInBytes(target_ptr_size_);
-  native_object_relocations_.emplace(
-      imt,
-      NativeObjectRelocation {
-          oat_index,
-          image_info.bin_slot_sizes_[kBinImTable],
-          kNativeObjectRelocationTypeIMTable});
-  image_info.bin_slot_sizes_[kBinImTable] += size;
 }
 
 void ImageWriter::TryAssignConflictTableOffset(ImtConflictTable* table, size_t oat_index) {
@@ -1414,7 +1391,6 @@ void ImageWriter::CalculateNewObjectOffsets() {
           bin_offset = RoundUp(bin_offset, method_alignment);
           break;
         }
-        case kBinImTable:
         case kBinIMTConflictTable: {
           bin_offset = RoundUp(bin_offset, target_ptr_size_);
           break;
@@ -1484,10 +1460,6 @@ size_t ImageWriter::ImageInfo::CreateImageSections(ImageSection* out_sections) c
   *methods_section = ImageSection(
       bin_slot_offsets_[kBinArtMethodClean],
       bin_slot_sizes_[kBinArtMethodClean] + bin_slot_sizes_[kBinArtMethodDirty]);
-
-  // IMT section.
-  ImageSection* imt_section = &out_sections[ImageHeader::kSectionImTables];
-  *imt_section = ImageSection(bin_slot_offsets_[kBinImTable], bin_slot_sizes_[kBinImTable]);
 
   // Conflict tables section.
   ImageSection* imt_conflict_tables_section = &out_sections[ImageHeader::kSectionIMTConflictTables];
@@ -1613,13 +1585,6 @@ class FixupRootVisitor : public RootVisitor {
   ImageWriter* const image_writer_;
 };
 
-void ImageWriter::CopyAndFixupImTable(ImTable* orig, ImTable* copy) {
-  for (size_t i = 0; i < ImTable::kSize; ++i) {
-    ArtMethod* method = orig->Get(i, target_ptr_size_);
-    copy->Set(i, NativeLocationInImage(method), target_ptr_size_);
-  }
-}
-
 void ImageWriter::CopyAndFixupImtConflictTable(ImtConflictTable* orig, ImtConflictTable* copy) {
   const size_t count = orig->NumEntries(target_ptr_size_);
   for (size_t i = 0; i < count; ++i) {
@@ -1677,12 +1642,6 @@ void ImageWriter::CopyAndFixupNativeData(size_t oat_index) {
       case kNativeObjectRelocationTypeDexCacheArray:
         // Nothing to copy here, everything is done in FixupDexCache().
         break;
-      case kNativeObjectRelocationTypeIMTable: {
-        ImTable* orig_imt = reinterpret_cast<ImTable*>(pair.first);
-        ImTable* dest_imt = reinterpret_cast<ImTable*>(dest);
-        CopyAndFixupImTable(orig_imt, dest_imt);
-        break;
-      }
       case kNativeObjectRelocationTypeIMTConflictTable: {
         auto* orig_table = reinterpret_cast<ImtConflictTable*>(pair.first);
         CopyAndFixupImtConflictTable(
@@ -1891,25 +1850,13 @@ uintptr_t ImageWriter::NativeOffsetInImage(void* obj) {
 }
 
 template <typename T>
-std::string PrettyPrint(T* ptr) SHARED_REQUIRES(Locks::mutator_lock_) {
-  std::ostringstream oss;
-  oss << ptr;
-  return oss.str();
-}
-
-template <>
-std::string PrettyPrint(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
-  return PrettyMethod(method);
-}
-
-template <typename T>
 T* ImageWriter::NativeLocationInImage(T* obj) {
   if (obj == nullptr || IsInBootImage(obj)) {
     return obj;
   } else {
     auto it = native_object_relocations_.find(obj);
-    CHECK(it != native_object_relocations_.end()) << obj << " " << PrettyPrint(obj)
-        << " spaces " << Runtime::Current()->GetHeap()->DumpSpaces();
+    CHECK(it != native_object_relocations_.end()) << obj << " spaces "
+        << Runtime::Current()->GetHeap()->DumpSpaces();
     const NativeObjectRelocation& relocation = it->second;
     ImageInfo& image_info = GetImageInfo(relocation.oat_index);
     return reinterpret_cast<T*>(image_info.image_begin_ + relocation.offset);
@@ -2263,8 +2210,6 @@ ImageWriter::Bin ImageWriter::BinTypeForNativeRelocationType(NativeObjectRelocat
       return kBinDexCacheArray;
     case kNativeObjectRelocationTypeRuntimeMethod:
       return kBinRuntimeMethod;
-    case kNativeObjectRelocationTypeIMTable:
-      return kBinImTable;
     case kNativeObjectRelocationTypeIMTConflictTable:
       return kBinIMTConflictTable;
   }

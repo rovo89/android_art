@@ -494,17 +494,6 @@ void PatchOat::PatchArtMethods(const ImageHeader* image_header) {
   image_header->VisitPackedArtMethods(&visitor, heap_->Begin(), pointer_size);
 }
 
-void PatchOat::PatchImTables(const ImageHeader* image_header) {
-  const size_t pointer_size = InstructionSetPointerSize(isa_);
-  // We can safely walk target image since the conflict tables are independent.
-  image_header->VisitPackedImTables(
-      [this](ArtMethod* method) {
-        return RelocatedAddressOfPointer(method);
-      },
-      image_->Begin(),
-      pointer_size);
-}
-
 void PatchOat::PatchImtConflictTables(const ImageHeader* image_header) {
   const size_t pointer_size = InstructionSetPointerSize(isa_);
   // We can safely walk target image since the conflict tables are independent.
@@ -647,7 +636,6 @@ bool PatchOat::PatchImage(bool primary_image) {
 
   PatchArtFields(image_header);
   PatchArtMethods(image_header);
-  PatchImTables(image_header);
   PatchImtConflictTables(image_header);
   PatchInternedStrings(image_header);
   PatchClassTable(image_header);
