@@ -111,7 +111,7 @@ class CommonRuntimeTestImpl {
 
   std::string GetTestAndroidRoot();
 
-  std::string GetTestDexFileName(const char* name);
+  std::string GetTestDexFileName(const char* name) const;
 
   std::vector<std::unique_ptr<const DexFile>> OpenTestDexFiles(const char* name)
       SHARED_REQUIRES(Locks::mutator_lock_);

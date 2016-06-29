@@ -462,7 +462,7 @@ std::string CommonRuntimeTestImpl::GetTestAndroidRoot() {
 #define ART_TARGET_NATIVETEST_DIR_STRING ""
 #endif
 
-std::string CommonRuntimeTestImpl::GetTestDexFileName(const char* name) {
+std::string CommonRuntimeTestImpl::GetTestDexFileName(const char* name) const {
   CHECK(name != nullptr);
   std::string filename;
   if (IsHost()) {

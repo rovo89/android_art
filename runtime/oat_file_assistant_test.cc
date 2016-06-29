@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "oat_file_assistant.h"
-
 #include <algorithm>
 #include <fstream>
 #include <string>
@@ -29,8 +27,10 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "compiler_callbacks.h"
+#include "dex2oat_environment_test.h"
 #include "gc/space/image_space.h"
 #include "mem_map.h"
+#include "oat_file_assistant.h"
 #include "oat_file_manager.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
@@ -39,184 +39,74 @@
 
 namespace art {
 
-class OatFileAssistantTest : public CommonRuntimeTest {
+class OatFileAssistantTest : public Dex2oatEnvironmentTest {
  public:
-  virtual void SetUp() {
+  virtual void SetUp() OVERRIDE {
     ReserveImageSpace();
-    CommonRuntimeTest::SetUp();
-
-    // Create a scratch directory to work from.
-    scratch_dir_ = android_data_ + "/OatFileAssistantTest";
-    ASSERT_EQ(0, mkdir(scratch_dir_.c_str(), 0700));
-
-    // Create a subdirectory in scratch for odex files.
-    odex_oat_dir_ = scratch_dir_ + "/oat";
-    ASSERT_EQ(0, mkdir(odex_oat_dir_.c_str(), 0700));
-
-    odex_dir_ = odex_oat_dir_ + "/" + std::string(GetInstructionSetString(kRuntimeISA));
-    ASSERT_EQ(0, mkdir(odex_dir_.c_str(), 0700));
-
-
-    // Verify the environment is as we expect
-    uint32_t checksum;
-    std::string error_msg;
-    ASSERT_TRUE(OS::FileExists(GetImageFile().c_str()))
-      << "Expected pre-compiled boot image to be at: " << GetImageFile();
-    ASSERT_TRUE(OS::FileExists(GetDexSrc1().c_str()))
-      << "Expected dex file to be at: " << GetDexSrc1();
-    ASSERT_TRUE(OS::FileExists(GetStrippedDexSrc1().c_str()))
-      << "Expected stripped dex file to be at: " << GetStrippedDexSrc1();
-    ASSERT_FALSE(DexFile::GetChecksum(GetStrippedDexSrc1().c_str(), &checksum, &error_msg))
-      << "Expected stripped dex file to be stripped: " << GetStrippedDexSrc1();
-    ASSERT_TRUE(OS::FileExists(GetDexSrc2().c_str()))
-      << "Expected dex file to be at: " << GetDexSrc2();
-
-    // GetMultiDexSrc2 should have the same primary dex checksum as
-    // GetMultiDexSrc1, but a different secondary dex checksum.
-    std::vector<std::unique_ptr<const DexFile>> multi1;
-    ASSERT_TRUE(DexFile::Open(GetMultiDexSrc1().c_str(),
-          GetMultiDexSrc1().c_str(), &error_msg, &multi1)) << error_msg;
-    ASSERT_GT(multi1.size(), 1u);
-
-    std::vector<std::unique_ptr<const DexFile>> multi2;
-    ASSERT_TRUE(DexFile::Open(GetMultiDexSrc2().c_str(),
-          GetMultiDexSrc2().c_str(), &error_msg, &multi2)) << error_msg;
-    ASSERT_GT(multi2.size(), 1u);
-
-    ASSERT_EQ(multi1[0]->GetLocationChecksum(), multi2[0]->GetLocationChecksum());
-    ASSERT_NE(multi1[1]->GetLocationChecksum(), multi2[1]->GetLocationChecksum());
+    Dex2oatEnvironmentTest::SetUp();
   }
 
-  virtual void SetUpRuntimeOptions(RuntimeOptions* options) {
-    // options->push_back(std::make_pair("-verbose:oat", nullptr));
+  // Pre-Relocate the image to a known non-zero offset so we don't have to
+  // deal with the runtime randomly relocating the image by 0 and messing up
+  // the expected results of the tests.
+  bool PreRelocateImage(std::string* error_msg) {
+    std::string image;
+    if (!GetCachedImageFile(&image, error_msg)) {
+      return false;
+    }
 
-    // Set up the image location.
-    options->push_back(std::make_pair("-Ximage:" + GetImageLocation(),
-          nullptr));
-    // Make sure compilercallbacks are not set so that relocation will be
-    // enabled.
-    callbacks_.reset();
+    std::string patchoat = GetAndroidRoot();
+    patchoat += kIsDebugBuild ? "/bin/patchoatd" : "/bin/patchoat";
+
+    std::vector<std::string> argv;
+    argv.push_back(patchoat);
+    argv.push_back("--input-image-location=" + GetImageLocation());
+    argv.push_back("--output-image-file=" + image);
+    argv.push_back("--instruction-set=" + std::string(GetInstructionSetString(kRuntimeISA)));
+    argv.push_back("--base-offset-delta=0x00008000");
+    return Exec(argv, error_msg);
   }
 
   virtual void PreRuntimeCreate() {
+    std::string error_msg;
+    ASSERT_TRUE(PreRelocateImage(&error_msg)) << error_msg;
+
     UnreserveImageSpace();
   }
 
-  virtual void PostRuntimeCreate() {
+  virtual void PostRuntimeCreate() OVERRIDE {
     ReserveImageSpace();
-  }
-
-  virtual void TearDown() {
-    ClearDirectory(odex_dir_.c_str());
-    ASSERT_EQ(0, rmdir(odex_dir_.c_str()));
-
-    ClearDirectory(odex_oat_dir_.c_str());
-    ASSERT_EQ(0, rmdir(odex_oat_dir_.c_str()));
-
-    ClearDirectory(scratch_dir_.c_str());
-    ASSERT_EQ(0, rmdir(scratch_dir_.c_str()));
-
-    CommonRuntimeTest::TearDown();
-  }
-
-  void Copy(std::string src, std::string dst) {
-    std::ifstream  src_stream(src, std::ios::binary);
-    std::ofstream  dst_stream(dst, std::ios::binary);
-
-    dst_stream << src_stream.rdbuf();
-  }
-
-  // Returns the directory where the pre-compiled core.art can be found.
-  // TODO: We should factor out this into common tests somewhere rather than
-  // re-hardcoding it here (This was copied originally from the elf writer
-  // test).
-  std::string GetImageDirectory() {
-    if (IsHost()) {
-      const char* host_dir = getenv("ANDROID_HOST_OUT");
-      CHECK(host_dir != nullptr);
-      return std::string(host_dir) + "/framework";
-    } else {
-      return std::string("/data/art-test");
-    }
-  }
-
-  std::string GetImageLocation() {
-    return GetImageDirectory() + "/core.art";
-  }
-
-  std::string GetImageFile() {
-    return GetImageDirectory() + "/" + GetInstructionSetString(kRuntimeISA)
-      + "/core.art";
-  }
-
-  std::string GetDexSrc1() {
-    return GetTestDexFileName("Main");
-  }
-
-  // Returns the path to a dex file equivalent to GetDexSrc1, but with the dex
-  // file stripped.
-  std::string GetStrippedDexSrc1() {
-    return GetTestDexFileName("MainStripped");
-  }
-
-  std::string GetMultiDexSrc1() {
-    return GetTestDexFileName("MultiDex");
-  }
-
-  // Returns the path to a multidex file equivalent to GetMultiDexSrc2, but
-  // with the contents of the secondary dex file changed.
-  std::string GetMultiDexSrc2() {
-    return GetTestDexFileName("MultiDexModifiedSecondary");
-  }
-
-  std::string GetDexSrc2() {
-    return GetTestDexFileName("Nested");
-  }
-
-  // Scratch directory, for dex and odex files (oat files will go in the
-  // dalvik cache).
-  std::string GetScratchDir() {
-    return scratch_dir_;
-  }
-
-  // Odex directory is the subdirectory in the scratch directory where odex
-  // files should be located.
-  std::string GetOdexDir() {
-    return odex_dir_;
   }
 
   // Generate a non-PIC odex file for the purposes of test.
   // The generated odex file will be un-relocated.
   void GenerateOdexForTest(const std::string& dex_location,
                            const std::string& odex_location,
-                           CompilerFilter::Filter filter) {
-    // To generate an un-relocated odex file, we first compile a relocated
-    // version of the file, then manually call patchoat to make it look as if
-    // it is unrelocated.
-    std::string relocated_odex_location = odex_location + ".relocated";
+                           CompilerFilter::Filter filter,
+                           bool pic = false,
+                           bool with_patch_info = true) {
+    // Temporarily redirect the dalvik cache so dex2oat doesn't find the
+    // relocated image file.
+    std::string android_data_tmp = GetScratchDir() + "AndroidDataTmp";
+    setenv("ANDROID_DATA", android_data_tmp.c_str(), 1);
     std::vector<std::string> args;
     args.push_back("--dex-file=" + dex_location);
-    args.push_back("--oat-file=" + relocated_odex_location);
+    args.push_back("--oat-file=" + odex_location);
     args.push_back("--compiler-filter=" + CompilerFilter::NameOfFilter(filter));
+    args.push_back("--runtime-arg");
+    args.push_back("-Xnorelocate");
 
-    // We need to use the quick compiler to generate non-PIC code, because
-    // the optimizing compiler always generates PIC.
-    args.push_back("--compiler-backend=Quick");
-    args.push_back("--include-patch-information");
+    if (pic) {
+      args.push_back("--compile-pic");
+    }
+
+    if (with_patch_info) {
+      args.push_back("--include-patch-information");
+    }
 
     std::string error_msg;
     ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
-
-    // Use patchoat to unrelocate the relocated odex file.
-    Runtime* runtime = Runtime::Current();
-    std::vector<std::string> argv;
-    argv.push_back(runtime->GetPatchoatExecutable());
-    argv.push_back("--instruction-set=" + std::string(GetInstructionSetString(kRuntimeISA)));
-    argv.push_back("--input-oat-file=" + relocated_odex_location);
-    argv.push_back("--output-oat-file=" + odex_location);
-    argv.push_back("--base-offset-delta=0x00008000");
-    std::string command_line(Join(argv, ' '));
-    ASSERT_TRUE(Exec(argv, &error_msg)) << error_msg;
+    setenv("ANDROID_DATA", android_data_.c_str(), 1);
 
     // Verify the odex file was generated as expected and really is
     // unrelocated.
@@ -229,13 +119,13 @@ class OatFileAssistantTest : public CommonRuntimeTest {
                                                      dex_location.c_str(),
                                                      &error_msg));
     ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
-    EXPECT_FALSE(odex_file->IsPic());
-    EXPECT_TRUE(odex_file->HasPatchInfo());
+    EXPECT_EQ(pic, odex_file->IsPic());
+    EXPECT_EQ(with_patch_info, odex_file->HasPatchInfo());
     EXPECT_EQ(filter, odex_file->GetCompilerFilter());
 
     if (CompilerFilter::IsBytecodeCompilationEnabled(filter)) {
       const std::vector<gc::space::ImageSpace*> image_spaces =
-        runtime->GetHeap()->GetBootImageSpaces();
+        Runtime::Current()->GetHeap()->GetBootImageSpaces();
       ASSERT_TRUE(!image_spaces.empty() && image_spaces[0] != nullptr);
       const ImageHeader& image_header = image_spaces[0]->GetImageHeader();
       const OatHeader& oat_header = odex_file->GetOatHeader();
@@ -250,71 +140,15 @@ class OatFileAssistantTest : public CommonRuntimeTest {
   void GeneratePicOdexForTest(const std::string& dex_location,
                               const std::string& odex_location,
                               CompilerFilter::Filter filter) {
-    // Temporarily redirect the dalvik cache so dex2oat doesn't find the
-    // relocated image file.
-    std::string android_data_tmp = GetScratchDir() + "AndroidDataTmp";
-    setenv("ANDROID_DATA", android_data_tmp.c_str(), 1);
-    std::vector<std::string> args;
-    args.push_back("--dex-file=" + dex_location);
-    args.push_back("--oat-file=" + odex_location);
-    args.push_back("--compiler-filter=" + CompilerFilter::NameOfFilter(filter));
-    args.push_back("--compile-pic");
-    args.push_back("--runtime-arg");
-    args.push_back("-Xnorelocate");
-    std::string error_msg;
-    ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
-    setenv("ANDROID_DATA", android_data_.c_str(), 1);
-
-    // Verify the odex file was generated as expected.
-    std::unique_ptr<OatFile> odex_file(OatFile::Open(odex_location.c_str(),
-                                                     odex_location.c_str(),
-                                                     nullptr,
-                                                     nullptr,
-                                                     false,
-                                                     /*low_4gb*/false,
-                                                     dex_location.c_str(),
-                                                     &error_msg));
-    ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
-    EXPECT_TRUE(odex_file->IsPic());
-    EXPECT_EQ(filter, odex_file->GetCompilerFilter());
+    GenerateOdexForTest(dex_location, odex_location, filter, true, false);
   }
 
   // Generate a non-PIC odex file without patch information for the purposes
   // of test.  The generated odex file will be un-relocated.
-  // TODO: This won't work correctly if we depend on the boot image being
-  // randomly relocated by a non-zero amount. We should have a better solution
-  // for avoiding that flakiness and duplicating code to generate odex and oat
-  // files for test.
   void GenerateNoPatchOdexForTest(const std::string& dex_location,
                                   const std::string& odex_location,
                                   CompilerFilter::Filter filter) {
-    // Temporarily redirect the dalvik cache so dex2oat doesn't find the
-    // relocated image file.
-    std::string android_data_tmp = GetScratchDir() + "AndroidDataTmp";
-    setenv("ANDROID_DATA", android_data_tmp.c_str(), 1);
-    std::vector<std::string> args;
-    args.push_back("--dex-file=" + dex_location);
-    args.push_back("--oat-file=" + odex_location);
-    args.push_back("--compiler-filter=" + CompilerFilter::NameOfFilter(filter));
-    args.push_back("--runtime-arg");
-    args.push_back("-Xnorelocate");
-    std::string error_msg;
-    ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
-    setenv("ANDROID_DATA", android_data_.c_str(), 1);
-
-    // Verify the odex file was generated as expected.
-    std::unique_ptr<OatFile> odex_file(OatFile::Open(odex_location.c_str(),
-                                                     odex_location.c_str(),
-                                                     nullptr,
-                                                     nullptr,
-                                                     false,
-                                                     /*low_4gb*/false,
-                                                     dex_location.c_str(),
-                                                     &error_msg));
-    ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
-    EXPECT_FALSE(odex_file->IsPic());
-    EXPECT_FALSE(odex_file->HasPatchInfo());
-    EXPECT_EQ(filter, odex_file->GetCompilerFilter());
+    GenerateOdexForTest(dex_location, odex_location, filter, false, false);
   }
 
  private:
@@ -326,11 +160,10 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     MemMap::Init();
 
     // Ensure a chunk of memory is reserved for the image space.
-    uintptr_t reservation_start = ART_BASE_ADDRESS + ART_BASE_ADDRESS_MIN_DELTA;
-    uintptr_t reservation_end = ART_BASE_ADDRESS + ART_BASE_ADDRESS_MAX_DELTA
-        // Include the main space that has to come right after the
-        // image in case of the GSS collector.
-        + 384 * MB;
+    // The reservation_end includes room for the main space that has to come
+    // right after the image in case of the GSS collector.
+    uintptr_t reservation_start = ART_BASE_ADDRESS;
+    uintptr_t reservation_end = ART_BASE_ADDRESS + 384 * MB;
 
     std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid(), true));
     ASSERT_TRUE(map.get() != nullptr) << "Failed to build process map";
@@ -365,9 +198,6 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     image_reservation_.clear();
   }
 
-  std::string scratch_dir_;
-  std::string odex_oat_dir_;
-  std::string odex_dir_;
   std::vector<std::unique_ptr<MemMap>> image_reservation_;
 };
 
