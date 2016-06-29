@@ -16,6 +16,8 @@
 
 public class Main {
 
+  static boolean doThrow = false;
+
   /*
    * Ensure an inlined static invoke explicitly triggers the
    * initialization check of the called method's declaring class, and
@@ -310,12 +312,12 @@ public class Main {
   /// CHECK-START: void Main.constClassAndInvokeStatic(java.lang.Iterable) liveness (before)
   /// CHECK-NOT:                           ClinitCheck
 
-  static void constClassAndInvokeStatic(Iterable it) {
+  static void constClassAndInvokeStatic(Iterable<?> it) {
     $opt$inline$ignoreClass(ClassWithClinit7.class);
     ClassWithClinit7.someStaticMethod(it);
   }
 
-  static void $opt$inline$ignoreClass(Class c) {
+  static void $opt$inline$ignoreClass(Class<?> c) {
   }
 
   static class ClassWithClinit7 {
@@ -324,7 +326,7 @@ public class Main {
     }
 
     // Note: not inlined from constClassAndInvokeStatic() but fully inlined from main().
-    static void someStaticMethod(Iterable it) {
+    static void someStaticMethod(Iterable<?> it) {
       // We're not inlining invoke-interface at the moment.
       it.iterator();
     }
@@ -341,7 +343,7 @@ public class Main {
   /// CHECK-START: void Main.sgetAndInvokeStatic(java.lang.Iterable) liveness (before)
   /// CHECK-NOT:                           ClinitCheck
 
-  static void sgetAndInvokeStatic(Iterable it) {
+  static void sgetAndInvokeStatic(Iterable<?> it) {
     $opt$inline$ignoreInt(ClassWithClinit8.value);
     ClassWithClinit8.someStaticMethod(it);
   }
@@ -356,7 +358,7 @@ public class Main {
     }
 
     // Note: not inlined from sgetAndInvokeStatic() but fully inlined from main().
-    static void someStaticMethod(Iterable it) {
+    static void someStaticMethod(Iterable<?> it) {
       // We're not inlining invoke-interface at the moment.
       it.iterator();
     }
@@ -372,7 +374,7 @@ public class Main {
   /// CHECK:                               ClinitCheck
   /// CHECK:                               InvokeStaticOrDirect clinit_check:none
 
-  static void constClassSgetAndInvokeStatic(Iterable it) {
+  static void constClassSgetAndInvokeStatic(Iterable<?> it) {
     $opt$inline$ignoreClass(ClassWithClinit9.class);
     $opt$inline$ignoreInt(ClassWithClinit9.value);
     ClassWithClinit9.someStaticMethod(it);
@@ -385,7 +387,7 @@ public class Main {
     }
 
     // Note: not inlined from constClassSgetAndInvokeStatic() but fully inlined from main().
-    static void someStaticMethod(Iterable it) {
+    static void someStaticMethod(Iterable<?> it) {
       // We're not inlining invoke-interface at the moment.
       it.iterator();
     }
@@ -403,12 +405,12 @@ public class Main {
   /// CHECK-START: void Main.inlinedInvokeStaticViaNonStatic(java.lang.Iterable) liveness (before)
   /// CHECK-NOT:                           ClinitCheck
 
-  static void inlinedInvokeStaticViaNonStatic(Iterable it) {
+  static void inlinedInvokeStaticViaNonStatic(Iterable<?> it) {
     inlinedInvokeStaticViaNonStaticHelper(null);
     inlinedInvokeStaticViaNonStaticHelper(it);
   }
 
-  static void inlinedInvokeStaticViaNonStaticHelper(Iterable it) {
+  static void inlinedInvokeStaticViaNonStaticHelper(Iterable<?> it) {
     ClassWithClinit10.inlinedForNull(it);
   }
 
@@ -418,7 +420,7 @@ public class Main {
       System.out.println("Main$ClassWithClinit10's static initializer");
     }
 
-    static void inlinedForNull(Iterable it) {
+    static void inlinedForNull(Iterable<?> it) {
       if (it != null) {
         // We're not inlining invoke-interface at the moment.
         it.iterator();
@@ -443,7 +445,7 @@ public class Main {
   /// CHECK-START: void Main.inlinedInvokeStaticViaStatic(java.lang.Iterable) liveness (before)
   /// CHECK-NOT:                           ClinitCheck
 
-  static void inlinedInvokeStaticViaStatic(Iterable it) {
+  static void inlinedInvokeStaticViaStatic(Iterable<?> it) {
     ClassWithClinit11.callInlinedForNull(it);
   }
 
@@ -453,11 +455,11 @@ public class Main {
       System.out.println("Main$ClassWithClinit11's static initializer");
     }
 
-    static void callInlinedForNull(Iterable it) {
+    static void callInlinedForNull(Iterable<?> it) {
       inlinedForNull(it);
     }
 
-    static void inlinedForNull(Iterable it) {
+    static void inlinedForNull(Iterable<?> it) {
       // We're not inlining invoke-interface at the moment.
       it.iterator();
     }
@@ -475,7 +477,7 @@ public class Main {
   /// CHECK-START: void Main.inlinedInvokeStaticViaStaticTwice(java.lang.Iterable) liveness (before)
   /// CHECK-NOT:                           ClinitCheck
 
-  static void inlinedInvokeStaticViaStaticTwice(Iterable it) {
+  static void inlinedInvokeStaticViaStaticTwice(Iterable<?> it) {
     ClassWithClinit12.callInlinedForNull(null);
     ClassWithClinit12.callInlinedForNull(it);
   }
@@ -486,16 +488,38 @@ public class Main {
       System.out.println("Main$ClassWithClinit12's static initializer");
     }
 
-    static void callInlinedForNull(Iterable it) {
+    static void callInlinedForNull(Iterable<?> it) {
       inlinedForNull(it);
     }
 
-    static void inlinedForNull(Iterable it) {
+    static void inlinedForNull(Iterable<?> it) {
       if (it != null) {
         // We're not inlining invoke-interface at the moment.
         it.iterator();
       }
     }
+  }
+
+  static class ClassWithClinit13 {
+    static {
+      System.out.println("Main$ClassWithClinit13's static initializer");
+    }
+
+    public static void $inline$forwardToGetIterator(Iterable<?> it) {
+      $noinline$getIterator(it);
+    }
+
+    public static void $noinline$getIterator(Iterable<?> it) {
+      // We're not inlining invoke-interface at the moment.
+      it.iterator();
+    }
+  }
+
+  // TODO: Write checker statements.
+  static Object $noinline$testInliningAndNewInstance(Iterable<?> it) {
+    if (doThrow) { throw new Error(); }
+    ClassWithClinit13.$inline$forwardToGetIterator(it);
+    return new ClassWithClinit13();
   }
 
   // TODO: Add a test for the case of a static method whose declaring
@@ -517,5 +541,6 @@ public class Main {
     inlinedInvokeStaticViaNonStatic(it);
     inlinedInvokeStaticViaStatic(it);
     inlinedInvokeStaticViaStaticTwice(it);
+    $noinline$testInliningAndNewInstance(it);
   }
 }

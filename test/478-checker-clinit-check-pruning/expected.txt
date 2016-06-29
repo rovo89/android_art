@@ -10,3 +10,4 @@ Main$ClassWithClinit9's static initializer
 Main$ClassWithClinit10's static initializer
 Main$ClassWithClinit11's static initializer
 Main$ClassWithClinit12's static initializer
+Main$ClassWithClinit13's static initializer

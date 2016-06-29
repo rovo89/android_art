@@ -130,7 +130,11 @@ void PrepareForRegisterAllocation::VisitNewInstance(HNewInstance* instruction) {
     instruction->ReplaceInput(GetGraph()->GetIntConstant(load_class->GetTypeIndex()), 0);
     // The allocation entry point that deals with access checks does not work with inlined
     // methods, so we need to check whether this allocation comes from an inlined method.
-    if (has_only_one_use && !instruction->GetEnvironment()->IsFromInlinedInvoke()) {
+    // We also need to make the same check as for moving clinit check, whether the HLoadClass
+    // has the clinit check responsibility or not (HLoadClass can throw anyway).
+    if (has_only_one_use &&
+        !instruction->GetEnvironment()->IsFromInlinedInvoke() &&
+        CanMoveClinitCheck(load_class, instruction)) {
       // We can remove the load class from the graph. If it needed access checks, we delegate
       // the access check to the allocation.
       if (load_class->NeedsAccessCheck()) {
@@ -188,7 +192,8 @@ bool PrepareForRegisterAllocation::CanMoveClinitCheck(HInstruction* input,
                                                       HInstruction* user) const {
   // Determine if input and user come from the same dex instruction, so that we can move
   // the clinit check responsibility from one to the other, i.e. from HClinitCheck (user)
-  // to HLoadClass (input), or from HClinitCheck (input) to HInvokeStaticOrDirect (user).
+  // to HLoadClass (input), or from HClinitCheck (input) to HInvokeStaticOrDirect (user),
+  // or from HLoadClass (input) to HNewInstance (user).
 
   // Start with a quick dex pc check.
   if (user->GetDexPc() != input->GetDexPc()) {
