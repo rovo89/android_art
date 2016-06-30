@@ -2522,11 +2522,28 @@ class InitializeArrayClassesAndCreateConflictTablesVisitor : public ClassVisitor
                                                               true);
     }
     // Create the conflict tables.
-    if (!klass->IsTemp() && klass->ShouldHaveEmbeddedImtAndVTable()) {
-      Runtime::Current()->GetClassLinker()->FillIMTAndConflictTables(klass);
-    }
+    FillIMTAndConflictTables(klass);
     return true;
   }
+
+ private:
+  void FillIMTAndConflictTables(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (!klass->ShouldHaveImt()) {
+      return;
+    }
+    if (visited_classes_.find(klass) != visited_classes_.end()) {
+      return;
+    }
+    if (klass->HasSuperClass()) {
+      FillIMTAndConflictTables(klass->GetSuperClass());
+    }
+    if (!klass->IsTemp()) {
+      Runtime::Current()->GetClassLinker()->FillIMTAndConflictTables(klass);
+    }
+    visited_classes_.insert(klass);
+  }
+
+  std::set<mirror::Class*> visited_classes_;
 };
 
 void CompilerDriver::InitializeClasses(jobject class_loader,

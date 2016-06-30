@@ -20,6 +20,7 @@
 #include "image.h"
 
 #include "art_method.h"
+#include "imtable.h"
 
 namespace art {
 
@@ -42,6 +43,24 @@ inline mirror::ObjectArray<mirror::Object>* ImageHeader::GetImageRoots() const {
           &image_roots);
   DCHECK_EQ(image_roots, result);
   return image_roots;
+}
+
+template <typename Visitor>
+inline void ImageHeader::VisitPackedImTables(const Visitor& visitor,
+                                             uint8_t* base,
+                                             size_t pointer_size) const {
+  const ImageSection& section = GetImageSection(kSectionImTables);
+  for (size_t pos = 0; pos < section.Size();) {
+    ImTable* imt = reinterpret_cast<ImTable*>(base + section.Offset() + pos);
+    for (size_t i = 0; i < ImTable::kSize; ++i) {
+      ArtMethod* orig = imt->Get(i, pointer_size);
+      ArtMethod* updated = visitor(orig);
+      if (updated != orig) {
+        imt->Set(i, updated, pointer_size);
+      }
+    }
+    pos += ImTable::SizeInBytes(pointer_size);
+  }
 }
 
 template <typename Visitor>

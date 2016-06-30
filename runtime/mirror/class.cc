@@ -914,13 +914,7 @@ const DexFile::TypeList* Class::GetInterfaceTypeList() {
   return GetDexFile().GetInterfacesList(*class_def);
 }
 
-void Class::PopulateEmbeddedImtAndVTable(ArtMethod* const (&methods)[kImtSize],
-                                         size_t pointer_size) {
-  for (size_t i = 0; i < kImtSize; i++) {
-    auto method = methods[i];
-    DCHECK(method != nullptr);
-    SetEmbeddedImTableEntry(i, method, pointer_size);
-  }
+void Class::PopulateEmbeddedVTable(size_t pointer_size) {
   PointerArray* table = GetVTableDuringLinking();
   CHECK(table != nullptr) << PrettyClass(this);
   const size_t table_length = table->GetLength();
@@ -967,7 +961,7 @@ class ReadBarrierOnNativeRootsVisitor {
 class CopyClassVisitor {
  public:
   CopyClassVisitor(Thread* self, Handle<mirror::Class>* orig, size_t new_length,
-                   size_t copy_bytes, ArtMethod* const (&imt)[mirror::Class::kImtSize],
+                   size_t copy_bytes, ImTable* imt,
                    size_t pointer_size)
       : self_(self), orig_(orig), new_length_(new_length),
         copy_bytes_(copy_bytes), imt_(imt), pointer_size_(pointer_size) {
@@ -979,7 +973,8 @@ class CopyClassVisitor {
     Handle<mirror::Class> h_new_class_obj(hs.NewHandle(obj->AsClass()));
     mirror::Object::CopyObject(self_, h_new_class_obj.Get(), orig_->Get(), copy_bytes_);
     mirror::Class::SetStatus(h_new_class_obj, Class::kStatusResolving, self_);
-    h_new_class_obj->PopulateEmbeddedImtAndVTable(imt_, pointer_size_);
+    h_new_class_obj->PopulateEmbeddedVTable(pointer_size_);
+    h_new_class_obj->SetImt(imt_, pointer_size_);
     h_new_class_obj->SetClassSize(new_length_);
     // Visit all of the references to make sure there is no from space references in the native
     // roots.
@@ -992,13 +987,13 @@ class CopyClassVisitor {
   Handle<mirror::Class>* const orig_;
   const size_t new_length_;
   const size_t copy_bytes_;
-  ArtMethod* const (&imt_)[mirror::Class::kImtSize];
+  ImTable* imt_;
   const size_t pointer_size_;
   DISALLOW_COPY_AND_ASSIGN(CopyClassVisitor);
 };
 
 Class* Class::CopyOf(Thread* self, int32_t new_length,
-                     ArtMethod* const (&imt)[mirror::Class::kImtSize], size_t pointer_size) {
+                     ImTable* imt, size_t pointer_size) {
   DCHECK_GE(new_length, static_cast<int32_t>(sizeof(Class)));
   // We may get copied by a compacting GC.
   StackHandleScope<1> hs(self);

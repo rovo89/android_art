@@ -100,6 +100,62 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_EQ(kAccPublic | kAccFinal | kAccAbstract, primitive->GetAccessFlags());
   }
 
+  void AssertObjectClass(mirror::Class* JavaLangObject)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    ASSERT_TRUE(JavaLangObject != nullptr);
+    ASSERT_TRUE(JavaLangObject->GetClass() != nullptr);
+    ASSERT_EQ(JavaLangObject->GetClass(),
+              JavaLangObject->GetClass()->GetClass());
+    EXPECT_EQ(JavaLangObject, JavaLangObject->GetClass()->GetSuperClass());
+    std::string temp;
+    ASSERT_STREQ(JavaLangObject->GetDescriptor(&temp), "Ljava/lang/Object;");
+    EXPECT_TRUE(JavaLangObject->GetSuperClass() == nullptr);
+    EXPECT_FALSE(JavaLangObject->HasSuperClass());
+    EXPECT_TRUE(JavaLangObject->GetClassLoader() == nullptr);
+    EXPECT_EQ(mirror::Class::kStatusInitialized, JavaLangObject->GetStatus());
+    EXPECT_FALSE(JavaLangObject->IsErroneous());
+    EXPECT_TRUE(JavaLangObject->IsLoaded());
+    EXPECT_TRUE(JavaLangObject->IsResolved());
+    EXPECT_TRUE(JavaLangObject->IsVerified());
+    EXPECT_TRUE(JavaLangObject->IsInitialized());
+    EXPECT_FALSE(JavaLangObject->IsArrayInstance());
+    EXPECT_FALSE(JavaLangObject->IsArrayClass());
+    EXPECT_TRUE(JavaLangObject->GetComponentType() == nullptr);
+    EXPECT_FALSE(JavaLangObject->IsInterface());
+    EXPECT_TRUE(JavaLangObject->IsPublic());
+    EXPECT_FALSE(JavaLangObject->IsFinal());
+    EXPECT_FALSE(JavaLangObject->IsPrimitive());
+    EXPECT_FALSE(JavaLangObject->IsSynthetic());
+    EXPECT_EQ(2U, JavaLangObject->NumDirectMethods());
+    EXPECT_EQ(11U, JavaLangObject->NumVirtualMethods());
+    if (!kUseBrooksReadBarrier) {
+      EXPECT_EQ(2U, JavaLangObject->NumInstanceFields());
+    } else {
+      EXPECT_EQ(4U, JavaLangObject->NumInstanceFields());
+    }
+    EXPECT_STREQ(JavaLangObject->GetInstanceField(0)->GetName(),
+                 "shadow$_klass_");
+    EXPECT_STREQ(JavaLangObject->GetInstanceField(1)->GetName(),
+                 "shadow$_monitor_");
+    if (kUseBrooksReadBarrier) {
+      EXPECT_STREQ(JavaLangObject->GetInstanceField(2)->GetName(),
+                   "shadow$_x_rb_ptr_");
+      EXPECT_STREQ(JavaLangObject->GetInstanceField(3)->GetName(),
+                   "shadow$_x_xpadding_");
+    }
+
+    EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
+    EXPECT_EQ(0U, JavaLangObject->NumDirectInterfaces());
+
+    size_t pointer_size = class_linker_->GetImagePointerSize();
+    ArtMethod* unimplemented = runtime_->GetImtUnimplementedMethod();
+    ImTable* imt = JavaLangObject->GetImt(pointer_size);
+    ASSERT_NE(nullptr, imt);
+    for (size_t i = 0; i < ImTable::kSize; ++i) {
+      ASSERT_EQ(unimplemented, imt->Get(i, pointer_size));
+    }
+  }
+
   void AssertArrayClass(const std::string& array_descriptor,
                         const std::string& component_type,
                         mirror::ClassLoader* class_loader)
@@ -148,7 +204,8 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_EQ(0U, array->NumInstanceFields());
     EXPECT_EQ(0U, array->NumStaticFields());
     EXPECT_EQ(2U, array->NumDirectInterfaces());
-    EXPECT_TRUE(array->ShouldHaveEmbeddedImtAndVTable());
+    EXPECT_TRUE(array->ShouldHaveImt());
+    EXPECT_TRUE(array->ShouldHaveEmbeddedVTable());
     EXPECT_EQ(2, array->GetIfTableCount());
     ASSERT_TRUE(array->GetIfTable() != nullptr);
     mirror::Class* direct_interface0 = mirror::Class::GetDirectInterface(self, array, 0);
@@ -158,6 +215,13 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_STREQ(direct_interface1->GetDescriptor(&temp), "Ljava/io/Serializable;");
     mirror::Class* array_ptr = array->GetComponentType();
     EXPECT_EQ(class_linker_->FindArrayClass(self, &array_ptr), array.Get());
+
+    size_t pointer_size = class_linker_->GetImagePointerSize();
+    mirror::Class* JavaLangObject =
+        class_linker_->FindSystemClass(self, "Ljava/lang/Object;");
+    ImTable* JavaLangObject_imt = JavaLangObject->GetImt(pointer_size);
+    // IMT of a array class should be shared with the IMT of the java.lag.Object
+    ASSERT_EQ(JavaLangObject_imt, array->GetImt(pointer_size));
   }
 
   void AssertMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -713,45 +777,7 @@ TEST_F(ClassLinkerTest, FindClass_Primitives) {
 TEST_F(ClassLinkerTest, FindClass) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::Class* JavaLangObject = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
-  ASSERT_TRUE(JavaLangObject != nullptr);
-  ASSERT_TRUE(JavaLangObject->GetClass() != nullptr);
-  ASSERT_EQ(JavaLangObject->GetClass(), JavaLangObject->GetClass()->GetClass());
-  EXPECT_EQ(JavaLangObject, JavaLangObject->GetClass()->GetSuperClass());
-  std::string temp;
-  ASSERT_STREQ(JavaLangObject->GetDescriptor(&temp), "Ljava/lang/Object;");
-  EXPECT_TRUE(JavaLangObject->GetSuperClass() == nullptr);
-  EXPECT_FALSE(JavaLangObject->HasSuperClass());
-  EXPECT_TRUE(JavaLangObject->GetClassLoader() == nullptr);
-  EXPECT_EQ(mirror::Class::kStatusInitialized, JavaLangObject->GetStatus());
-  EXPECT_FALSE(JavaLangObject->IsErroneous());
-  EXPECT_TRUE(JavaLangObject->IsLoaded());
-  EXPECT_TRUE(JavaLangObject->IsResolved());
-  EXPECT_TRUE(JavaLangObject->IsVerified());
-  EXPECT_TRUE(JavaLangObject->IsInitialized());
-  EXPECT_FALSE(JavaLangObject->IsArrayInstance());
-  EXPECT_FALSE(JavaLangObject->IsArrayClass());
-  EXPECT_TRUE(JavaLangObject->GetComponentType() == nullptr);
-  EXPECT_FALSE(JavaLangObject->IsInterface());
-  EXPECT_TRUE(JavaLangObject->IsPublic());
-  EXPECT_FALSE(JavaLangObject->IsFinal());
-  EXPECT_FALSE(JavaLangObject->IsPrimitive());
-  EXPECT_FALSE(JavaLangObject->IsSynthetic());
-  EXPECT_EQ(2U, JavaLangObject->NumDirectMethods());
-  EXPECT_EQ(11U, JavaLangObject->NumVirtualMethods());
-  if (!kUseBrooksReadBarrier) {
-    EXPECT_EQ(2U, JavaLangObject->NumInstanceFields());
-  } else {
-    EXPECT_EQ(4U, JavaLangObject->NumInstanceFields());
-  }
-  EXPECT_STREQ(JavaLangObject->GetInstanceField(0)->GetName(), "shadow$_klass_");
-  EXPECT_STREQ(JavaLangObject->GetInstanceField(1)->GetName(), "shadow$_monitor_");
-  if (kUseBrooksReadBarrier) {
-    EXPECT_STREQ(JavaLangObject->GetInstanceField(2)->GetName(), "shadow$_x_rb_ptr_");
-    EXPECT_STREQ(JavaLangObject->GetInstanceField(3)->GetName(), "shadow$_x_xpadding_");
-  }
-
-  EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
-  EXPECT_EQ(0U, JavaLangObject->NumDirectInterfaces());
+  AssertObjectClass(JavaLangObject);
 
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
@@ -762,6 +788,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   ASSERT_TRUE(MyClass->GetClass() != nullptr);
   ASSERT_EQ(MyClass->GetClass(), MyClass->GetClass()->GetClass());
   EXPECT_EQ(JavaLangObject, MyClass->GetClass()->GetSuperClass());
+  std::string temp;
   ASSERT_STREQ(MyClass->GetDescriptor(&temp), "LMyClass;");
   EXPECT_TRUE(MyClass->GetSuperClass() == JavaLangObject);
   EXPECT_TRUE(MyClass->HasSuperClass());

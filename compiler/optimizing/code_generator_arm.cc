@@ -1871,8 +1871,6 @@ void InstructionCodeGeneratorARM::VisitInvokeInterface(HInvokeInterface* invoke)
   LocationSummary* locations = invoke->GetLocations();
   Register temp = locations->GetTemp(0).AsRegister<Register>();
   Register hidden_reg = locations->GetTemp(1).AsRegister<Register>();
-  uint32_t method_offset = mirror::Class::EmbeddedImTableEntryOffset(
-      invoke->GetImtIndex() % mirror::Class::kImtSize, kArmPointerSize).Uint32Value();
   Location receiver = locations->InAt(0);
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
 
@@ -1898,10 +1896,14 @@ void InstructionCodeGeneratorARM::VisitInvokeInterface(HInvokeInterface* invoke)
   // intact/accessible until the end of the marking phase (the
   // concurrent copying collector may not in the future).
   __ MaybeUnpoisonHeapReference(temp);
+  __ LoadFromOffset(kLoadWord, temp, temp,
+        mirror::Class::ImtPtrOffset(kArmPointerSize).Uint32Value());
+  uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+      invoke->GetImtIndex() % ImTable::kSize, kArmPointerSize));
   // temp = temp->GetImtEntryAt(method_offset);
+  __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
   uint32_t entry_point =
       ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmWordSize).Int32Value();
-  __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
   // LR = temp->GetEntryPoint();
   __ LoadFromOffset(kLoadWord, LR, temp, entry_point);
   // LR();
@@ -6775,8 +6777,11 @@ void InstructionCodeGeneratorARM::VisitClassTableGet(HClassTableGet* instruction
     method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kArmPointerSize).SizeValue();
   } else {
-    method_offset = mirror::Class::EmbeddedImTableEntryOffset(
-        instruction->GetIndex() % mirror::Class::kImtSize, kArmPointerSize).Uint32Value();
+    __ LoadFromOffset(kLoadWord, locations->Out().AsRegister<Register>(),
+        locations->InAt(0).AsRegister<Register>(),
+        mirror::Class::ImtPtrOffset(kArmPointerSize).Uint32Value());
+    method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+        instruction->GetIndex() % ImTable::kSize, kArmPointerSize));
   }
   __ LoadFromOffset(kLoadWord,
                     locations->Out().AsRegister<Register>(),

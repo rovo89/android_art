@@ -195,6 +195,7 @@ class PACKED(4) ImageHeader {
     kSectionArtFields,
     kSectionArtMethods,
     kSectionRuntimeMethods,
+    kSectionImTables,
     kSectionIMTConflictTables,
     kSectionDexCacheArrays,
     kSectionInternedStrings,
@@ -277,6 +278,11 @@ class PACKED(4) ImageHeader {
   // Visit ArtMethods in the section starting at base.
   // TODO: Delete base parameter if it is always equal to GetImageBegin.
   void VisitPackedArtFields(ArtFieldVisitor* visitor, uint8_t* base) const;
+
+  template <typename Visitor>
+  void VisitPackedImTables(const Visitor& visitor,
+                           uint8_t* base,
+                           size_t pointer_size) const;
 
   template <typename Visitor>
   void VisitPackedImtConflictTables(const Visitor& visitor,

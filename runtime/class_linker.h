@@ -832,6 +832,7 @@ class ClassLinker {
   bool LinkMethods(Thread* self,
                    Handle<mirror::Class> klass,
                    Handle<mirror::ObjectArray<mirror::Class>> interfaces,
+                   bool* out_new_conflict,
                    ArtMethod** out_imt)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
@@ -967,19 +968,20 @@ class ClassLinker {
   // * kDefaultConflict - Conflicting method implementations were found when searching for
   //                      target_method. The value of *out_default_method is null.
   DefaultMethodSearchResult FindDefaultMethodImplementation(
-          Thread* self,
-          ArtMethod* target_method,
-          Handle<mirror::Class> klass,
-          /*out*/ArtMethod** out_default_method) const
+      Thread* self,
+      ArtMethod* target_method,
+      Handle<mirror::Class> klass,
+      /*out*/ArtMethod** out_default_method) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Sets the imt entries and fixes up the vtable for the given class by linking all the interface
   // methods. See LinkVirtualMethods for an explanation of what default_translations is.
   bool LinkInterfaceMethods(
-          Thread* self,
-          Handle<mirror::Class> klass,
-          const std::unordered_map<size_t, MethodTranslation>& default_translations,
-          ArtMethod** out_imt)
+      Thread* self,
+      Handle<mirror::Class> klass,
+      const std::unordered_map<size_t, MethodTranslation>& default_translations,
+      bool* out_new_conflict,
+      ArtMethod** out_imt)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool LinkStaticFields(Thread* self, Handle<mirror::Class> klass, size_t* class_size)
@@ -1095,6 +1097,7 @@ class ClassLinker {
   void SetIMTRef(ArtMethod* unimplemented_method,
                  ArtMethod* imt_conflict_method,
                  ArtMethod* current_method,
+                 /*out*/bool* new_conflict,
                  /*out*/ArtMethod** imt_ref) SHARED_REQUIRES(Locks::mutator_lock_);
 
   void FillIMTFromIfTable(mirror::IfTable* if_table,
@@ -1103,11 +1106,13 @@ class ClassLinker {
                           mirror::Class* klass,
                           bool create_conflict_tables,
                           bool ignore_copied_methods,
-                          ArtMethod** imt) SHARED_REQUIRES(Locks::mutator_lock_);
+                          /*out*/bool* new_conflict,
+                          /*out*/ArtMethod** imt) SHARED_REQUIRES(Locks::mutator_lock_);
 
   void FillImtFromSuperClass(Handle<mirror::Class> klass,
                              ArtMethod* unimplemented_method,
                              ArtMethod* imt_conflict_method,
+                             bool* new_conflict,
                              ArtMethod** imt) SHARED_REQUIRES(Locks::mutator_lock_);
 
   std::vector<const DexFile*> boot_class_path_;
