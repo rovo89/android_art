@@ -2017,20 +2017,25 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
   vixl::Label conditions_on_positions_validated;
   SystemArrayCopyOptimizations optimizations(invoke);
 
-  if (!optimizations.GetDestinationIsSource() &&
-     (!src_pos.IsConstant() || !dest_pos.IsConstant())) {
-      __ Cmp(src, dest);
-  }
   // If source and destination are the same, we go to slow path if we need to do
   // forward copying.
   if (src_pos.IsConstant()) {
     int32_t src_pos_constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
     if (dest_pos.IsConstant()) {
+      int32_t dest_pos_constant = dest_pos.GetConstant()->AsIntConstant()->GetValue();
+      if (optimizations.GetDestinationIsSource()) {
+        // Checked when building locations.
+        DCHECK_GE(src_pos_constant, dest_pos_constant);
+      } else if (src_pos_constant < dest_pos_constant) {
+        __ Cmp(src, dest);
+        __ B(slow_path->GetEntryLabel(), eq);
+      }
       // Checked when building locations.
       DCHECK(!optimizations.GetDestinationIsSource()
              || (src_pos_constant >= dest_pos.GetConstant()->AsIntConstant()->GetValue()));
     } else {
       if (!optimizations.GetDestinationIsSource()) {
+        __ Cmp(src, dest);
         __ B(&conditions_on_positions_validated, ne);
       }
       __ Cmp(WRegisterFrom(dest_pos), src_pos_constant);
@@ -2038,6 +2043,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
     }
   } else {
     if (!optimizations.GetDestinationIsSource()) {
+      __ Cmp(src, dest);
       __ B(&conditions_on_positions_validated, ne);
     }
     __ Cmp(RegisterFrom(src_pos, invoke->InputAt(1)->GetType()),

@@ -1397,20 +1397,26 @@ void IntrinsicCodeGeneratorARM::VisitSystemArrayCopy(HInvoke* invoke) {
   Label conditions_on_positions_validated;
   SystemArrayCopyOptimizations optimizations(invoke);
 
-  if (!optimizations.GetDestinationIsSource() &&
-      (!src_pos.IsConstant() || !dest_pos.IsConstant())) {
-    __ cmp(src, ShifterOperand(dest));
-  }
   // If source and destination are the same, we go to slow path if we need to do
   // forward copying.
   if (src_pos.IsConstant()) {
     int32_t src_pos_constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
     if (dest_pos.IsConstant()) {
+      int32_t dest_pos_constant = dest_pos.GetConstant()->AsIntConstant()->GetValue();
+      if (optimizations.GetDestinationIsSource()) {
+        // Checked when building locations.
+        DCHECK_GE(src_pos_constant, dest_pos_constant);
+      } else if (src_pos_constant < dest_pos_constant) {
+        __ cmp(src, ShifterOperand(dest));
+        __ b(slow_path->GetEntryLabel(), EQ);
+      }
+
       // Checked when building locations.
       DCHECK(!optimizations.GetDestinationIsSource()
              || (src_pos_constant >= dest_pos.GetConstant()->AsIntConstant()->GetValue()));
     } else {
       if (!optimizations.GetDestinationIsSource()) {
+        __ cmp(src, ShifterOperand(dest));
         __ b(&conditions_on_positions_validated, NE);
       }
       __ cmp(dest_pos.AsRegister<Register>(), ShifterOperand(src_pos_constant));
@@ -1418,6 +1424,7 @@ void IntrinsicCodeGeneratorARM::VisitSystemArrayCopy(HInvoke* invoke) {
     }
   } else {
     if (!optimizations.GetDestinationIsSource()) {
+      __ cmp(src, ShifterOperand(dest));
       __ b(&conditions_on_positions_validated, NE);
     }
     if (dest_pos.IsConstant()) {
