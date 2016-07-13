@@ -383,30 +383,7 @@ ImageSpace* ImageSpace::CreateBootImage(const char* image_location,
                                        &has_system, &cache_filename, &dalvik_cache_exists,
                                        &has_cache, &is_global_cache);
 
-  // If we're starting with the global cache, and we're the zygote, try to see whether there are
-  // OTA artifacts from the A/B OTA preopting to move over.
-  // (It is structurally simpler to check this here, instead of complicating the compile/relocate
-  // logic below.)
   const bool is_zygote = Runtime::Current()->IsZygote();
-  if (is_global_cache && is_zygote) {
-    VLOG(startup) << "Checking for A/B OTA data.";
-    TryMoveOTAArtifacts(cache_filename, dalvik_cache_exists);
-
-    // Retry. There are two cases where the old info is outdated:
-    // * There wasn't a boot image before (e.g., some failure on boot), but now the OTA preopted
-    //   image has been moved in-place.
-    // * There was a boot image before, and we tried to move the OTA preopted image, but a failure
-    //   happened and there is no file anymore.
-    found_image = FindImageFilename(image_location,
-                                    image_isa,
-                                    &system_filename,
-                                    &has_system,
-                                    &cache_filename,
-                                    &dalvik_cache_exists,
-                                    &has_cache,
-                                    &is_global_cache);
-  }
-
   if (is_zygote && !secondary_image) {
     MarkZygoteStart(image_isa, Runtime::Current()->GetZygoteMaxFailedBoots());
   }
