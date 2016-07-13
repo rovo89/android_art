@@ -16,6 +16,8 @@
 
 interface Itf {
   public Class sameInvokeInterface();
+  public Class sameInvokeInterface2();
+  public Class sameInvokeInterface3();
 }
 
 public class Main implements Itf {
@@ -47,6 +49,8 @@ public class Main implements Itf {
       testInvokeVirtual(mains[1]);
       testInvokeInterface(itfs[0]);
       testInvokeInterface(itfs[1]);
+      testInvokeInterface2(itfs[0]);
+      testInvokeInterface2(itfs[1]);
       $noinline$testInlineToSameTarget(mains[0]);
       $noinline$testInlineToSameTarget(mains[1]);
     }
@@ -61,9 +65,13 @@ public class Main implements Itf {
     assertEquals(Itf.class, testInvokeInterface(itfs[0]));
     assertEquals(Itf.class, testInvokeInterface(itfs[1]));
 
+    assertEquals(Itf.class, testInvokeInterface2(itfs[0]));
+    assertEquals(Itf.class, testInvokeInterface2(itfs[1]));
+
     // This will trigger a deoptimization of the compiled code.
     assertEquals(OtherSubclass.class, testInvokeVirtual(mains[2]));
     assertEquals(OtherSubclass.class, testInvokeInterface(itfs[2]));
+    assertEquals(null, testInvokeInterface2(itfs[2]));
 
     // Run this once to make sure we execute the JITted code.
     $noinline$testInlineToSameTarget(mains[0]);
@@ -80,8 +88,26 @@ public class Main implements Itf {
     return Itf.class;
   }
 
+  public Class sameInvokeInterface2() {
+    field.getClass(); // null check to ensure we get an inlined frame in the CodeInfo.
+    return Itf.class;
+  }
+
+  public Class sameInvokeInterface3() {
+    field.getClass(); // null check to ensure we get an inlined frame in the CodeInfo.
+    return Itf.class;
+  }
+
   public static Class testInvokeInterface(Itf i) {
     return i.sameInvokeInterface();
+  }
+
+  public static Class testInvokeInterface2(Itf i) {
+    // Make three interface calls that will do a ClassTableGet to ensure bogus code
+    // generation of ClassTableGet will crash.
+    i.sameInvokeInterface();
+    i.sameInvokeInterface2();
+    return i.sameInvokeInterface3();
   }
 
   public static Class testInvokeVirtual(Main m) {
@@ -114,5 +140,12 @@ class OtherSubclass extends Main {
 
   public Class sameInvokeInterface() {
     return OtherSubclass.class;
+  }
+
+  public Class sameInvokeInterface2() {
+    return null;
+  }
+  public Class sameInvokeInterface3() {
+    return null;
   }
 }

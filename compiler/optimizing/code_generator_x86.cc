@@ -4068,20 +4068,21 @@ void LocationsBuilderX86::VisitClassTableGet(HClassTableGet* instruction) {
 
 void InstructionCodeGeneratorX86::VisitClassTableGet(HClassTableGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  uint32_t method_offset = 0;
   if (instruction->GetTableKind() == HClassTableGet::TableKind::kVTable) {
-    method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+    uint32_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kX86PointerSize).SizeValue();
+    __ movl(locations->Out().AsRegister<Register>(),
+            Address(locations->InAt(0).AsRegister<Register>(), method_offset));
   } else {
-    __ movl(locations->InAt(0).AsRegister<Register>(),
-        Address(locations->InAt(0).AsRegister<Register>(),
-        mirror::Class::ImtPtrOffset(kX86PointerSize).Uint32Value()));
-    // temp = temp->GetImtEntryAt(method_offset);
-    method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+    uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
         instruction->GetIndex() % ImTable::kSize, kX86PointerSize));
+    __ movl(locations->Out().AsRegister<Register>(),
+            Address(locations->InAt(0).AsRegister<Register>(),
+                    mirror::Class::ImtPtrOffset(kX86PointerSize).Uint32Value()));
+    // temp = temp->GetImtEntryAt(method_offset);
+    __ movl(locations->Out().AsRegister<Register>(),
+            Address(locations->Out().AsRegister<Register>(), method_offset));
   }
-  __ movl(locations->Out().AsRegister<Register>(),
-          Address(locations->InAt(0).AsRegister<Register>(), method_offset));
 }
 
 void LocationsBuilderX86::VisitNot(HNot* not_) {

@@ -6772,21 +6772,25 @@ void LocationsBuilderARM::VisitClassTableGet(HClassTableGet* instruction) {
 
 void InstructionCodeGeneratorARM::VisitClassTableGet(HClassTableGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  uint32_t method_offset = 0;
   if (instruction->GetTableKind() == HClassTableGet::TableKind::kVTable) {
-    method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+    uint32_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kArmPointerSize).SizeValue();
+    __ LoadFromOffset(kLoadWord,
+                      locations->Out().AsRegister<Register>(),
+                      locations->InAt(0).AsRegister<Register>(),
+                      method_offset);
   } else {
-    __ LoadFromOffset(kLoadWord, locations->Out().AsRegister<Register>(),
-        locations->InAt(0).AsRegister<Register>(),
-        mirror::Class::ImtPtrOffset(kArmPointerSize).Uint32Value());
-    method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+    uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
         instruction->GetIndex() % ImTable::kSize, kArmPointerSize));
+    __ LoadFromOffset(kLoadWord,
+                      locations->Out().AsRegister<Register>(),
+                      locations->InAt(0).AsRegister<Register>(),
+                      mirror::Class::ImtPtrOffset(kArmPointerSize).Uint32Value());
+    __ LoadFromOffset(kLoadWord,
+                      locations->Out().AsRegister<Register>(),
+                      locations->Out().AsRegister<Register>(),
+                      method_offset);
   }
-  __ LoadFromOffset(kLoadWord,
-                    locations->Out().AsRegister<Register>(),
-                    locations->InAt(0).AsRegister<Register>(),
-                    method_offset);
 }
 
 #undef __

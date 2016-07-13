@@ -5189,22 +5189,25 @@ void LocationsBuilderMIPS::VisitClassTableGet(HClassTableGet* instruction) {
 
 void InstructionCodeGeneratorMIPS::VisitClassTableGet(HClassTableGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  uint32_t method_offset = 0;
   if (instruction->GetTableKind() == HClassTableGet::TableKind::kVTable) {
-    method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+    uint32_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kMipsPointerSize).SizeValue();
+    __ LoadFromOffset(kLoadWord,
+                      locations->Out().AsRegister<Register>(),
+                      locations->InAt(0).AsRegister<Register>(),
+                      method_offset);
   } else {
+    uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+        instruction->GetIndex() % ImTable::kSize, kMipsPointerSize));
     __ LoadFromOffset(kLoadWord,
                       locations->Out().AsRegister<Register>(),
                       locations->InAt(0).AsRegister<Register>(),
                       mirror::Class::ImtPtrOffset(kMipsPointerSize).Uint32Value());
-    method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-        instruction->GetIndex() % ImTable::kSize, kMipsPointerSize));
+    __ LoadFromOffset(kLoadWord,
+                      locations->Out().AsRegister<Register>(),
+                      locations->Out().AsRegister<Register>(),
+                      method_offset);
   }
-  __ LoadFromOffset(kLoadWord,
-                    locations->Out().AsRegister<Register>(),
-                    locations->InAt(0).AsRegister<Register>(),
-                    method_offset);
 }
 
 #undef __

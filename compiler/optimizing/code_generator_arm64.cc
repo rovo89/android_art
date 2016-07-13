@@ -5182,18 +5182,19 @@ void LocationsBuilderARM64::VisitClassTableGet(HClassTableGet* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitClassTableGet(HClassTableGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  uint32_t method_offset = 0;
   if (instruction->GetTableKind() == HClassTableGet::TableKind::kVTable) {
-    method_offset = mirror::Class::EmbeddedVTableEntryOffset(
+    uint32_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
         instruction->GetIndex(), kArm64PointerSize).SizeValue();
+    __ Ldr(XRegisterFrom(locations->Out()),
+           MemOperand(XRegisterFrom(locations->InAt(0)), method_offset));
   } else {
+    uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+        instruction->GetIndex() % ImTable::kSize, kArm64PointerSize));
     __ Ldr(XRegisterFrom(locations->Out()), MemOperand(XRegisterFrom(locations->InAt(0)),
         mirror::Class::ImtPtrOffset(kArm64PointerSize).Uint32Value()));
-    method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-        instruction->GetIndex() % ImTable::kSize, kArm64PointerSize));
+    __ Ldr(XRegisterFrom(locations->Out()),
+           MemOperand(XRegisterFrom(locations->Out()), method_offset));
   }
-  __ Ldr(XRegisterFrom(locations->Out()),
-         MemOperand(XRegisterFrom(locations->InAt(0)), method_offset));
 }
 
 

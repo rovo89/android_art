@@ -60,6 +60,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_ensureJittedAndPolymorphicInline(JNI
 
   do_checks(cls, "testInvokeVirtual");
   do_checks(cls, "testInvokeInterface");
+  do_checks(cls, "testInvokeInterface2");
   do_checks(cls, "$noinline$testInlineToSameTarget");
 }
 
