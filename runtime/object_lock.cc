@@ -47,7 +47,22 @@ void ObjectLock<T>::NotifyAll() {
   obj_->NotifyAll(self_);
 }
 
+template <typename T>
+ObjectTryLock<T>::ObjectTryLock(Thread* self, Handle<T> object) : self_(self), obj_(object) {
+  CHECK(object.Get() != nullptr);
+  acquired_ = obj_->MonitorTryEnter(self_) != nullptr;
+}
+
+template <typename T>
+ObjectTryLock<T>::~ObjectTryLock() {
+  if (acquired_) {
+    obj_->MonitorExit(self_);
+  }
+}
+
 template class ObjectLock<mirror::Class>;
 template class ObjectLock<mirror::Object>;
+template class ObjectTryLock<mirror::Class>;
+template class ObjectTryLock<mirror::Object>;
 
 }  // namespace art

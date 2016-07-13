@@ -26,6 +26,7 @@
 #include "handle_scope-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/string-inl.h"  // Strings are easiest to allocate
+#include "object_lock.h"
 #include "scoped_thread_state_change.h"
 #include "thread_pool.h"
 
@@ -373,5 +374,61 @@ TEST_F(MonitorTest, CheckExceptionsWait3) {
   CommonWaitSetup(this, class_linker_, 0, 500, true, true, 10, 50, true,
                   "Monitor test thread pool 3");
 }
+
+class TryLockTask : public Task {
+ public:
+  explicit TryLockTask(Handle<mirror::Object> obj) : obj_(obj) {}
+
+  void Run(Thread* self) {
+    ScopedObjectAccess soa(self);
+    // Lock is held by other thread, try lock should fail.
+    ObjectTryLock<mirror::Object> lock(self, obj_);
+    EXPECT_FALSE(lock.Acquired());
+  }
+
+  void Finalize() {
+    delete this;
+  }
+
+ private:
+  Handle<mirror::Object> obj_;
+};
+
+// Test trylock in deadlock scenarios.
+TEST_F(MonitorTest, TestTryLock) {
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
+  Thread* const self = Thread::Current();
+  ThreadPool thread_pool("the pool", 2);
+  ScopedObjectAccess soa(self);
+  StackHandleScope<3> hs(self);
+  Handle<mirror::Object> obj1(
+      hs.NewHandle<mirror::Object>(mirror::String::AllocFromModifiedUtf8(self, "hello, world!")));
+  Handle<mirror::Object> obj2(
+      hs.NewHandle<mirror::Object>(mirror::String::AllocFromModifiedUtf8(self, "hello, world!")));
+  {
+    ObjectLock<mirror::Object> lock1(self, obj1);
+    ObjectLock<mirror::Object> lock2(self, obj1);
+    {
+      ObjectTryLock<mirror::Object> trylock(self, obj1);
+      EXPECT_TRUE(trylock.Acquired());
+    }
+    // Test failure case.
+    thread_pool.AddTask(self, new TryLockTask(obj1));
+    thread_pool.StartWorkers(self);
+    ScopedThreadSuspension sts(self, kSuspended);
+    thread_pool.Wait(Thread::Current(), /*do_work*/false, /*may_hold_locks*/false);
+  }
+  // Test that the trylock actually locks the object.
+  {
+    ObjectTryLock<mirror::Object> trylock(self, obj1);
+    EXPECT_TRUE(trylock.Acquired());
+    obj1->Notify(self);
+    // Since we hold the lock there should be no monitor state exeception.
+    self->AssertNoPendingException();
+  }
+  thread_pool.StopWorkers(self);
+}
+
 
 }  // namespace art
