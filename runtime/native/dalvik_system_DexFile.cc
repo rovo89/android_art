@@ -554,6 +554,42 @@ static jboolean DexFile_isBackedByOatFile(JNIEnv* env, jclass, jobject cookie) {
   return oat_file != nullptr;
 }
 
+static jstring DexFile_getDexFileOutputPath(JNIEnv* env,
+                                            jclass,
+                                            jstring javaFilename,
+                                            jstring javaInstructionSet) {
+  ScopedUtfChars filename(env, javaFilename);
+  if (env->ExceptionCheck()) {
+    return nullptr;
+  }
+
+  ScopedUtfChars instruction_set(env, javaInstructionSet);
+  if (env->ExceptionCheck()) {
+    return nullptr;
+  }
+
+  const InstructionSet target_instruction_set = GetInstructionSetFromString(
+      instruction_set.c_str());
+  if (target_instruction_set == kNone) {
+    ScopedLocalRef<jclass> iae(env, env->FindClass("java/lang/IllegalArgumentException"));
+    std::string message(StringPrintf("Instruction set %s is invalid.", instruction_set.c_str()));
+    env->ThrowNew(iae.get(), message.c_str());
+    return nullptr;
+  }
+
+  OatFileAssistant oat_file_assistant(filename.c_str(),
+                                      target_instruction_set,
+                                      false /* profile_changed */,
+                                      false /* load_executable */);
+
+  std::unique_ptr<OatFile> best_oat_file = oat_file_assistant.GetBestOatFile();
+  if (best_oat_file == nullptr) {
+    return nullptr;
+  }
+
+  return env->NewStringUTF(best_oat_file->GetLocation().c_str());
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, closeDexFile, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(DexFile,
@@ -581,6 +617,8 @@ static JNINativeMethod gMethods[] = {
                 "(Ljava/lang/String;)Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isBackedByOatFile, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(DexFile, getDexFileStatus,
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"),
+  NATIVE_METHOD(DexFile, getDexFileOutputPath,
                 "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;")
 };
 
