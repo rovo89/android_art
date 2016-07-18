@@ -1061,6 +1061,18 @@ ENTRY art_quick_alloc_object_rosalloc
 #endif
     POISON_HEAP_REF r2
     str    r2, [r3, #MIRROR_OBJECT_CLASS_OFFSET]
+                                                              // Fence. This is "ish" not "ishst" so
+                                                              // that it also ensures ordering of
+                                                              // the class status load with respect
+                                                              // to later accesses to the class
+                                                              // object. Alternatively we could use
+                                                              // "ishst" if we use load-acquire for
+                                                              // the class status load.)
+                                                              // Needs to be done before pushing on
+                                                              // allocation since Heap::VisitObjects
+                                                              // relies on seeing the class pointer.
+                                                              // b/28790624
+    dmb    ish
                                                               // Push the new object onto the thread
                                                               // local allocation stack and
                                                               // increment the thread local
@@ -1075,14 +1087,7 @@ ENTRY art_quick_alloc_object_rosalloc
                                                               // and the list head store above using
                                                               // strd.
     str    r1, [r12, #(ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_SIZE_OFFSET)]
-                                                              // Fence. This is "ish" not "ishst" so
-                                                              // that the code after this allocation
-                                                              // site will see the right values in
-                                                              // the fields of the class.
-                                                              // Alternatively we could use "ishst"
-                                                              // if we use load-acquire for the
-                                                              // class status load.)
-    dmb    ish
+
     mov    r0, r3                                             // Set the return value and return.
     bx     lr
 
