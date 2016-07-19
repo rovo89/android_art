@@ -14,26 +14,8 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) throws Exception {
-    System.loadLibrary(args[0]);
-    // Loop enough to get Itf.foo JITed.
-    for (int i = 0; i < 100000; i++) {
-      Itf.foo(new Object());
-    }
-
-    ensureJitCompiled(Itf.class, "foo");
-
-    if (!Itf.foo(new Object())) {
-      throw new Error("Unexpected result");
-    }
-  }
-
-  private static native void ensureJitCompiled(Class itf, String method_name);
-}
-
-interface Itf {
-  public static boolean foo(Object o) {
-    return o.equals(o);
+public class A {
+  public int foo() {
+    return 42;
   }
 }

@@ -18,10 +18,14 @@
 
 #include "base/logging.h"
 #include "dex_file-inl.h"
+#include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "mirror/class-inl.h"
 #include "nth_caller_visitor.h"
+#include "oat_quick_method_header.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
+#include "ScopedUtfChars.h"
 #include "stack.h"
 #include "thread-inl.h"
 
@@ -114,6 +118,40 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_compiledWithOptimizing(JNIEnv* e
   }
 
   return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,
+                                                             jclass,
+                                                             jclass cls,
+                                                             jstring method_name) {
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit == nullptr) {
+    return;
+  }
+
+  ScopedObjectAccess soa(Thread::Current());
+
+  ScopedUtfChars chars(env, method_name);
+  CHECK(chars.c_str() != nullptr);
+
+  mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
+  ArtMethod* method = klass->FindDeclaredDirectMethodByName(chars.c_str(), sizeof(void*));
+
+  jit::JitCodeCache* code_cache = jit->GetCodeCache();
+  OatQuickMethodHeader* header = nullptr;
+  // Make sure there is a profiling info, required by the compiler.
+  ProfilingInfo::Create(soa.Self(), method, /* retry_allocation */ true);
+  while (true) {
+    header = OatQuickMethodHeader::FromEntryPoint(method->GetEntryPointFromQuickCompiledCode());
+    if (code_cache->ContainsPc(header->GetCode())) {
+      break;
+    } else {
+      // Sleep to yield to the compiler thread.
+      usleep(1000);
+      // Will either ensure it's compiled or do the compilation itself.
+      jit->CompileMethod(method, soa.Self(), /* osr */ false);
+    }
+  }
 }
 
 }  // namespace art
