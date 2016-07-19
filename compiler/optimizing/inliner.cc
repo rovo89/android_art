@@ -185,17 +185,6 @@ static ArtMethod* FindVirtualOrInterfaceTarget(HInvoke* invoke, ArtMethod* resol
   }
 }
 
-static uint32_t FindMethodIndexIn(ArtMethod* method,
-                                  const DexFile& dex_file,
-                                  uint32_t referrer_index)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
-  if (IsSameDexFile(*method->GetDexFile(), dex_file)) {
-    return method->GetDexMethodIndex();
-  } else {
-    return method->FindDexMethodIndexInOtherDexFile(dex_file, referrer_index);
-  }
-}
-
 static uint32_t FindClassIndexIn(mirror::Class* cls,
                                  const DexFile& dex_file,
                                  Handle<mirror::DexCache> dex_cache)
@@ -208,18 +197,22 @@ static uint32_t FindClassIndexIn(mirror::Class* cls,
     DCHECK(cls->IsProxyClass()) << PrettyClass(cls);
     // TODO: deal with proxy classes.
   } else if (IsSameDexFile(cls->GetDexFile(), dex_file)) {
+    DCHECK_EQ(cls->GetDexCache(), dex_cache.Get());
     index = cls->GetDexTypeIndex();
-  } else {
-    index = cls->FindTypeIndexInOtherDexFile(dex_file);
-  }
-
-  if (index != DexFile::kDexNoIndex) {
     // Update the dex cache to ensure the class is in. The generated code will
     // consider it is. We make it safe by updating the dex cache, as other
     // dex files might also load the class, and there is no guarantee the dex
     // cache of the dex file of the class will be updated.
     if (dex_cache->GetResolvedType(index) == nullptr) {
       dex_cache->SetResolvedType(index, cls);
+    }
+  } else {
+    index = cls->FindTypeIndexInOtherDexFile(dex_file);
+    // We cannot guarantee the entry in the dex cache will resolve to the same class,
+    // as there may be different class loaders. So only return the index if it's
+    // the right class in the dex cache already.
+    if (index != DexFile::kDexNoIndex && dex_cache->GetResolvedType(index) != cls) {
+      index = DexFile::kDexNoIndex;
     }
   }
 
@@ -273,7 +266,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
       return false;
     }
     MethodReference ref = invoke_instruction->AsInvokeStaticOrDirect()->GetTargetMethod();
-    mirror::DexCache* const dex_cache = (&caller_dex_file == ref.dex_file)
+    mirror::DexCache* const dex_cache = IsSameDexFile(caller_dex_file, *ref.dex_file)
         ? caller_compilation_unit_.GetDexCache().Get()
         : class_linker->FindDexCache(soa.Self(), *ref.dex_file);
     resolved_method = dex_cache->GetResolvedMethod(
@@ -763,8 +756,6 @@ bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction, ArtMethod* metho
 bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
                                  ArtMethod* method,
                                  HInstruction** return_replacement) {
-  const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
-
   if (method->IsProxyMethod()) {
     VLOG(compiler) << "Method " << PrettyMethod(method)
                    << " is not inlined because of unimplemented inline support for proxy methods.";
@@ -784,15 +775,6 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
                    << outer_compilation_unit_.GetDexFile()->GetLocation() << " ("
                    << caller_compilation_unit_.GetDexFile()->GetLocation() << ") from "
                    << method->GetDexFile()->GetLocation();
-    return false;
-  }
-
-  uint32_t method_index = FindMethodIndexIn(
-      method, caller_dex_file, invoke_instruction->GetDexMethodIndex());
-  if (method_index == DexFile::kDexNoIndex) {
-    VLOG(compiler) << "Call to "
-                   << PrettyMethod(method)
-                   << " cannot be inlined because unaccessible to caller";
     return false;
   }
 
@@ -832,7 +814,7 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
     if (Runtime::Current()->UseJitCompilation() ||
         !compiler_driver_->IsMethodVerifiedWithoutFailures(
             method->GetDexMethodIndex(), class_def_idx, *method->GetDexFile())) {
-      VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
+      VLOG(compiler) << "Method " << PrettyMethod(method)
                      << " couldn't be verified, so it cannot be inlined";
       return false;
     }
@@ -842,7 +824,7 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
       invoke_instruction->AsInvokeStaticOrDirect()->IsStaticWithImplicitClinitCheck()) {
     // Case of a static method that cannot be inlined because it implicitly
     // requires an initialization check of its declaring class.
-    VLOG(compiler) << "Method " << PrettyMethod(method_index, caller_dex_file)
+    VLOG(compiler) << "Method " << PrettyMethod(method)
                    << " is not inlined because it is static and requires a clinit"
                    << " check that cannot be emitted due to Dex cache limitations";
     return false;
@@ -852,7 +834,7 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
     return false;
   }
 
-  VLOG(compiler) << "Successfully inlined " << PrettyMethod(method_index, caller_dex_file);
+  VLOG(compiler) << "Successfully inlined " << PrettyMethod(method);
   MaybeRecordStat(kInlinedInvoke);
   return true;
 }

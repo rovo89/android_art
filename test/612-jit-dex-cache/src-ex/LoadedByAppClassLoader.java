@@ -14,26 +14,23 @@
  * limitations under the License.
  */
 
-public class Main {
-  public static void main(String[] args) throws Exception {
-    System.loadLibrary(args[0]);
-    // Loop enough to get Itf.foo JITed.
-    for (int i = 0; i < 100000; i++) {
-      Itf.foo(new Object());
-    }
-
-    ensureJitCompiled(Itf.class, "foo");
-
-    if (!Itf.foo(new Object())) {
-      throw new Error("Unexpected result");
-    }
+public class LoadedByAppClassLoader {
+  public static void letMeInlineYou(A a) {
+    a.foo();
   }
 
-  private static native void ensureJitCompiled(Class itf, String method_name);
+  public static ClassLoader areYouB() {
+    // Ensure letMeInlineYou is JITted and tries to do inlining of A.foo.
+    // The compiler used to wrongly update the dex cache of letMeInlineYou's
+    // class loader.
+    Main.ensureJitCompiled(LoadedByAppClassLoader.class, "letMeInlineYou");
+    return OtherClass.getB().getClassLoader();
+  }
 }
 
-interface Itf {
-  public static boolean foo(Object o) {
-    return o.equals(o);
+class OtherClass {
+  public static Class getB() {
+    // This used to return the B class of another class loader.
+    return B.class;
   }
 }
