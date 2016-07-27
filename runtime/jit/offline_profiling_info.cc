@@ -626,7 +626,7 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
     os << "\n\tclasses: ";
     for (const auto class_it : dex_data.class_set) {
       if (dex_file != nullptr) {
-        os << "\n\t\t" << PrettyType(class_it, *dex_file);
+        os << "\n\t\t" << dex_file->GetClassDescriptor(dex_file->GetClassDef(class_it));
       } else {
         os << class_it << ",";
       }
