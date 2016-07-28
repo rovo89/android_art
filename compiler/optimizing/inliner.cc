@@ -1035,8 +1035,11 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   uint32_t method_index = resolved_method->GetDexMethodIndex();
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
   Handle<mirror::DexCache> dex_cache(handles_->NewHandle(resolved_method->GetDexCache()));
+  Handle<mirror::ClassLoader> class_loader(handles_->NewHandle(
+      resolved_method->GetDeclaringClass()->GetClassLoader()));
+
   DexCompilationUnit dex_compilation_unit(
-      caller_compilation_unit_.GetClassLoader(),
+      class_loader.ToJObject(),
       class_linker,
       callee_dex_file,
       code_item,
