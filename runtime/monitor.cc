@@ -314,34 +314,21 @@ std::string Monitor::PrettyContentionInfo(const std::string& owner_name,
   return oss.str();
 }
 
-bool Monitor::TryLockLocked(Thread* self) {
-  if (owner_ == nullptr) {  // Unowned.
-    owner_ = self;
-    CHECK_EQ(lock_count_, 0);
-    // When debugging, save the current monitor holder for future
-    // acquisition failures to use in sampled logging.
-    if (lock_profiling_threshold_ != 0) {
-      locking_method_ = self->GetCurrentMethod(&locking_dex_pc_);
-    }
-  } else if (owner_ == self) {  // Recursive.
-    lock_count_++;
-  } else {
-    return false;
-  }
-  AtraceMonitorLock(self, GetObject(), false /* is_wait */);
-  return true;
-}
-
-bool Monitor::TryLock(Thread* self) {
-  MutexLock mu(self, monitor_lock_);
-  return TryLockLocked(self);
-}
-
 void Monitor::Lock(Thread* self) {
   MutexLock mu(self, monitor_lock_);
   while (true) {
-    if (TryLockLocked(self)) {
-      return;
+    if (owner_ == nullptr) {  // Unowned.
+      owner_ = self;
+      CHECK_EQ(lock_count_, 0);
+      // When debugging, save the current monitor holder for future
+      // acquisition failures to use in sampled logging.
+      if (lock_profiling_threshold_ != 0) {
+        locking_method_ = self->GetCurrentMethod(&locking_dex_pc_);
+      }
+      break;
+    } else if (owner_ == self) {  // Recursive.
+      lock_count_++;
+      break;
     }
     // Contended.
     const bool log_contention = (lock_profiling_threshold_ != 0);
@@ -443,6 +430,8 @@ void Monitor::Lock(Thread* self) {
     monitor_lock_.Lock(self);  // Reacquire locks in order.
     --num_waiters_;
   }
+
+  AtraceMonitorLock(self, GetObject(), false /* is_wait */);
 }
 
 static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
@@ -863,7 +852,7 @@ static mirror::Object* FakeUnlock(mirror::Object* obj)
   return obj;
 }
 
-mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj, bool trylock) {
+mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
   DCHECK(self != nullptr);
   DCHECK(obj != nullptr);
   self->AssertThreadSuspensionIsAllowable();
@@ -909,9 +898,6 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj, bool tr
             InflateThinLocked(self, h_obj, lock_word, 0);
           }
         } else {
-          if (trylock) {
-            return nullptr;
-          }
           // Contention.
           contention_count++;
           Runtime* runtime = Runtime::Current();
@@ -930,12 +916,8 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj, bool tr
       }
       case LockWord::kFatLocked: {
         Monitor* mon = lock_word.FatLockMonitor();
-        if (trylock) {
-          return mon->TryLock(self) ? h_obj.Get() : nullptr;
-        } else {
-          mon->Lock(self);
-          return h_obj.Get();  // Success!
-        }
+        mon->Lock(self);
+        return h_obj.Get();  // Success!
       }
       case LockWord::kHashCode:
         // Inflate with the existing hashcode.
