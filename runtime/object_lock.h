@@ -45,6 +45,27 @@ class ObjectLock {
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
+template <typename T>
+class ObjectTryLock {
+ public:
+  ObjectTryLock(Thread* self, Handle<T> object) SHARED_REQUIRES(Locks::mutator_lock_);
+
+  ~ObjectTryLock() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  bool Acquired() const {
+    return acquired_;
+  }
+
+ private:
+  Thread* const self_;
+  Handle<T> const obj_;
+  bool acquired_;
+
+
+  DISALLOW_COPY_AND_ASSIGN(ObjectTryLock);
+};
+
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_OBJECT_LOCK_H_
