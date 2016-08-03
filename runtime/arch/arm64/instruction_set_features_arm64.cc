@@ -50,6 +50,7 @@ const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromVariant(
     static const char* arm64_known_variants[] = {
         "cortex-a35",
         "exynos-m1",
+        "exynos-m2",
         "denver64",
         "kryo"
     };
