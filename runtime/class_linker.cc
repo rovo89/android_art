@@ -3563,32 +3563,40 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
     }
     LOG(INFO) << "Loaded class " << descriptor << source;
   }
-  WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  mirror::ClassLoader* const class_loader = klass->GetClassLoader();
-  ClassTable* const class_table = InsertClassTableForClassLoader(class_loader);
-  mirror::Class* existing = class_table->Lookup(descriptor, hash);
-  if (existing != nullptr) {
-    return existing;
-  }
-  if (kIsDebugBuild &&
-      !klass->IsTemp() &&
-      class_loader == nullptr &&
-      dex_cache_boot_image_class_lookup_required_) {
-    // Check a class loaded with the system class loader matches one in the image if the class
-    // is in the image.
-    existing = LookupClassFromBootImage(descriptor);
+  {
+    WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+    mirror::ClassLoader* const class_loader = klass->GetClassLoader();
+    ClassTable* const class_table = InsertClassTableForClassLoader(class_loader);
+    mirror::Class* existing = class_table->Lookup(descriptor, hash);
     if (existing != nullptr) {
-      CHECK_EQ(klass, existing);
+      return existing;
+    }
+    if (kIsDebugBuild &&
+        !klass->IsTemp() &&
+        class_loader == nullptr &&
+        dex_cache_boot_image_class_lookup_required_) {
+      // Check a class loaded with the system class loader matches one in the image if the class
+      // is in the image.
+      existing = LookupClassFromBootImage(descriptor);
+      if (existing != nullptr) {
+        CHECK_EQ(klass, existing);
+      }
+    }
+    VerifyObject(klass);
+    class_table->InsertWithHash(klass, hash);
+    if (class_loader != nullptr) {
+      // This is necessary because we need to have the card dirtied for remembered sets.
+      Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
+    }
+    if (log_new_class_table_roots_) {
+      new_class_roots_.push_back(GcRoot<mirror::Class>(klass));
     }
   }
-  VerifyObject(klass);
-  class_table->InsertWithHash(klass, hash);
-  if (class_loader != nullptr) {
-    // This is necessary because we need to have the card dirtied for remembered sets.
-    Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
-  }
-  if (log_new_class_table_roots_) {
-    new_class_roots_.push_back(GcRoot<mirror::Class>(klass));
+  if (kIsDebugBuild) {
+    // Test that copied methods correctly can find their holder.
+    for (ArtMethod& method : klass->GetCopiedMethods(image_pointer_size_)) {
+      CHECK_EQ(GetHoldingClassOfCopiedMethod(&method), klass);
+    }
   }
   return nullptr;
 }
@@ -8136,18 +8144,26 @@ void ClassLinker::InsertDexFileInToClassLoader(mirror::Object* dex_file,
 
 void ClassLinker::CleanupClassLoaders() {
   Thread* const self = Thread::Current();
-  WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-  for (auto it = class_loaders_.begin(); it != class_loaders_.end(); ) {
-    const ClassLoaderData& data = *it;
-    // Need to use DecodeJObject so that we get null for cleared JNI weak globals.
-    auto* const class_loader = down_cast<mirror::ClassLoader*>(self->DecodeJObject(data.weak_root));
-    if (class_loader != nullptr) {
-      ++it;
-    } else {
-      VLOG(class_linker) << "Freeing class loader";
-      DeleteClassLoader(self, data);
-      it = class_loaders_.erase(it);
+  std::vector<ClassLoaderData> to_delete;
+  // Do the delete outside the lock to avoid lock violation in jit code cache.
+  {
+    WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
+    for (auto it = class_loaders_.begin(); it != class_loaders_.end(); ) {
+      const ClassLoaderData& data = *it;
+      // Need to use DecodeJObject so that we get null for cleared JNI weak globals.
+      auto* const class_loader =
+          down_cast<mirror::ClassLoader*>(self->DecodeJObject(data.weak_root));
+      if (class_loader != nullptr) {
+        ++it;
+      } else {
+        VLOG(class_linker) << "Freeing class loader";
+        to_delete.push_back(data);
+        it = class_loaders_.erase(it);
+      }
     }
+  }
+  for (ClassLoaderData& data : to_delete) {
+    DeleteClassLoader(self, data);
   }
 }
 
@@ -8265,6 +8281,33 @@ std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForProfileKeys(
     }
   }
   return ret;
+}
+
+class ClassLinker::FindVirtualMethodHolderVisitor : public ClassVisitor {
+ public:
+  FindVirtualMethodHolderVisitor(const ArtMethod* method, size_t pointer_size)
+      : method_(method),
+        pointer_size_(pointer_size) {}
+
+  bool operator()(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_) OVERRIDE {
+    if (klass->GetVirtualMethodsSliceUnchecked(pointer_size_).Contains(method_)) {
+      holder_ = klass;
+    }
+    // Return false to stop searching if holder_ is not null.
+    return holder_ == nullptr;
+  }
+
+  mirror::Class* holder_ = nullptr;
+  const ArtMethod* const method_;
+  const size_t pointer_size_;
+};
+
+mirror::Class* ClassLinker::GetHoldingClassOfCopiedMethod(ArtMethod* method) {
+  ScopedTrace trace(__FUNCTION__);  // Since this function is slow, have a trace to notify people.
+  CHECK(method->IsCopied());
+  FindVirtualMethodHolderVisitor visitor(method, image_pointer_size_);
+  VisitClasses(&visitor);
+  return visitor.holder_;
 }
 
 // Instantiate ResolveMethod.

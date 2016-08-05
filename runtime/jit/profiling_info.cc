@@ -25,10 +25,33 @@
 
 namespace art {
 
+ProfilingInfo::ProfilingInfo(ArtMethod* method, const std::vector<uint32_t>& entries)
+      : number_of_inline_caches_(entries.size()),
+        method_(method),
+        is_method_being_compiled_(false),
+        is_osr_method_being_compiled_(false),
+        current_inline_uses_(0),
+        saved_entry_point_(nullptr) {
+  memset(&cache_, 0, number_of_inline_caches_ * sizeof(InlineCache));
+  for (size_t i = 0; i < number_of_inline_caches_; ++i) {
+    cache_[i].dex_pc_ = entries[i];
+  }
+  if (method->IsCopied()) {
+    // GetHoldingClassOfCopiedMethod is expensive, but creating a profiling info for a copied method
+    // appears to happen very rarely in practice.
+    holding_class_ = GcRoot<mirror::Class>(
+        Runtime::Current()->GetClassLinker()->GetHoldingClassOfCopiedMethod(method));
+  } else {
+    holding_class_ = GcRoot<mirror::Class>(method->GetDeclaringClass());
+  }
+  DCHECK(!holding_class_.IsNull());
+}
+
 bool ProfilingInfo::Create(Thread* self, ArtMethod* method, bool retry_allocation) {
   // Walk over the dex instructions of the method and keep track of
   // instructions we are interested in profiling.
   DCHECK(!method->IsNative());
+
   const DexFile::CodeItem& code_item = *method->GetCodeItem();
   const uint16_t* code_ptr = code_item.insns_;
   const uint16_t* code_end = code_item.insns_ + code_item.insns_size_in_code_units_;
@@ -93,6 +116,14 @@ void ProfilingInfo::AddInvokeInfo(uint32_t dex_pc, mirror::Class* cls) {
         --i;
       } else {
         // We successfully set `cls`, just return.
+        // Since the instrumentation is marked from the declaring class we need to mark the card so
+        // that mod-union tables and card rescanning know about the update.
+        // Note that the declaring class is not necessarily the holding class if the method is
+        // copied. We need the card mark to be in the holding class since that is from where we
+        // will visit the profiling info.
+        if (!holding_class_.IsNull()) {
+          Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(holding_class_.Read());
+        }
         return;
       }
     }
