@@ -49,6 +49,8 @@ enum CollectorType {
   kCollectorTypeHomogeneousSpaceCompact,
   // Class linker fake collector.
   kCollectorTypeClassLinker,
+  // JIT Code cache fake collector.
+  kCollectorTypeJitCodeCache,
 };
 std::ostream& operator<<(std::ostream& os, const CollectorType& collector_type);
 

@@ -47,6 +47,8 @@ enum GcCause {
   kGcCauseHomogeneousSpaceCompact,
   // Class linker cause, used to guard filling art methods with special values.
   kGcCauseClassLinker,
+  // Not a real GC cause, used to implement exclusion between code cache metadata and GC.
+  kGcCauseJitCodeCache,
 };
 
 const char* PrettyCause(GcCause cause);

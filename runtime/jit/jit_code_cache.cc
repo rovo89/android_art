@@ -25,6 +25,7 @@
 #include "debugger_interface.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/bitmap-inl.h"
+#include "gc/scoped_gc_critical_section.h"
 #include "jit/jit.h"
 #include "jit/profiling_info.h"
 #include "linear_alloc.h"
@@ -727,6 +728,9 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
   RemoveUnmarkedCode(self);
 
   if (collect_profiling_info) {
+    ScopedThreadSuspension sts(self, kSuspended);
+    gc::ScopedGCCriticalSection gcs(
+        self, gc::kGcCauseJitCodeCache, gc::kCollectorTypeJitCodeCache);
     MutexLock mu(self, lock_);
     // Free all profiling infos of methods not compiled nor being compiled.
     auto profiling_kept_end = std::remove_if(profiling_infos_.begin(), profiling_infos_.end(),
