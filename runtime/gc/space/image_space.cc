@@ -505,6 +505,17 @@ ImageSpace* ImageSpace::CreateBootImage(const char* image_location,
                                error_msg);
     }
     if (space != nullptr) {
+      // Check whether there is enough space left over in the data partition. Even if we can load
+      // the image, we need to be conservative, as some parts of the platform are not very tolerant
+      // of space constraints.
+      // ImageSpace doesn't know about the data partition per se, it relies on the FindImageFilename
+      // helper (which relies on GetDalvikCache). So for now, if we load an image out of /system,
+      // ignore the check (as it would test for free space in /system instead).
+      if (!is_system && !CheckSpace(*image_filename, error_msg)) {
+        // No. Delete the generated image and try to run out of the dex files.
+        PruneDalvikCache(image_isa);
+        return nullptr;
+      }
       return space;
     }
 
