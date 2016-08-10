@@ -4636,18 +4636,23 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
         } else {
           value_it.ReadValueToField<false>(field);
         }
+        if (self->IsExceptionPending()) {
+          break;
+        }
         DCHECK(!value_it.HasNext() || field_it.HasNextStaticField());
       }
     }
   }
 
-  ArtMethod* clinit = klass->FindClassInitializer(image_pointer_size_);
-  if (clinit != nullptr) {
-    CHECK(can_init_statics);
-    JValue result;
-    clinit->Invoke(self, nullptr, 0, &result, "V");
-  }
 
+  if (!self->IsExceptionPending()) {
+    ArtMethod* clinit = klass->FindClassInitializer(image_pointer_size_);
+    if (clinit != nullptr) {
+      CHECK(can_init_statics);
+      JValue result;
+      clinit->Invoke(self, nullptr, 0, &result, "V");
+    }
+  }
   self->AllowThreadSuspension();
   uint64_t t1 = NanoTime();
 
