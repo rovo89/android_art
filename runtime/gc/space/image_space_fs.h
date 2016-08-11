@@ -114,8 +114,21 @@ static void MarkZygoteStart(const InstructionSet isa, const uint32_t max_failed_
     file.reset(OS::CreateEmptyFile(file_name));
 
     if (file.get() == nullptr) {
+      int saved_errno = errno;
       PLOG(WARNING) << "Failed to create boot marker.";
-      return;
+      if (saved_errno != ENOSPC) {
+        return;
+      }
+
+      LOG(WARNING) << "Pruning dalvik cache because of low-memory situation.";
+      impl::DeleteDirectoryContents(isa_subdir, false);
+
+      // Try once more.
+      file.reset(OS::OpenFileReadWrite(file_name));
+      if (file == nullptr) {
+        PLOG(WARNING) << "Failed to create boot marker.";
+        return;
+      }
     }
   } else {
     if (!file->ReadFully(&num_failed_boots, sizeof(num_failed_boots))) {
