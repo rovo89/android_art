@@ -464,6 +464,8 @@ bool Runtime::Create(RuntimeArgumentMap&& runtime_options) {
     return false;
   }
   instance_ = new Runtime;
+  // Protect subprocesses from modifications to LD_LIBRARY_PATH, etc.
+  instance_->env_snapshot_.reset(art::TakeEnvSnapshot());
   if (!instance_->Init(std::move(runtime_options))) {
     // TODO: Currently deleting the instance will abort the runtime on destruction. Now This will
     // leak memory, instead. Fix the destructor. b/19100793.
