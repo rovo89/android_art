@@ -26,6 +26,9 @@
 #include <signal.h>
 #include <sys/syscall.h>
 #include "base/memory_tool.h"
+#if defined(__APPLE__)
+#include <crt_externs.h>  // for _NSGetEnviron
+#endif
 
 #include <cstdio>
 #include <cstdlib>
@@ -155,6 +158,22 @@ struct TraceConfig {
   std::string trace_file;
   size_t trace_file_size;
 };
+
+namespace {
+#ifdef __APPLE__
+inline char** GetEnviron() {
+  // When Google Test is built as a framework on MacOS X, the environ variable
+  // is unavailable. Apple's documentation (man environ) recommends using
+  // _NSGetEnviron() instead.
+  return *_NSGetEnviron();
+}
+#else
+// Some POSIX platforms expect you to declare environ. extern "C" makes
+// it reside in the global namespace.
+extern "C" char** environ;
+inline char** GetEnviron() { return environ; }
+#endif
+}  // namespace
 
 Runtime::Runtime()
     : resolution_method_(nullptr),
@@ -905,6 +924,10 @@ void Runtime::SetSentinel(mirror::Object* sentinel) {
 }
 
 bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
+  // (b/30160149): protect subprocesses from modifications to LD_LIBRARY_PATH, etc.
+  // Take a snapshot of the environment at the time the runtime was created, for use by Exec, etc.
+  env_snapshot_.TakeSnapshot();
+
   RuntimeArgumentMap runtime_options(std::move(runtime_options_in));
   ScopedTrace trace(__FUNCTION__);
   CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
@@ -2013,6 +2036,24 @@ bool Runtime::UseJitCompilation() const {
 // Returns true if profile saving is enabled. GetJit() will be not null in this case.
 bool Runtime::SaveProfileInfo() const {
   return (jit_ != nullptr) && jit_->SaveProfilingInfo();
+}
+
+void Runtime::EnvSnapshot::TakeSnapshot() {
+  char** env = GetEnviron();
+  for (size_t i = 0; env[i] != nullptr; ++i) {
+    name_value_pairs_.emplace_back(new std::string(env[i]));
+  }
+  // The strings in name_value_pairs_ retain ownership of the c_str, but we assign pointers
+  // for quick use by GetSnapshot.  This avoids allocation and copying cost at Exec.
+  c_env_vector_.reset(new char*[name_value_pairs_.size() + 1]);
+  for (size_t i = 0; env[i] != nullptr; ++i) {
+    c_env_vector_[i] = const_cast<char*>(name_value_pairs_[i]->c_str());
+  }
+  c_env_vector_[name_value_pairs_.size()] = nullptr;
+}
+
+char** Runtime::EnvSnapshot::GetSnapshot() const {
+  return c_env_vector_.get();
 }
 
 }  // namespace art
