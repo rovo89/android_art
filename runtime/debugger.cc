@@ -4049,7 +4049,7 @@ void Dbg::ExecuteMethodWithoutPendingException(ScopedObjectAccess& soa, DebugInv
   // Prepare JDWP ids for the reply.
   JDWP::JdwpTag result_tag = BasicTagFromDescriptor(m->GetShorty());
   const bool is_object_result = (result_tag == JDWP::JT_OBJECT);
-  StackHandleScope<2> hs(soa.Self());
+  StackHandleScope<3> hs(soa.Self());
   Handle<mirror::Object> object_result = hs.NewHandle(is_object_result ? result.GetL() : nullptr);
   Handle<mirror::Throwable> exception = hs.NewHandle(soa.Self()->GetException());
   soa.Self()->ClearException();
@@ -4088,10 +4088,17 @@ void Dbg::ExecuteMethodWithoutPendingException(ScopedObjectAccess& soa, DebugInv
     // unless we threw, in which case we return null.
     DCHECK_EQ(JDWP::JT_VOID, result_tag);
     if (exceptionObjectId == 0) {
-      // TODO we could keep the receiver ObjectId in the DebugInvokeReq to avoid looking into the
-      // object registry.
-      result_value = GetObjectRegistry()->Add(pReq->receiver.Read());
-      result_tag = TagFromObject(soa, pReq->receiver.Read());
+      if (m->GetDeclaringClass()->IsStringClass()) {
+        // For string constructors, the new string is remapped to the receiver (stored in ref).
+        Handle<mirror::Object> decoded_ref = hs.NewHandle(soa.Self()->DecodeJObject(ref.get()));
+        result_value = gRegistry->Add(decoded_ref);
+        result_tag = TagFromObject(soa, decoded_ref.Get());
+      } else {
+        // TODO we could keep the receiver ObjectId in the DebugInvokeReq to avoid looking into the
+        // object registry.
+        result_value = GetObjectRegistry()->Add(pReq->receiver.Read());
+        result_tag = TagFromObject(soa, pReq->receiver.Read());
+      }
     } else {
       result_value = 0;
       result_tag = JDWP::JT_OBJECT;
