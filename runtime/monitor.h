@@ -62,7 +62,7 @@ class Monitor {
       NO_THREAD_SAFETY_ANALYSIS;  // TODO: Reading lock owner without holding lock is racy.
 
   // NO_THREAD_SAFETY_ANALYSIS for mon->Lock.
-  static mirror::Object* MonitorEnter(Thread* thread, mirror::Object* obj)
+  static mirror::Object* MonitorEnter(Thread* thread, mirror::Object* obj, bool trylock)
       EXCLUSIVE_LOCK_FUNCTION(obj)
       NO_THREAD_SAFETY_ANALYSIS
       REQUIRES(!Roles::uninterruptible_)
@@ -191,6 +191,15 @@ class Monitor {
                            Monitor* mon)
       REQUIRES(!Locks::thread_list_lock_,
                !monitor_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Try to lock without blocking, returns true if we acquired the lock.
+  bool TryLock(Thread* self)
+      REQUIRES(!monitor_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  // Variant for already holding the monitor lock.
+  bool TryLockLocked(Thread* self)
+      REQUIRES(monitor_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void Lock(Thread* self)
