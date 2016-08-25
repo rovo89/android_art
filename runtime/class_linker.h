@@ -647,6 +647,10 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
+  // Get the actual holding class for a copied method. Pretty slow, don't call often.
+  mirror::Class* GetHoldingClassOfCopiedMethod(ArtMethod* method)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   struct DexCacheData {
     // Weak root to the DexCache. Note: Do not decode this unnecessarily or else class unloading may
     // not work properly.
@@ -675,7 +679,6 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   static void DeleteClassLoader(Thread* self, const ClassLoaderData& data)
-      REQUIRES(Locks::classlinker_classes_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void VisitClassLoaders(ClassLoaderVisitor* visitor) const
@@ -1167,6 +1170,7 @@ class ClassLinker {
   // Image pointer size.
   size_t image_pointer_size_;
 
+  class FindVirtualMethodHolderVisitor;
   friend class ImageDumper;  // for DexLock
   friend class ImageWriter;  // for GetClassRoots
   friend class JniCompilerTest;  // for GetRuntimeQuickGenericJniStub

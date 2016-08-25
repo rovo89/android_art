@@ -105,6 +105,7 @@ class ProfilingInfo {
   // NO_THREAD_SAFETY_ANALYSIS since we don't know what the callback requires.
   template<typename RootVisitorType>
   void VisitRoots(RootVisitorType& visitor) NO_THREAD_SAFETY_ANALYSIS {
+    visitor.VisitRootIfNonNull(holding_class_.AddressWithoutBarrier());
     for (size_t i = 0; i < number_of_inline_caches_; ++i) {
       InlineCache* cache = &cache_[i];
       for (size_t j = 0; j < InlineCache::kIndividualCacheSize; ++j) {
@@ -166,24 +167,16 @@ class ProfilingInfo {
   }
 
  private:
-  ProfilingInfo(ArtMethod* method, const std::vector<uint32_t>& entries)
-      : number_of_inline_caches_(entries.size()),
-        method_(method),
-        is_method_being_compiled_(false),
-        is_osr_method_being_compiled_(false),
-        current_inline_uses_(0),
-        saved_entry_point_(nullptr) {
-    memset(&cache_, 0, number_of_inline_caches_ * sizeof(InlineCache));
-    for (size_t i = 0; i < number_of_inline_caches_; ++i) {
-      cache_[i].dex_pc_ = entries[i];
-    }
-  }
+  ProfilingInfo(ArtMethod* method, const std::vector<uint32_t>& entries);
 
   // Number of instructions we are profiling in the ArtMethod.
   const uint32_t number_of_inline_caches_;
 
   // Method this profiling info is for.
   ArtMethod* const method_;
+
+  // Holding class for the method in case method is a copied method.
+  GcRoot<mirror::Class> holding_class_;
 
   // Whether the ArtMethod is currently being compiled. This flag
   // is implicitly guarded by the JIT code cache lock.

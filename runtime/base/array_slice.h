@@ -129,6 +129,10 @@ class ArraySlice {
     return element_size_;
   }
 
+  bool Contains(const T* element) const {
+    return &AtUnchecked(0) <= element && element < &AtUnchecked(size_);
+  }
+
  private:
   T& AtUnchecked(size_t index) {
     return *reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(array_) + index * element_size_);
