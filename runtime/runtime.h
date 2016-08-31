@@ -648,6 +648,16 @@ class Runtime {
     return zygote_no_threads_;
   }
 
+  // Returns if the code can be deoptimized. Code may be compiled with some
+  // optimization that makes it impossible to deoptimize.
+  bool IsDeoptimizeable(uintptr_t code) const SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Returns a saved copy of the environment (getenv/setenv values).
+  // Used by Fork to protect against overwriting LD_LIBRARY_PATH, etc.
+  char** GetEnvSnapshot() const {
+    return env_snapshot_.GetSnapshot();
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -871,6 +881,20 @@ class Runtime {
 
   // Whether zygote code is in a section that should not start threads.
   bool zygote_no_threads_;
+
+  // Saved environment.
+  class EnvSnapshot {
+   public:
+    EnvSnapshot() = default;
+    void TakeSnapshot();
+    char** GetSnapshot() const;
+
+   private:
+    std::unique_ptr<char*[]> c_env_vector_;
+    std::vector<std::unique_ptr<std::string>> name_value_pairs_;
+
+    DISALLOW_COPY_AND_ASSIGN(EnvSnapshot);
+  } env_snapshot_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

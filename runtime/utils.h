@@ -291,6 +291,9 @@ std::string GetDalvikCacheFilenameOrDie(const char* file_location,
 std::string GetSystemImageFilename(const char* location, InstructionSet isa);
 
 // Wrapper on fork/execv to run a command in a subprocess.
+// Both of these spawn child processes using the environment as it was set when the single instance
+// of the runtime (Runtime::Current()) was started.  If no instance of the runtime was started, it
+// will use the current environment settings.
 bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg);
 int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_msg);
 

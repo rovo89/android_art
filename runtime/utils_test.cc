@@ -16,6 +16,8 @@
 
 #include "utils.h"
 
+#include <stdlib.h>
+
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "mirror/array.h"
@@ -375,8 +377,57 @@ TEST_F(UtilsTest, ExecError) {
   if (!(RUNNING_ON_MEMORY_TOOL && kMemoryToolDetectsLeaks)) {
     // Running on valgrind fails due to some memory that leaks in thread alternate signal stacks.
     EXPECT_FALSE(Exec(command, &error_msg));
-    EXPECT_NE(0U, error_msg.size());
+    EXPECT_FALSE(error_msg.empty());
   }
+}
+
+TEST_F(UtilsTest, EnvSnapshotAdditionsAreNotVisible) {
+  static constexpr const char* kModifiedVariable = "EXEC_SHOULD_NOT_EXPORT_THIS";
+  static constexpr int kOverwrite = 1;
+  // Set an variable in the current environment.
+  EXPECT_EQ(setenv(kModifiedVariable, "NEVER", kOverwrite), 0);
+  // Test that it is not exported.
+  std::vector<std::string> command;
+  if (kIsTargetBuild) {
+    std::string android_root(GetAndroidRoot());
+    command.push_back(android_root + "/bin/printenv");
+  } else {
+    command.push_back("/usr/bin/printenv");
+  }
+  command.push_back(kModifiedVariable);
+  std::string error_msg;
+  if (!(RUNNING_ON_MEMORY_TOOL && kMemoryToolDetectsLeaks)) {
+    // Running on valgrind fails due to some memory that leaks in thread alternate signal stacks.
+    EXPECT_FALSE(Exec(command, &error_msg));
+    EXPECT_NE(0U, error_msg.size()) << error_msg;
+  }
+}
+
+TEST_F(UtilsTest, EnvSnapshotDeletionsAreNotVisible) {
+  static constexpr const char* kDeletedVariable = "PATH";
+  static constexpr int kOverwrite = 1;
+  // Save the variable's value.
+  const char* save_value = getenv(kDeletedVariable);
+  EXPECT_NE(save_value, nullptr);
+  // Delete the variable.
+  EXPECT_EQ(unsetenv(kDeletedVariable), 0);
+  // Test that it is not exported.
+  std::vector<std::string> command;
+  if (kIsTargetBuild) {
+    std::string android_root(GetAndroidRoot());
+    command.push_back(android_root + "/bin/printenv");
+  } else {
+    command.push_back("/usr/bin/printenv");
+  }
+  command.push_back(kDeletedVariable);
+  std::string error_msg;
+  if (!(RUNNING_ON_MEMORY_TOOL && kMemoryToolDetectsLeaks)) {
+    // Running on valgrind fails due to some memory that leaks in thread alternate signal stacks.
+    EXPECT_TRUE(Exec(command, &error_msg));
+    EXPECT_EQ(0U, error_msg.size()) << error_msg;
+  }
+  // Restore the variable's value.
+  EXPECT_EQ(setenv(kDeletedVariable, save_value, kOverwrite), 0);
 }
 
 TEST_F(UtilsTest, IsValidDescriptor) {
