@@ -19,9 +19,6 @@ static JNINativeMethod gMethodsPathClassLoader[] = {
 
 //----------------------------------------------------
 void register_samsung_native_methods(JNIEnv* env) {
-  if (!IsSamsungROM())
-    return;
-
   RegisterNativeMethods(env, "dalvik/system/PathClassLoader", gMethodsPathClassLoader, arraysize(gMethodsPathClassLoader));
 }
 

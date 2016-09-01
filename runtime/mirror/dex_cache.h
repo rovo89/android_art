@@ -36,6 +36,10 @@ namespace mirror {
 
 class String;
 
+// A flag for devices that have an additional 'String[] literals' field
+// on the java class side. Mostly comes with 'Object z_padding' as well.
+extern bool sDexCacheJavaClassHasExtraFields;
+
 // C++ mirror of java.lang.DexCache.
 class MANAGED DexCache FINAL : public Object {
  public:
@@ -44,7 +48,7 @@ class MANAGED DexCache FINAL : public Object {
 
   // Size of an instance of java.lang.DexCache not including referenced values.
   static uint32_t InstanceSize() {
-    return sizeof(DexCache) + (IsSamsungROM() ? 8 : 0);
+    return sizeof(DexCache) + (sDexCacheJavaClassHasExtraFields ? 8 : 0);
   }
 
   void Init(const DexFile* dex_file, String* location, ObjectArray<String>* strings,
@@ -59,7 +63,7 @@ class MANAGED DexCache FINAL : public Object {
   }
 
   static MemberOffset LocationOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(DexCache, location_) + (IsSamsungROM() ? 4 : 0));
+    return MemberOffset(OFFSETOF_MEMBER(DexCache, location_) + (sDexCacheJavaClassHasExtraFields ? 4 : 0));
   }
 
   static MemberOffset DexOffset() {
@@ -67,23 +71,23 @@ class MANAGED DexCache FINAL : public Object {
   }
 
   static MemberOffset StringsOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(DexCache, strings_) + (IsSamsungROM() ? 4 : 0));
+    return MemberOffset(OFFSETOF_MEMBER(DexCache, strings_) + (sDexCacheJavaClassHasExtraFields ? 4 : 0));
   }
 
   static MemberOffset ResolvedFieldsOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(DexCache, resolved_fields_) + (IsSamsungROM() ? 4 : 0));
+    return MemberOffset(OFFSETOF_MEMBER(DexCache, resolved_fields_) + (sDexCacheJavaClassHasExtraFields ? 4 : 0));
   }
 
   static MemberOffset ResolvedMethodsOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(DexCache, resolved_methods_) + (IsSamsungROM() ? 4 : 0));
+    return MemberOffset(OFFSETOF_MEMBER(DexCache, resolved_methods_) + (sDexCacheJavaClassHasExtraFields ? 4 : 0));
   }
 
   static MemberOffset ResolvedTypesOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(DexCache, resolved_types_) + (IsSamsungROM() ? 4 : 0));
+    return MemberOffset(OFFSETOF_MEMBER(DexCache, resolved_types_) + (sDexCacheJavaClassHasExtraFields ? 4 : 0));
   }
 
   static MemberOffset DexFileOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(DexCache, dex_file_) + (IsSamsungROM() ? 8 : 0));
+    return MemberOffset(OFFSETOF_MEMBER(DexCache, dex_file_) + (sDexCacheJavaClassHasExtraFields ? 8 : 0));
   }
 
   size_t NumStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

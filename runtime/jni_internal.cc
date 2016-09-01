@@ -2170,6 +2170,12 @@ class JNI {
       }
 
       if (m == nullptr) {
+        if (PrettyDescriptor(c) == "dalvik.system.PathClassLoader" && strcmp(name, "openNative") == 0) {
+          LOG(INFO) << "Native method " << PrettyDescriptor(c) << "." << name << sig
+              << " not found in " << c->GetDexCache()->GetLocation()->ToModifiedUtf8();
+          continue;
+        }
+
         LOG(return_errors ? ERROR : INTERNAL_FATAL) << "Failed to register native method "
             << PrettyDescriptor(c) << "." << name << sig << " in "
             << c->GetDexCache()->GetLocation()->ToModifiedUtf8();

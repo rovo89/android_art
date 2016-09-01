@@ -285,6 +285,28 @@ ClassLinker::ClassLinker(InternTable* intern_table)
   std::fill_n(find_array_class_cache_, kFindArrayCacheSize, GcRoot<mirror::Class>(nullptr));
 }
 
+static void dexCacheExtraFieldsWorkaround(const DexFile* dex_file) {
+  const char* descriptor = "Ljava/lang/DexCache;";
+  const size_t hash = ComputeModifiedUtf8Hash(descriptor);
+  const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor, hash);
+  if (dex_class_def != nullptr) {
+    const uint8_t* class_data = dex_file->GetClassData(*dex_class_def);
+    if (class_data != nullptr) {
+      for (ClassDataItemIterator it(*dex_file, class_data); it.HasNextInstanceField(); it.Next()) {
+        const DexFile::FieldId& field_id = dex_file->GetFieldId(it.GetMemberIndex());
+        const char* name = dex_file->GetFieldName(field_id);
+        // Additional fields are normally 'literals' and 'z_padding'.
+        // Some devices have only 'literals' (without 'z_padding') but they work the same.
+        if (strcmp(name, "literals") == 0) {
+          mirror::sDexCacheJavaClassHasExtraFields = true;
+          LOG(INFO) << "java.lang.DexCache compatibility mode";
+          break;
+        }
+      }
+    }
+  }
+}
+
 void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> boot_class_path) {
   VLOG(startup) << "ClassLinker::Init";
 
@@ -432,8 +454,16 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   // DexCache instances. Needs to be after String, Field, Method arrays since AllocDexCache uses
   // these roots.
   CHECK_NE(0U, boot_class_path.size());
+  const char* core_libart_filename = "/system/framework/core-libart.jar";
   for (auto& dex_file : boot_class_path) {
     CHECK(dex_file.get() != nullptr);
+
+    // TODO: Workaround for DexCache extra fields. Could this be better?
+    if (dex_file->GetLocation() == core_libart_filename) {
+      dexCacheExtraFieldsWorkaround(dex_file.get());
+      java_lang_DexCache->SetObjectSize(mirror::DexCache::InstanceSize());
+    }
+
     AppendToBootClassPath(self, *dex_file);
     opened_dex_files_.push_back(std::move(dex_file));
   }
@@ -1134,6 +1164,14 @@ void ClassLinker::InitFromImage() {
 
   CHECK_EQ(oat_file.GetOatHeader().GetDexFileCount(),
            static_cast<uint32_t>(dex_caches->GetLength()));
+
+  // TODO: Workaround for DexCache extra fields. Could this be better?
+  const OatFile::OatDexFile* oat_dex_file_tmp = oat_file.GetOatDexFile("/system/framework/core-libart.jar", nullptr);
+  std::string error_msg_tmp;
+  std::unique_ptr<const DexFile> dex_file_tmp = oat_dex_file_tmp->OpenDexFile(&error_msg_tmp);
+  dexCacheExtraFieldsWorkaround(dex_file_tmp.get());
+  dex_file_tmp.reset();
+
   for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
     StackHandleScope<1> hs2(self);
     Handle<mirror::DexCache> dex_cache(hs2.NewHandle(dex_caches->Get(i)));
