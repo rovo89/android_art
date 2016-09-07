@@ -175,7 +175,11 @@ class Func(mixins.Named, mixins.NameComparableMixin):
       return;
     }} catch (Error e) {{
       System.out.printf("%s-{invoke_type} on {farg}: {callfunc}() threw exception!\\n", s);
-      e.printStackTrace(System.out);
+      if (e instanceof IncompatibleClassChangeError) {{
+        System.out.printf("Exception is of type %s\\n", e.getClass().getName());
+      }} else {{
+        e.printStackTrace(System.out);
+      }}
     }}
   }}
 """
