@@ -62,5 +62,33 @@ TEST_F(DexCacheTest, LinearAlloc) {
   EXPECT_TRUE(linear_alloc->Contains(klass->GetDexCache()->GetResolvedMethods()));
 }
 
+TEST_F(DexCacheTest, TestResolvedFieldAccess) {
+  ScopedObjectAccess soa(Thread::Current());
+  jobject jclass_loader(LoadDex("Packages"));
+  ASSERT_TRUE(jclass_loader != nullptr);
+  Runtime* const runtime = Runtime::Current();
+  ClassLinker* const class_linker = runtime->GetClassLinker();
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+      soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+  Handle<mirror::Class> klass1 =
+      hs.NewHandle(class_linker->FindClass(soa.Self(), "Lpackage1/Package1;", class_loader));
+  ASSERT_TRUE(klass1.Get() != nullptr);
+  Handle<mirror::Class> klass2 =
+      hs.NewHandle(class_linker->FindClass(soa.Self(), "Lpackage2/Package2;", class_loader));
+  ASSERT_TRUE(klass2.Get() != nullptr);
+  EXPECT_EQ(klass1->GetDexCache(), klass2->GetDexCache());
+
+  EXPECT_NE(klass1->NumStaticFields(), 0u);
+  for (ArtField& field : klass2->GetSFields()) {
+    EXPECT_FALSE((
+        klass1->ResolvedFieldAccessTest</*throw_on_failure*/ false,
+            /*use_referrers_cache*/ false>(klass2.Get(),
+                                           &field,
+                                           field.GetDexFieldIndex(),
+                                           klass1->GetDexCache())));
+  }
+}
+
 }  // namespace mirror
 }  // namespace art

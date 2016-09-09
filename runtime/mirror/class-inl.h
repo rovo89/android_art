@@ -368,8 +368,21 @@ inline bool Class::ResolvedFieldAccessTest(Class* access_to, ArtField* field,
     // class rather than the declaring class itself.
     DexCache* referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
     uint32_t class_idx = referrer_dex_cache->GetDexFile()->GetFieldId(field_idx).class_idx_;
-    // The referenced class has already been resolved with the field, get it from the dex cache.
-    Class* dex_access_to = referrer_dex_cache->GetResolvedType(class_idx);
+    // The referenced class has already been resolved with the field, but may not be in the dex
+    // cache. Using ResolveType here without handles in the caller should be safe since there
+    // should be no thread suspension due to the class being resolved.
+    // TODO: Clean this up to use handles in the caller.
+    Class* dex_access_to;
+    {
+      StackHandleScope<2> hs(Thread::Current());
+      Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(referrer_dex_cache));
+      Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(access_to->GetClassLoader()));
+      dex_access_to = Runtime::Current()->GetClassLinker()->ResolveType(
+          *referrer_dex_cache->GetDexFile(),
+          class_idx,
+          h_dex_cache,
+          h_class_loader);
+    }
     DCHECK(dex_access_to != nullptr);
     if (UNLIKELY(!this->CanAccess(dex_access_to))) {
       if (throw_on_failure) {
@@ -398,8 +411,21 @@ inline bool Class::ResolvedMethodAccessTest(Class* access_to, ArtMethod* method,
     // class rather than the declaring class itself.
     DexCache* referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
     uint32_t class_idx = referrer_dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
-    // The referenced class has already been resolved with the method, get it from the dex cache.
-    Class* dex_access_to = referrer_dex_cache->GetResolvedType(class_idx);
+    // The referenced class has already been resolved with the method, but may not be in the dex
+    // cache. Using ResolveType here without handles in the caller should be safe since there
+    // should be no thread suspension due to the class being resolved.
+    // TODO: Clean this up to use handles in the caller.
+    Class* dex_access_to;
+    {
+      StackHandleScope<2> hs(Thread::Current());
+      Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(referrer_dex_cache));
+      Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(access_to->GetClassLoader()));
+      dex_access_to = Runtime::Current()->GetClassLinker()->ResolveType(
+          *referrer_dex_cache->GetDexFile(),
+          class_idx,
+          h_dex_cache,
+          h_class_loader);
+    }
     DCHECK(dex_access_to != nullptr);
     if (UNLIKELY(!this->CanAccess(dex_access_to))) {
       if (throw_on_failure) {
