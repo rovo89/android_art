@@ -102,6 +102,37 @@
         <method>bar</method>
       </methods>
     </class>
+
+    <class name="N" super="java/lang/Object">
+      <implements>
+        <item>Foo</item>
+      </implements>
+      <methods> </methods>
+    </class>
+
+    <class name="O" super="N">
+      <implements>
+        <item>Foo2</item>
+      </implements>
+      <methods> </methods>
+    </class>
+
+    <class name="P" super="O">
+      <implements>
+        <item>Foo2</item>
+      </implements>
+      <methods>
+        <method>bar</method>
+      </methods>
+    </class>
+
+    <class name="Q" super="O">
+      <implements>
+        <item>Foo2</item>
+        <item>Foo3</item>
+      </implements>
+      <methods> </methods>
+    </class>
   </classes>
 
   <interfaces>
@@ -147,6 +178,24 @@
 
     <interface name="Foo" super="java/lang/Object">
       <implements>
+      </implements>
+      <methods>
+        <method type="default">bar</method>
+      </methods>
+    </interface>
+
+    <interface name="Foo2" super="java/lang/Object">
+      <implements>
+        <item>Foo</item>
+      </implements>
+      <methods>
+        <method type="default">bar</method>
+      </methods>
+    </interface>
+
+    <interface name="Foo3" super="java/lang/Object">
+      <implements>
+        <item>Foo</item>
       </implements>
       <methods>
         <method type="default">bar</method>

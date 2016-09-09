@@ -98,3 +98,34 @@ M-virtual           K.bar()='BAZ!'
 M-virtual           L.bar()='BAZ!'
 M-virtual           M.bar()='BAZ!'
 End testing for type M
+Testing for type N
+N-interface       Foo.bar()='foobar'
+N-virtual           N.bar()='foobar'
+End testing for type N
+Testing for type O
+O-interface       Foo.bar()='foobar foobar'
+O-interface      Foo2.bar()='foobar foobar'
+O-virtual           N.bar()='foobar foobar'
+O-virtual           O.bar()='foobar foobar'
+End testing for type O
+Testing for type P
+P-interface       Foo.bar()='not foobar!'
+P-interface      Foo2.bar()='not foobar!'
+P-virtual           N.bar()='not foobar!'
+P-virtual           O.bar()='not foobar!'
+P-virtual           P.bar()='not foobar!'
+End testing for type P
+Testing for type Q
+Q-interface on Foo: bar() threw exception!
+Exception is of type java.lang.IncompatibleClassChangeError
+Q-interface on Foo2: bar() threw exception!
+Exception is of type java.lang.IncompatibleClassChangeError
+Q-interface on Foo3: bar() threw exception!
+Exception is of type java.lang.IncompatibleClassChangeError
+Q-virtual on N: bar() threw exception!
+Exception is of type java.lang.IncompatibleClassChangeError
+Q-virtual on O: bar() threw exception!
+Exception is of type java.lang.IncompatibleClassChangeError
+Q-virtual on Q: bar() threw exception!
+Exception is of type java.lang.IncompatibleClassChangeError
+End testing for type Q
