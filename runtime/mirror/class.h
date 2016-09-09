@@ -1476,6 +1476,7 @@ class MANAGED Class FINAL : public Object {
   // java.lang.Class
   static GcRoot<Class> java_lang_Class_;
 
+  ART_FRIEND_TEST(DexCacheTest, TestResolvedFieldAccess);  // For ResolvedFieldAccessTest
   friend struct art::ClassOffsets;  // for verifying offset information
   friend class Object;  // For VisitReferences
   DISALLOW_IMPLICIT_CONSTRUCTORS(Class);
