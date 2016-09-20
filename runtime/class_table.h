@@ -163,6 +163,8 @@ class ClassTable {
   }
 
  private:
+  void InsertWithoutLocks(mirror::Class* klass) NO_THREAD_SAFETY_ANALYSIS;
+
   // Lock to guard inserting and removing.
   mutable ReaderWriterMutex lock_;
   // We have a vector to help prevent dirty pages after the zygote forks by calling FreezeSnapshot.
@@ -171,6 +173,8 @@ class ClassTable {
   // loader which may not be owned by the class loader must be held strongly live. Also dex caches
   // are held live to prevent them being unloading once they have classes in them.
   std::vector<GcRoot<mirror::Object>> strong_roots_ GUARDED_BY(lock_);
+
+  friend class ImageWriter;  // for InsertWithoutLocks.
 };
 
 }  // namespace art
