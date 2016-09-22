@@ -40,7 +40,13 @@ class ScratchFile {
  public:
   ScratchFile();
 
+  explicit ScratchFile(const std::string& filename);
+
   ScratchFile(const ScratchFile& other, const char* suffix);
+
+  explicit ScratchFile(ScratchFile&& other);
+
+  ScratchFile& operator=(ScratchFile&& other);
 
   explicit ScratchFile(File* file);
 

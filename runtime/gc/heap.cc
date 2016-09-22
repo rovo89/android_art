@@ -316,9 +316,9 @@ Heap::Heap(size_t initial_size,
             continue;
           }
 
-          space::ImageSpace::CreateMultiImageLocations(image_file_name,
-                                                       boot_classpath,
-                                                       &image_file_names);
+          space::ImageSpace::ExtractMultiImageLocations(image_file_name,
+                                                        boot_classpath,
+                                                        &image_file_names);
         }
       } else {
         LOG(ERROR) << "Could not create image space with image file '" << image_file_name << "'. "

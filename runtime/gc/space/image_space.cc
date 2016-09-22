@@ -1508,9 +1508,54 @@ void ImageSpace::Dump(std::ostream& os) const {
       << ",name=\"" << GetName() << "\"]";
 }
 
-void ImageSpace::CreateMultiImageLocations(const std::string& input_image_file_name,
-                                           const std::string& boot_classpath,
-                                           std::vector<std::string>* image_file_names) {
+std::string ImageSpace::GetMultiImageBootClassPath(
+    const std::vector<const char*>& dex_locations,
+    const std::vector<const char*>& oat_filenames,
+    const std::vector<const char*>& image_filenames) {
+  DCHECK_GT(oat_filenames.size(), 1u);
+  // If the image filename was adapted (e.g., for our tests), we need to change this here,
+  // too, but need to strip all path components (they will be re-established when loading).
+  std::ostringstream bootcp_oss;
+  bool first_bootcp = true;
+  for (size_t i = 0; i < dex_locations.size(); ++i) {
+    if (!first_bootcp) {
+      bootcp_oss << ":";
+    }
+
+    std::string dex_loc = dex_locations[i];
+    std::string image_filename = image_filenames[i];
+
+    // Use the dex_loc path, but the image_filename name (without path elements).
+    size_t dex_last_slash = dex_loc.rfind('/');
+
+    // npos is max(size_t). That makes this a bit ugly.
+    size_t image_last_slash = image_filename.rfind('/');
+    size_t image_last_at = image_filename.rfind('@');
+    size_t image_last_sep = (image_last_slash == std::string::npos)
+                                ? image_last_at
+                                : (image_last_at == std::string::npos)
+                                      ? std::string::npos
+                                      : std::max(image_last_slash, image_last_at);
+    // Note: whenever image_last_sep == npos, +1 overflow means using the full string.
+
+    if (dex_last_slash == std::string::npos) {
+      dex_loc = image_filename.substr(image_last_sep + 1);
+    } else {
+      dex_loc = dex_loc.substr(0, dex_last_slash + 1) +
+          image_filename.substr(image_last_sep + 1);
+    }
+
+    // Image filenames already end with .art, no need to replace.
+
+    bootcp_oss << dex_loc;
+    first_bootcp = false;
+  }
+  return bootcp_oss.str();
+}
+
+void ImageSpace::ExtractMultiImageLocations(const std::string& input_image_file_name,
+                                            const std::string& boot_classpath,
+                                            std::vector<std::string>* image_file_names) {
   DCHECK(image_file_names != nullptr);
 
   std::vector<std::string> images;

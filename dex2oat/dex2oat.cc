@@ -1329,7 +1329,10 @@ class Dex2Oat FINAL {
     if (IsBootImage() && image_filenames_.size() > 1) {
       // If we're compiling the boot image, store the boot classpath into the Key-Value store.
       // We need this for the multi-image case.
-      key_value_store_->Put(OatHeader::kBootClassPathKey, GetMultiImageBootClassPath());
+      key_value_store_->Put(OatHeader::kBootClassPathKey,
+                            gc::space::ImageSpace::GetMultiImageBootClassPath(dex_locations_,
+                                                                              oat_filenames_,
+                                                                              image_filenames_));
     }
 
     if (!IsBootImage()) {
@@ -1958,49 +1961,6 @@ class Dex2Oat FINAL {
       result.push_back(t.get());
     }
     return result;
-  }
-
-  std::string GetMultiImageBootClassPath() {
-    DCHECK(IsBootImage());
-    DCHECK_GT(oat_filenames_.size(), 1u);
-    // If the image filename was adapted (e.g., for our tests), we need to change this here,
-    // too, but need to strip all path components (they will be re-established when loading).
-    std::ostringstream bootcp_oss;
-    bool first_bootcp = true;
-    for (size_t i = 0; i < dex_locations_.size(); ++i) {
-      if (!first_bootcp) {
-        bootcp_oss << ":";
-      }
-
-      std::string dex_loc = dex_locations_[i];
-      std::string image_filename = image_filenames_[i];
-
-      // Use the dex_loc path, but the image_filename name (without path elements).
-      size_t dex_last_slash = dex_loc.rfind('/');
-
-      // npos is max(size_t). That makes this a bit ugly.
-      size_t image_last_slash = image_filename.rfind('/');
-      size_t image_last_at = image_filename.rfind('@');
-      size_t image_last_sep = (image_last_slash == std::string::npos)
-                                  ? image_last_at
-                                  : (image_last_at == std::string::npos)
-                                        ? std::string::npos
-                                        : std::max(image_last_slash, image_last_at);
-      // Note: whenever image_last_sep == npos, +1 overflow means using the full string.
-
-      if (dex_last_slash == std::string::npos) {
-        dex_loc = image_filename.substr(image_last_sep + 1);
-      } else {
-        dex_loc = dex_loc.substr(0, dex_last_slash + 1) +
-            image_filename.substr(image_last_sep + 1);
-      }
-
-      // Image filenames already end with .art, no need to replace.
-
-      bootcp_oss << dex_loc;
-      first_bootcp = false;
-    }
-    return bootcp_oss.str();
   }
 
   std::vector<std::string> GetClassPathLocations(const std::string& class_path) {
