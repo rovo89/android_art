@@ -130,9 +130,13 @@ class ImageSpace : public MemMapSpace {
 
   // Use the input image filename to adapt the names in the given boot classpath to establish
   // complete locations for secondary images.
-  static void CreateMultiImageLocations(const std::string& input_image_file_name,
+  static void ExtractMultiImageLocations(const std::string& input_image_file_name,
                                         const std::string& boot_classpath,
                                         std::vector<std::string>* image_filenames);
+
+  static std::string GetMultiImageBootClassPath(const std::vector<const char*>& dex_locations,
+                                                const std::vector<const char*>& oat_filenames,
+                                                const std::vector<const char*>& image_filenames);
 
   // Return the end of the image which includes non-heap objects such as ArtMethods and ArtFields.
   uint8_t* GetImageEnd() const {
