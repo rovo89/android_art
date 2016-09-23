@@ -1171,6 +1171,7 @@ class ClassLinker {
   size_t image_pointer_size_;
 
   class FindVirtualMethodHolderVisitor;
+  friend struct CompilationHelper;  // For Compile in ImageTest.
   friend class ImageDumper;  // for DexLock
   friend class ImageWriter;  // for GetClassRoots
   friend class JniCompilerTest;  // for GetRuntimeQuickGenericJniStub

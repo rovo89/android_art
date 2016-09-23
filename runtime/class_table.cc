@@ -107,6 +107,10 @@ void ClassTable::Insert(mirror::Class* klass) {
   classes_.back().Insert(GcRoot<mirror::Class>(klass));
 }
 
+void ClassTable::InsertWithoutLocks(mirror::Class* klass) {
+  classes_.back().Insert(GcRoot<mirror::Class>(klass));
+}
+
 void ClassTable::InsertWithHash(mirror::Class* klass, size_t hash) {
   WriterMutexLock mu(Thread::Current(), lock_);
   classes_.back().InsertWithHash(GcRoot<mirror::Class>(klass), hash);

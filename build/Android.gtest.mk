@@ -27,6 +27,8 @@ GTEST_DEX_DIRECTORIES := \
   AllFields \
   ExceptionHandle \
   GetMethodSignature \
+  ImageLayoutA \
+  ImageLayoutB \
   Instrumentation \
   Interfaces \
   Lookup \
@@ -74,6 +76,7 @@ ART_GTEST_dex_cache_test_DEX_DEPS := Main Packages
 ART_GTEST_dex_file_test_DEX_DEPS := GetMethodSignature Main Nested
 ART_GTEST_dex2oat_test_DEX_DEPS := $(ART_GTEST_dex2oat_environment_tests_DEX_DEPS)
 ART_GTEST_exception_test_DEX_DEPS := ExceptionHandle
+ART_GTEST_image_test_DEX_DEPS := ImageLayoutA ImageLayoutB
 ART_GTEST_instrumentation_test_DEX_DEPS := Instrumentation
 ART_GTEST_jni_compiler_test_DEX_DEPS := MyClassNatives
 ART_GTEST_jni_internal_test_DEX_DEPS := AllFields StaticLeafMethods
