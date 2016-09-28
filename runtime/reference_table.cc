@@ -192,6 +192,13 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
       } else {
         StringAppendF(&extras, " \"%.16s... (%d chars)", utf8.c_str(), s->GetLength());
       }
+    } else if (ref->IsReferenceInstance()) {
+      mirror::Object* referent = ref->AsReference()->GetReferent();
+      if (referent == nullptr) {
+        extras = " (storing null)";
+      } else {
+        extras = StringPrintf(" (storing a %s)", PrettyTypeOf(referent).c_str());
+      }
     }
     os << StringPrintf("    %5d: ", idx) << ref << " " << className << extras << "\n";
   }
