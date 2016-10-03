@@ -119,6 +119,7 @@ enum IndirectRefKind {
   kWeakGlobal    = 3   // <<weak global reference>>
 };
 std::ostream& operator<<(std::ostream& os, const IndirectRefKind& rhs);
+const char* GetIndirectRefKindString(const IndirectRefKind& kind);
 
 /*
  * Determine what kind of indirect reference this is.
@@ -372,8 +373,8 @@ class IndirectReferenceTable {
     return reinterpret_cast<IndirectRef>(uref);
   }
 
-  // Abort if check_jni is not enabled.
-  static void AbortIfNoCheckJNI();
+  // Abort if check_jni is not enabled. Otherwise, just log as an error.
+  static void AbortIfNoCheckJNI(const std::string& msg);
 
   /* extra debugging checks */
   bool GetChecked(IndirectRef) const;
