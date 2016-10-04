@@ -228,7 +228,7 @@ class Runtime {
 
   // Aborts semi-cleanly. Used in the implementation of LOG(FATAL), which most
   // callers should prefer.
-  NO_RETURN static void Abort() REQUIRES(!Locks::abort_lock_);
+  NO_RETURN static void Abort(const char* msg) REQUIRES(!Locks::abort_lock_);
 
   // Returns the "main" ThreadGroup, used when attaching user threads.
   jobject GetMainThreadGroup() const;

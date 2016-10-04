@@ -129,15 +129,9 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
   DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);
 
   if (topIndex == max_entries_) {
-    std::ostringstream oss;
-    oss << "JNI ERROR (app bug): " << kind_ << " table overflow "
-        << "(max=" << max_entries_ << ")\n"
-        << MutatorLockedDumpable<IndirectReferenceTable>(*this);
-    if (VLOG_IS_ON(jni)) {
-      LOG(FATAL) << oss.str();
-    } else {
-      LOG_FATAL_THIS_THREAD_ONLY(oss.str());
-    }
+    LOG(FATAL) << "JNI ERROR (app bug): " << kind_ << " table overflow "
+               << "(max=" << max_entries_ << ")\n"
+               << MutatorLockedDumpable<IndirectReferenceTable>(*this);
   }
 
   // We know there's enough room in the table.  Now we just need to find
