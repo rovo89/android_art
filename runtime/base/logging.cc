@@ -193,6 +193,8 @@ LogMessage::LogMessage(const char* file, unsigned int line, LogSeverity severity
   }
 }
 LogMessage::~LogMessage() {
+  std::string msg;
+
   if (!PrintDirectly(data_->GetSeverity()) && data_->GetSeverity() != LogSeverity::NONE) {
     if (data_->GetSeverity() < gMinimumLogSeverity) {
       return;  // No need to format something we're not going to output.
@@ -202,7 +204,7 @@ LogMessage::~LogMessage() {
     if (data_->GetError() != -1) {
       data_->GetBuffer() << ": " << strerror(data_->GetError());
     }
-    std::string msg(data_->ToString());
+    msg = data_->ToString();
 
     // Do the actual logging with the lock held.
     {
@@ -216,6 +218,8 @@ LogMessage::~LogMessage() {
           size_t nl = msg.find('\n', i);
           msg[nl] = '\0';
           LogLine(data_->GetFile(), data_->GetLineNumber(), data_->GetSeverity(), &msg[i]);
+          // Undo zero-termination, so we retain the complete message.
+          msg[nl] = '\n';
           i = nl + 1;
         }
       }
@@ -224,7 +228,7 @@ LogMessage::~LogMessage() {
 
   // Abort if necessary.
   if (data_->GetSeverity() == FATAL) {
-    Runtime::Abort();
+    Runtime::Abort(msg.c_str());
   }
 }
 

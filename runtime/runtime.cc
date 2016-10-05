@@ -406,7 +406,7 @@ struct AbortState {
   }
 };
 
-void Runtime::Abort() {
+void Runtime::Abort(const char* msg) {
   gAborting++;  // set before taking any locks
 
   // Ensure that we don't have multiple threads trying to abort at once,
@@ -420,6 +420,12 @@ void Runtime::Abort() {
   // so be explicit.
   AbortState state;
   LOG(INTERNAL_FATAL) << Dumpable<AbortState>(state);
+
+  // Sometimes we dump long messages, and the Android abort message only retains the first line.
+  // In those cases, just log the message again, to avoid logcat limits.
+  if (msg != nullptr && strchr(msg, '\n') != nullptr) {
+    LOG(INTERNAL_FATAL) << msg;
+  }
 
   // Call the abort hook if we have one.
   if (Runtime::Current() != nullptr && Runtime::Current()->abort_ != nullptr) {
