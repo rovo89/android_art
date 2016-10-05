@@ -32,6 +32,20 @@ namespace art {
 
 static constexpr bool kDumpStackOnNonLocalReference = false;
 
+const char* GetIndirectRefKindString(const IndirectRefKind& kind) {
+  switch (kind) {
+    case kHandleScopeOrInvalid:
+      return "HandleScopeOrInvalid";
+    case kLocal:
+      return "Local";
+    case kGlobal:
+      return "Global";
+    case kWeakGlobal:
+      return "WeakGlobal";
+  }
+  return "IndirectRefKind Error";
+}
+
 template<typename T>
 class MutatorLockedDumpable {
  public:
@@ -58,12 +72,14 @@ std::ostream& operator<<(std::ostream& os, const MutatorLockedDumpable<T>& rhs)
   return os;
 }
 
-void IndirectReferenceTable::AbortIfNoCheckJNI() {
+void IndirectReferenceTable::AbortIfNoCheckJNI(const std::string& msg) {
   // If -Xcheck:jni is on, it'll give a more detailed error before aborting.
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   if (!vm->IsCheckJniEnabled()) {
     // Otherwise, we want to abort rather than hand back a bad reference.
-    LOG(FATAL) << "JNI ERROR (app bug): see above.";
+    LOG(FATAL) << msg;
+  } else {
+    LOG(ERROR) << msg;
   }
 }
 
@@ -113,9 +129,15 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
   DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);
 
   if (topIndex == max_entries_) {
-    LOG(FATAL) << "JNI ERROR (app bug): " << kind_ << " table overflow "
-               << "(max=" << max_entries_ << ")\n"
-               << MutatorLockedDumpable<IndirectReferenceTable>(*this);
+    std::ostringstream oss;
+    oss << "JNI ERROR (app bug): " << kind_ << " table overflow "
+        << "(max=" << max_entries_ << ")\n"
+        << MutatorLockedDumpable<IndirectReferenceTable>(*this);
+    if (VLOG_IS_ON(jni)) {
+      LOG(FATAL) << oss.str();
+    } else {
+      LOG_FATAL_THIS_THREAD_ONLY(oss.str());
+    }
   }
 
   // We know there's enough room in the table.  Now we just need to find

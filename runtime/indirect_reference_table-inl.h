@@ -36,21 +36,27 @@ inline bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
     return false;
   }
   if (UNLIKELY(GetIndirectRefKind(iref) == kHandleScopeOrInvalid)) {
-    LOG(ERROR) << "JNI ERROR (app bug): invalid " << kind_ << " " << iref;
-    AbortIfNoCheckJNI();
+    AbortIfNoCheckJNI(StringPrintf("JNI ERROR (app bug): invalid %s %p",
+                                   GetIndirectRefKindString(kind_),
+                                   iref));
     return false;
   }
   const int topIndex = segment_state_.parts.topIndex;
   int idx = ExtractIndex(iref);
   if (UNLIKELY(idx >= topIndex)) {
-    LOG(ERROR) << "JNI ERROR (app bug): accessed stale " << kind_ << " "
-               << iref << " (index " << idx << " in a table of size " << topIndex << ")";
-    AbortIfNoCheckJNI();
+    std::string msg = StringPrintf(
+        "JNI ERROR (app bug): accessed stale %s %p  (index %d in a table of size %d)",
+        GetIndirectRefKindString(kind_),
+        iref,
+        idx,
+        topIndex);
+    AbortIfNoCheckJNI(msg);
     return false;
   }
   if (UNLIKELY(table_[idx].GetReference()->IsNull())) {
-    LOG(ERROR) << "JNI ERROR (app bug): accessed deleted " << kind_ << " " << iref;
-    AbortIfNoCheckJNI();
+    AbortIfNoCheckJNI(StringPrintf("JNI ERROR (app bug): accessed deleted %s %p",
+                                   GetIndirectRefKindString(kind_),
+                                   iref));
     return false;
   }
   if (UNLIKELY(!CheckEntry("use", iref, idx))) {
@@ -63,10 +69,13 @@ inline bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
 inline bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef iref, int idx) const {
   IndirectRef checkRef = ToIndirectRef(idx);
   if (UNLIKELY(checkRef != iref)) {
-    LOG(ERROR) << "JNI ERROR (app bug): attempt to " << what
-               << " stale " << kind_ << " " << iref
-               << " (should be " << checkRef << ")";
-    AbortIfNoCheckJNI();
+    std::string msg = StringPrintf(
+        "JNI ERROR (app bug): attempt to %s stale %s %p (should be %p)",
+        what,
+        GetIndirectRefKindString(kind_),
+        iref,
+        checkRef);
+    AbortIfNoCheckJNI(msg);
     return false;
   }
   return true;
