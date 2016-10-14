@@ -53,7 +53,7 @@ class ElfFile {
   ~ElfFile();
 
   // Load segments into memory based on PT_LOAD program headers
-  bool Load(bool executable, bool low_4gb, std::string* error_msg);
+  bool Load(File* file, bool executable, bool low_4gb, std::string* error_msg);
 
   const uint8_t* FindDynamicSymbolAddress(const std::string& symbol_name) const;
 
@@ -65,7 +65,7 @@ class ElfFile {
   // The end of the memory map address range for this ELF file.
   uint8_t* End() const;
 
-  const File& GetFile() const;
+  const std::string& GetFilePath() const;
 
   bool GetSectionOffsetAndSize(const char* section_name, uint64_t* offset, uint64_t* size) const;
 

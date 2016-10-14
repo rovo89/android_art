@@ -851,7 +851,7 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
       return false;
     }
     std::string error_msg;
-    std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(),
+    std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.get(),
                                                     false,
                                                     false,
                                                     /*low_4gb*/false,

@@ -61,8 +61,8 @@ class ElfFileImpl {
                            std::string* error_msg);
   ~ElfFileImpl();
 
-  const File& GetFile() const {
-    return *file_;
+  const std::string& GetFilePath() const {
+    return file_path_;
   }
 
   uint8_t* Begin() const {
@@ -119,7 +119,7 @@ class ElfFileImpl {
 
   // Load segments into memory based on PT_LOAD program headers.
   // executable is true at run time, false at compile time.
-  bool Load(bool executable, bool low_4gb, std::string* error_msg);
+  bool Load(File* file, bool executable, bool low_4gb, std::string* error_msg);
 
   bool Fixup(Elf_Addr base_address);
   bool FixupDynamic(Elf_Addr base_address);
@@ -132,14 +132,14 @@ class ElfFileImpl {
   static void ApplyOatPatches(const uint8_t* patches, const uint8_t* patches_end, Elf_Addr delta,
                               uint8_t* to_patch, const uint8_t* to_patch_end);
 
-  bool Strip(std::string* error_msg);
+  bool Strip(File* file, std::string* error_msg);
 
  private:
   ElfFileImpl(File* file, bool writable, bool program_header_only, uint8_t* requested_base);
 
-  bool Setup(int prot, int flags, bool low_4gb, std::string* error_msg);
+  bool Setup(File* file, int prot, int flags, bool low_4gb, std::string* error_msg);
 
-  bool SetMap(MemMap* map, std::string* error_msg);
+  bool SetMap(File* file, MemMap* map, std::string* error_msg);
 
   uint8_t* GetProgramHeadersStart() const;
   uint8_t* GetSectionHeadersStart() const;
@@ -163,7 +163,7 @@ class ElfFileImpl {
   const Elf_Sym* FindDynamicSymbol(const std::string& symbol_name) const;
 
   // Check that certain sections and their dependencies exist.
-  bool CheckSectionsExist(std::string* error_msg) const;
+  bool CheckSectionsExist(File* file, std::string* error_msg) const;
 
   // Check that the link of the first section links to the second section.
   bool CheckSectionsLinked(const uint8_t* source, const uint8_t* target) const;
@@ -191,7 +191,7 @@ class ElfFileImpl {
   // Lookup a string by section type. Returns null for special 0 offset.
   const char* GetString(Elf_Word section_type, Elf_Word) const;
 
-  const File* const file_;
+  const std::string file_path_;
   const bool writable_;
   const bool program_header_only_;
 

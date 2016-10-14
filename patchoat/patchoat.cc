@@ -401,7 +401,7 @@ PatchOat::MaybePic PatchOat::IsOatPic(const ElfFile* oat_in) {
     return ERROR_OAT_FILE;
   }
 
-  const std::string& file_path = oat_in->GetFile().GetPath();
+  const std::string& file_path = oat_in->GetFilePath();
 
   const OatHeader* oat_header = GetOatHeader(oat_in);
   if (oat_header == nullptr) {
@@ -804,7 +804,7 @@ bool PatchOat::PatchOatHeader(ElfFileImpl* oat_file) {
   }
   OatHeader* oat_header = reinterpret_cast<OatHeader*>(oat_file->Begin() + rodata_sec->sh_offset);
   if (!oat_header->IsValid()) {
-    LOG(ERROR) << "Elf file " << oat_file->GetFile().GetPath() << " has an invalid oat header";
+    LOG(ERROR) << "Elf file " << oat_file->GetFilePath() << " has an invalid oat header";
     return false;
   }
   oat_header->RelocateOat(delta_);
@@ -812,10 +812,11 @@ bool PatchOat::PatchOatHeader(ElfFileImpl* oat_file) {
 }
 
 bool PatchOat::PatchElf() {
-  if (oat_file_->Is64Bit())
+  if (oat_file_->Is64Bit()) {
     return PatchElf<ElfFileImpl64>(oat_file_->GetImpl64());
-  else
+  } else {
     return PatchElf<ElfFileImpl32>(oat_file_->GetImpl32());
+  }
 }
 
 template <typename ElfFileImpl>
