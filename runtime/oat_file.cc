@@ -898,7 +898,7 @@ bool ElfOatFile::ElfFileOpen(File* file,
     DCHECK(!error_msg->empty());
     return false;
   }
-  bool loaded = elf_file_->Load(executable, low_4gb, error_msg);
+  bool loaded = elf_file_->Load(file, executable, low_4gb, error_msg);
   DCHECK(loaded || !error_msg->empty());
   return loaded;
 }

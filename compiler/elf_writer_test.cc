@@ -94,7 +94,7 @@ TEST_F(ElfWriterTest, dlsym) {
                                               /*low_4gb*/false,
                                               &error_msg));
     CHECK(ef.get() != nullptr) << error_msg;
-    CHECK(ef->Load(false, /*low_4gb*/false, &error_msg)) << error_msg;
+    CHECK(ef->Load(file.get(), false, /*low_4gb*/false, &error_msg)) << error_msg;
     EXPECT_EQ(dl_oatdata, ef->FindDynamicSymbolAddress("oatdata"));
     EXPECT_EQ(dl_oatexec, ef->FindDynamicSymbolAddress("oatexec"));
     EXPECT_EQ(dl_oatlastword, ef->FindDynamicSymbolAddress("oatlastword"));
