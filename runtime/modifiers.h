@@ -76,6 +76,11 @@ static constexpr uint32_t kAccHasDefaultMethod          = 0x40000000;
 // class/ancestor overrides finalize()
 static constexpr uint32_t kAccClassIsFinalizable        = 0x80000000;
 
+// Set for a method that has been hooked by Xposed.
+static constexpr uint32_t kAccXposedHookedMethod   = 0x10000000;
+// Set for the backup of a method that has been hooked by Xposed.
+static constexpr uint32_t kAccXposedOriginalMethod = 0x20000000;
+
 // Valid (meaningful) bits for a field.
 static constexpr uint32_t kAccValidFieldFlags = kAccPublic | kAccPrivate | kAccProtected |
     kAccStatic | kAccFinal | kAccVolatile | kAccTransient | kAccSynthetic | kAccEnum;

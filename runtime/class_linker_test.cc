@@ -277,7 +277,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
       // Check that all direct methods are static (either <clinit> or a regular static method).
       for (ArtMethod& m : klass->GetDirectMethods(sizeof(void*))) {
         EXPECT_TRUE(m.IsStatic());
-        EXPECT_TRUE(m.IsDirect());
+        EXPECT_TRUE(m.IsRealDirect());
       }
     } else {
       if (!klass->IsSynthetic()) {
@@ -314,19 +314,19 @@ class ClassLinkerTest : public CommonRuntimeTest {
 
     for (ArtMethod& method : klass->GetDirectMethods(sizeof(void*))) {
       AssertMethod(&method);
-      EXPECT_TRUE(method.IsDirect());
+      EXPECT_TRUE(method.IsRealDirect());
       EXPECT_EQ(klass.Get(), method.GetDeclaringClass());
     }
 
     for (ArtMethod& method : klass->GetDeclaredVirtualMethods(sizeof(void*))) {
       AssertMethod(&method);
-      EXPECT_FALSE(method.IsDirect());
+      EXPECT_FALSE(method.IsRealDirect());
       EXPECT_EQ(klass.Get(), method.GetDeclaringClass());
     }
 
     for (ArtMethod& method : klass->GetCopiedMethods(sizeof(void*))) {
       AssertMethod(&method);
-      EXPECT_FALSE(method.IsDirect());
+      EXPECT_FALSE(method.IsRealDirect());
       EXPECT_TRUE(method.IsCopied());
       EXPECT_TRUE(method.GetDeclaringClass()->IsInterface())
           << "declaring class: " << PrettyClass(method.GetDeclaringClass());

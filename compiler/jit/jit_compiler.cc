@@ -200,7 +200,7 @@ JitCompiler::~JitCompiler() {
 }
 
 bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
-  DCHECK(!method->IsProxyMethod());
+  DCHECK(!method->IsProxyOrHookedMethod());
   TimingLogger logger("JIT compiler timing logger", true, VLOG_IS_ON(jit));
   StackHandleScope<2> hs(self);
   self->AssertNoPendingException();

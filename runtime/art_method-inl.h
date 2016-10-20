@@ -219,18 +219,18 @@ inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
     case kStatic:
       return !IsStatic();
     case kDirect:
-      return !IsDirect() || IsStatic();
+      return !IsRealDirect() || IsStatic();
     case kVirtual: {
       // We have an error if we are direct or a non-default, non-miranda interface method.
       mirror::Class* methods_class = GetDeclaringClass();
-      return IsDirect() || (methods_class->IsInterface() && !IsDefault() && !IsMiranda());
+      return IsRealDirect() || (methods_class->IsInterface() && !IsDefault() && !IsMiranda());
     }
     case kSuper:
       // Constructors and static methods are called with invoke-direct.
       return IsConstructor() || IsStatic();
     case kInterface: {
       mirror::Class* methods_class = GetDeclaringClass();
-      return IsDirect() || !(methods_class->IsInterface() || methods_class->IsObjectClass());
+      return IsRealDirect() || !(methods_class->IsInterface() || methods_class->IsObjectClass());
     }
     default:
       LOG(FATAL) << "Unreachable - invocation type: " << type;
@@ -280,13 +280,13 @@ inline const char* ArtMethod::GetDeclaringClassDescriptor() {
   if (UNLIKELY(dex_method_idx == DexFile::kDexNoIndex)) {
     return "<runtime method>";
   }
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   const DexFile* dex_file = GetDexFile();
   return dex_file->GetMethodDeclaringClassDescriptor(dex_file->GetMethodId(dex_method_idx));
 }
 
 inline const char* ArtMethod::GetShorty(uint32_t* out_length) {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   const DexFile* dex_file = GetDexFile();
   return dex_file->GetMethodShorty(dex_file->GetMethodId(GetDexMethodIndex()), out_length);
 }
@@ -294,7 +294,7 @@ inline const char* ArtMethod::GetShorty(uint32_t* out_length) {
 inline const Signature ArtMethod::GetSignature() {
   uint32_t dex_method_idx = GetDexMethodIndex();
   if (dex_method_idx != DexFile::kDexNoIndex) {
-    DCHECK(!IsProxyMethod());
+    DCHECK(!IsRealProxyMethod());
     const DexFile* dex_file = GetDexFile();
     return dex_file->GetMethodSignature(dex_file->GetMethodId(dex_method_idx));
   }
@@ -304,7 +304,7 @@ inline const Signature ArtMethod::GetSignature() {
 inline const char* ArtMethod::GetName() {
   uint32_t dex_method_idx = GetDexMethodIndex();
   if (LIKELY(dex_method_idx != DexFile::kDexNoIndex)) {
-    DCHECK(!IsProxyMethod());
+    DCHECK(!IsRealProxyMethod());
     const DexFile* dex_file = GetDexFile();
     return dex_file->GetMethodName(dex_file->GetMethodId(dex_method_idx));
   }
@@ -329,12 +329,12 @@ inline const DexFile::CodeItem* ArtMethod::GetCodeItem() {
 }
 
 inline bool ArtMethod::IsResolvedTypeIdx(uint16_t type_idx, size_t ptr_size) {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   return GetDexCacheResolvedType(type_idx, ptr_size) != nullptr;
 }
 
 inline int32_t ArtMethod::GetLineNumFromDexPC(uint32_t dex_pc) {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyOrHookedMethod());
   if (dex_pc == DexFile::kDexNoIndex) {
     return IsNative() ? -2 : -1;
   }
@@ -342,13 +342,13 @@ inline int32_t ArtMethod::GetLineNumFromDexPC(uint32_t dex_pc) {
 }
 
 inline const DexFile::ProtoId& ArtMethod::GetPrototype() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   const DexFile* dex_file = GetDexFile();
   return dex_file->GetMethodPrototype(dex_file->GetMethodId(GetDexMethodIndex()));
 }
 
 inline const DexFile::TypeList* ArtMethod::GetParameterTypeList() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   const DexFile* dex_file = GetDexFile();
   const DexFile::ProtoId& proto = dex_file->GetMethodPrototype(
       dex_file->GetMethodId(GetDexMethodIndex()));
@@ -356,22 +356,22 @@ inline const DexFile::TypeList* ArtMethod::GetParameterTypeList() {
 }
 
 inline const char* ArtMethod::GetDeclaringClassSourceFile() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   return GetDeclaringClass()->GetSourceFile();
 }
 
 inline uint16_t ArtMethod::GetClassDefIndex() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   return GetDeclaringClass()->GetDexClassDefIndex();
 }
 
 inline const DexFile::ClassDef& ArtMethod::GetClassDef() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   return GetDexFile()->GetClassDef(GetClassDefIndex());
 }
 
 inline const char* ArtMethod::GetReturnTypeDescriptor() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   const DexFile* dex_file = GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(GetDexMethodIndex());
   const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
@@ -380,27 +380,27 @@ inline const char* ArtMethod::GetReturnTypeDescriptor() {
 }
 
 inline const char* ArtMethod::GetTypeDescriptorFromTypeIdx(uint16_t type_idx) {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   const DexFile* dex_file = GetDexFile();
   return dex_file->GetTypeDescriptor(dex_file->GetTypeId(type_idx));
 }
 
 inline mirror::ClassLoader* ArtMethod::GetClassLoader() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   return GetDeclaringClass()->GetClassLoader();
 }
 
 inline mirror::DexCache* ArtMethod::GetDexCache() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   return GetDeclaringClass()->GetDexCache();
 }
 
-inline bool ArtMethod::IsProxyMethod() {
+inline bool ArtMethod::IsRealProxyMethod() {
   return GetDeclaringClass()->IsProxyClass();
 }
 
 inline ArtMethod* ArtMethod::GetInterfaceMethodIfProxy(size_t pointer_size) {
-  if (LIKELY(!IsProxyMethod())) {
+  if (LIKELY(!IsRealProxyMethod())) {
     return this;
   }
   mirror::Class* klass = GetDeclaringClass();
@@ -425,7 +425,7 @@ inline void ArtMethod::SetDexCacheResolvedTypes(GcRoot<mirror::Class>* new_dex_c
 }
 
 inline mirror::Class* ArtMethod::GetReturnType(bool resolve, size_t ptr_size) {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsRealProxyMethod());
   const DexFile* dex_file = GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(GetDexMethodIndex());
   const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
@@ -456,10 +456,12 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor, size_t pointer_size) {
       interface_method->VisitRoots(visitor, pointer_size);
     }
     visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
+    if (UNLIKELY(IsXposedHookedMethod())) {
+      GetXposedOriginalMethod()->VisitRoots(visitor, pointer_size);
     // We know we don't have profiling information if the class hasn't been verified. Note
     // that this check also ensures the IsNative call can be made, as IsNative expects a fully
     // created class (and not a retired one).
-    if (klass->IsVerified()) {
+    } else if (klass->IsVerified()) {
       // Runtime methods and native methods use the same field as the profiling info for
       // storing their own data (jni entrypoint for native methods, and ImtConflictTable for
       // some runtime methods).

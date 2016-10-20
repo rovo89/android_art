@@ -55,7 +55,7 @@ ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnabl
 }
 
 mirror::String* ArtMethod::GetNameAsString(Thread* self) {
-  CHECK(!IsProxyMethod());
+  CHECK(!IsRealProxyMethod());
   StackHandleScope<1> hs(self);
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(GetDexCache()));
   auto* dex_file = dex_cache->GetDexFile();
@@ -83,7 +83,7 @@ InvokeType ArtMethod::GetInvokeType() {
     return kStatic;
   } else if (GetDeclaringClass()->IsInterface()) {
     return kInterface;
-  } else if (IsDirect()) {
+  } else if (IsDirectOrOriginal()) {
     return kDirect;
   } else {
     return kVirtual;
@@ -134,7 +134,7 @@ ArtMethod* ArtMethod::FindOverriddenMethod(size_t pointer_size) {
     result = super_class->GetVTableEntry(method_index, pointer_size);
   } else {
     // Method didn't override superclass method so search interfaces
-    if (IsProxyMethod()) {
+    if (IsRealProxyMethod()) {
       result = mirror::DexCache::GetElementPtrSize(GetDexCacheResolvedMethods(pointer_size),
                                                    GetDexMethodIndex(),
                                                    pointer_size);
@@ -313,6 +313,10 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
 }
 
 void ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
+  if (UNLIKELY(IsXposedHookedMethod())) {
+    GetXposedOriginalMethod()->RegisterNative(native_method, is_fast);
+    return;
+  }
   CHECK(IsNative()) << PrettyMethod(this);
   CHECK(!IsFastNative()) << PrettyMethod(this);
   CHECK(native_method != nullptr) << PrettyMethod(this);
@@ -323,6 +327,10 @@ void ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
 }
 
 void ArtMethod::UnregisterNative() {
+  if (UNLIKELY(IsXposedHookedMethod())) {
+    GetXposedOriginalMethod()->UnregisterNative();
+    return;
+  }
   CHECK(IsNative() && !IsFastNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
   RegisterNative(GetJniDlsymLookupStub(), false);
@@ -388,7 +396,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   }
 
   if (existing_entry_point == GetQuickProxyInvokeHandler()) {
-    DCHECK(IsProxyMethod() && !IsConstructor());
+    DCHECK(IsXposedHookedMethod() || IsRealProxyMethod() && !IsConstructor());
     // The proxy entry point does not have any method header.
     return nullptr;
   }
@@ -418,7 +426,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
           << ", pc=" << std::hex << pc
           << ", entry_point=" << std::hex << reinterpret_cast<uintptr_t>(existing_entry_point)
           << ", copy=" << std::boolalpha << IsCopied()
-          << ", proxy=" << std::boolalpha << IsProxyMethod();
+          << ", proxy=" << std::boolalpha << IsRealProxyMethod();
     }
   }
 

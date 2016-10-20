@@ -510,7 +510,7 @@ inline ArtMethod* Class::FindVirtualMethodForSuper(ArtMethod* method, size_t poi
 
 inline ArtMethod* Class::FindVirtualMethodForVirtualOrInterface(ArtMethod* method,
                                                                 size_t pointer_size) {
-  if (method->IsDirect()) {
+  if (method->IsDirectOrOriginal()) {
     return method;
   }
   if (method->GetDeclaringClass()->IsInterface() && !method->IsCopied()) {

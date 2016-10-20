@@ -34,7 +34,7 @@ static jobject Constructor_getAnnotationNative(JNIEnv* env, jobject javaMethod,
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->IsProxyMethod()) {
+  if (method->IsRealProxyMethod()) {
     return nullptr;
   } else {
     Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
@@ -46,7 +46,7 @@ static jobject Constructor_getAnnotationNative(JNIEnv* env, jobject javaMethod,
 static jobjectArray Constructor_getDeclaredAnnotations(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->IsProxyMethod()) {
+  if (method->IsRealProxyMethod()) {
     mirror::Class* class_class = mirror::Class::GetJavaLangClass();
     mirror::Class* class_array_class =
         Runtime::Current()->GetClassLinker()->FindArrayClass(soa.Self(), &class_class);
@@ -87,7 +87,7 @@ static jobjectArray Constructor_getExceptionTypes(JNIEnv* env, jobject javaMetho
 static jobjectArray Constructor_getParameterAnnotationsNative(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->IsProxyMethod()) {
+  if (method->IsRealProxyMethod()) {
     return nullptr;
   } else {
     return soa.AddLocalReference<jobjectArray>(
@@ -100,7 +100,7 @@ static jboolean Constructor_isAnnotationPresentNative(JNIEnv* env, jobject javaM
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->IsProxyMethod()) {
+  if (method->IsRealProxyMethod()) {
     // Proxies have no annotations.
     return false;
   }
