@@ -1515,6 +1515,19 @@ JDWP::JdwpError Dbg::OutputDeclaredFields(JDWP::RefTypeId class_id, bool with_ge
   return JDWP::ERR_NONE;
 }
 
+inline void OutputMethod(ArtMethod& m, bool with_generic, JDWP::ExpandBuf* pReply)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  expandBufAddMethodId(pReply, ToMethodId(&m));
+  expandBufAddUtf8String(pReply, m.GetInterfaceMethodIfProxy(sizeof(void*))->GetName());
+  expandBufAddUtf8String(pReply,
+                         m.GetInterfaceMethodIfProxy(sizeof(void*))->GetSignature().ToString());
+  if (with_generic) {
+    const char* generic_signature = "";
+    expandBufAddUtf8String(pReply, generic_signature);
+  }
+  expandBufAdd4BE(pReply, MangleAccessFlags(m.GetAccessFlags()));
+}
+
 JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId class_id, bool with_generic,
                                            JDWP::ExpandBuf* pReply) {
   JDWP::JdwpError error;
@@ -1523,20 +1536,23 @@ JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId class_id, bool with_g
     return error;
   }
 
-  expandBufAdd4BE(pReply, c->NumMethods());
-
   auto* cl = Runtime::Current()->GetClassLinker();
   auto ptr_size = cl->GetImagePointerSize();
+
+  size_t xposed_method_count = 0;
   for (ArtMethod& m : c->GetMethods(ptr_size)) {
-    expandBufAddMethodId(pReply, ToMethodId(&m));
-    expandBufAddUtf8String(pReply, m.GetInterfaceMethodIfProxy(sizeof(void*))->GetName());
-    expandBufAddUtf8String(pReply,
-                           m.GetInterfaceMethodIfProxy(sizeof(void*))->GetSignature().ToString());
-    if (with_generic) {
-      const char* generic_signature = "";
-      expandBufAddUtf8String(pReply, generic_signature);
+    if (UNLIKELY(m.IsXposedHookedMethod())) {
+      ++xposed_method_count;
     }
-    expandBufAdd4BE(pReply, MangleAccessFlags(m.GetAccessFlags()));
+  }
+
+  expandBufAdd4BE(pReply, c->NumMethods() + xposed_method_count);
+
+  for (ArtMethod& m : c->GetMethods(ptr_size)) {
+    OutputMethod(m, with_generic, pReply);
+    if (UNLIKELY(xposed_method_count > 0 && m.IsXposedHookedMethod())) {
+      OutputMethod(*m.GetXposedOriginalMethod(), with_generic, pReply);
+    }
   }
   return JDWP::ERR_NONE;
 }
