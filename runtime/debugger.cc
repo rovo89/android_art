@@ -581,7 +581,7 @@ class UpdateEntryPointsClassVisitor : public ClassVisitor {
       const void* code = m.GetEntryPointFromQuickCompiledCode();
       if (Runtime::Current()->GetHeap()->IsInBootImageOatFile(code) &&
           !m.IsNative() &&
-          !m.IsProxyMethod()) {
+          !m.IsProxyOrHookedMethod()) {
         instrumentation_->UpdateMethodsCodeFromDebugger(&m, GetQuickToInterpreterBridge());
       }
     }
@@ -1400,7 +1400,7 @@ void Dbg::SetJdwpLocation(JDWP::JdwpLocation* location, ArtMethod* m, uint32_t d
     location->type_tag = GetTypeTag(c);
     location->class_id = gRegistry->AddRefType(c);
     location->method_id = ToMethodId(m);
-    location->dex_pc = (m->IsNative() || m->IsProxyMethod()) ? static_cast<uint64_t>(-1) : dex_pc;
+    location->dex_pc = (m->IsNative() || m->IsProxyOrHookedMethod()) ? static_cast<uint64_t>(-1) : dex_pc;
   }
 }
 
@@ -1575,7 +1575,7 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId method_id, JDWP::Expan
   const DexFile::CodeItem* code_item = m->GetCodeItem();
   uint64_t start, end;
   if (code_item == nullptr) {
-    DCHECK(m->IsNative() || m->IsProxyMethod());
+    DCHECK(m->IsNative() || m->IsProxyOrHookedMethod());
     start = -1;
     end = -1;
   } else {
@@ -2811,7 +2811,7 @@ static void SetEventLocation(JDWP::EventLocation* location, ArtMethod* m, uint32
     memset(location, 0, sizeof(*location));
   } else {
     location->method = GetCanonicalMethod(m);
-    location->dex_pc = (m->IsNative() || m->IsProxyMethod()) ? static_cast<uint32_t>(-1) : dex_pc;
+    location->dex_pc = (m->IsNative() || m->IsProxyOrHookedMethod()) ? static_cast<uint32_t>(-1) : dex_pc;
   }
 }
 
@@ -3424,7 +3424,7 @@ bool Dbg::IsForcedInterpreterNeededForCallingImpl(Thread* thread, ArtMethod* m) 
     return false;
   }
 
-  if (!m->IsNative() && !m->IsProxyMethod()) {
+  if (!m->IsNative() && !m->IsProxyOrHookedMethod()) {
     // If we want to step into a method, then we have to force interpreter on that call.
     if (ssc->GetStepDepth() == JDWP::SD_INTO) {
       return true;
@@ -3441,7 +3441,7 @@ bool Dbg::IsForcedInterpreterNeededForResolutionImpl(Thread* thread, ArtMethod* 
     return false;
   }
   // We can only interpret pure Java method.
-  if (m->IsNative() || m->IsProxyMethod()) {
+  if (m->IsNative() || m->IsProxyOrHookedMethod()) {
     return false;
   }
   const SingleStepControl* const ssc = thread->GetSingleStepControl();
@@ -3479,7 +3479,7 @@ bool Dbg::IsForcedInstrumentationNeededForResolutionImpl(Thread* thread, ArtMeth
     return false;
   }
   // We can only interpret pure Java method.
-  if (m->IsNative() || m->IsProxyMethod()) {
+  if (m->IsNative() || m->IsProxyOrHookedMethod()) {
     return false;
   }
   const SingleStepControl* const ssc = thread->GetSingleStepControl();
@@ -3516,7 +3516,7 @@ bool Dbg::IsForcedInterpreterNeededForUpcallImpl(Thread* thread, ArtMethod* m) {
     return false;
   }
   // We can only interpret pure Java method.
-  if (m->IsNative() || m->IsProxyMethod()) {
+  if (m->IsNative() || m->IsProxyOrHookedMethod()) {
     return false;
   }
   const SingleStepControl* const ssc = thread->GetSingleStepControl();

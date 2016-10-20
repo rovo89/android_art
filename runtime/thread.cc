@@ -2074,7 +2074,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     trace_methods_and_pcs->SetElementPtrSize<kTransactionActive>(count_, m, pointer_size_);
     trace_methods_and_pcs->SetElementPtrSize<kTransactionActive>(
         trace_methods_and_pcs->GetLength() / 2 + count_,
-        m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc(),
+        m->IsProxyOrHookedMethod() ? DexFile::kDexNoIndex : GetDexPc(),
         pointer_size_);
     // Save the declaring class of the method to ensure that the declaring classes of the methods
     // do not get unloaded while the stack trace is live.
@@ -2197,7 +2197,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
     StackHandleScope<3> hs(soa.Self());
     auto class_name_object(hs.NewHandle<mirror::String>(nullptr));
     auto source_name_object(hs.NewHandle<mirror::String>(nullptr));
-    if (method->IsProxyMethod()) {
+    if (method->IsProxyOrHookedMethod()) {
       line_number = -1;
       class_name_object.Assign(method->GetDeclaringClass()->GetName());
       // source_name_object intentionally left null for proxy methods
@@ -2764,7 +2764,7 @@ class ReferenceMapVisitor : public StackVisitor {
     VisitDeclaringClass(m);
 
     // Process register map (which native and runtime methods don't have)
-    if (!m->IsNative() && !m->IsRuntimeMethod() && (!m->IsProxyMethod() || m->IsConstructor())) {
+    if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsXposedHookedMethod() && (!m->IsRealProxyMethod() || m->IsConstructor())) {
       const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
       DCHECK(method_header->IsOptimized());
       auto* vreg_base = reinterpret_cast<StackReference<mirror::Object>*>(

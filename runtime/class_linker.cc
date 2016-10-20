@@ -2680,7 +2680,7 @@ const OatFile::OatMethod ClassLinker::FindOatMethodFor(ArtMethod* method, bool* 
   // method for direct methods (or virtual methods made direct).
   mirror::Class* declaring_class = method->GetDeclaringClass();
   size_t oat_method_index;
-  if (method->IsStatic() || method->IsDirect()) {
+  if (method->IsStatic() || method->IsRealDirect()) {
     // Simple case where the oat method index was stashed at load time.
     oat_method_index = method->GetMethodIndex();
   } else {
@@ -2715,7 +2715,7 @@ const OatFile::OatMethod ClassLinker::FindOatMethodFor(ArtMethod* method, bool* 
 // Special case to get oat code without overwriting a trampoline.
 const void* ClassLinker::GetQuickOatCodeFor(ArtMethod* method) {
   CHECK(method->IsInvokable()) << PrettyMethod(method);
-  if (method->IsProxyMethod()) {
+  if (method->IsProxyOrHookedMethod()) {
     return GetQuickProxyInvokeHandler();
   }
   bool found;
@@ -2734,7 +2734,7 @@ const void* ClassLinker::GetQuickOatCodeFor(ArtMethod* method) {
 }
 
 const void* ClassLinker::GetOatMethodQuickCodeFor(ArtMethod* method) {
-  if (method->IsNative() || !method->IsInvokable() || method->IsProxyMethod()) {
+  if (method->IsNative() || !method->IsInvokable() || method->IsProxyOrHookedMethod()) {
     return nullptr;
   }
   bool found;
@@ -2746,7 +2746,7 @@ const void* ClassLinker::GetOatMethodQuickCodeFor(ArtMethod* method) {
 }
 
 bool ClassLinker::ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* quick_code) {
-  if (UNLIKELY(method->IsNative() || method->IsProxyMethod())) {
+  if (UNLIKELY(method->IsNative() || method->IsProxyOrHookedMethod())) {
     return false;
   }
 
@@ -2829,6 +2829,9 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
     if (has_oat_class) {
       OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
       quick_code = oat_method.GetQuickCode();
+    }
+    if (UNLIKELY(method->IsXposedHookedMethod())) {
+      method = method->GetXposedOriginalMethod();
     }
     // Check whether the method is native, in which case it's generic JNI.
     if (quick_code == nullptr && method->IsNative()) {
@@ -4282,7 +4285,7 @@ std::string ClassLinker::GetDescriptorForProxy(mirror::Class* proxy_class) {
 
 ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class, ArtMethod* proxy_method) {
   DCHECK(proxy_class->IsProxyClass());
-  DCHECK(proxy_method->IsProxyMethod());
+  DCHECK(proxy_method->IsRealProxyMethod());
   {
     Thread* const self = Thread::Current();
     ReaderMutexLock mu(self, dex_lock_);
@@ -4784,7 +4787,7 @@ static void ThrowSignatureCheckResolveReturnTypeException(Handle<mirror::Class> 
                                                           ArtMethod* m)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(Thread::Current()->IsExceptionPending());
-  DCHECK(!m->IsProxyMethod());
+  DCHECK(!m->IsRealProxyMethod());
   const DexFile* dex_file = m->GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(m->GetDexMethodIndex());
   const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
@@ -4809,7 +4812,7 @@ static void ThrowSignatureCheckResolveArgException(Handle<mirror::Class> klass,
                                                    uint32_t arg_type_idx)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(Thread::Current()->IsExceptionPending());
-  DCHECK(!m->IsProxyMethod());
+  DCHECK(!m->IsRealProxyMethod());
   const DexFile* dex_file = m->GetDexFile();
   std::string arg_type = PrettyType(arg_type_idx, *dex_file);
   std::string class_loader = PrettyTypeOf(m->GetDeclaringClass()->GetClassLoader());
@@ -5501,7 +5504,7 @@ class MethodNameAndSignatureComparator FINAL : public ValueObject {
       SHARED_REQUIRES(Locks::mutator_lock_) :
       dex_file_(method->GetDexFile()), mid_(&dex_file_->GetMethodId(method->GetDexMethodIndex())),
       name_(nullptr), name_len_(0) {
-    DCHECK(!method->IsProxyMethod()) << PrettyMethod(method);
+    DCHECK(!method->IsRealProxyMethod()) << PrettyMethod(method);
   }
 
   const char* GetName() {
@@ -5513,7 +5516,7 @@ class MethodNameAndSignatureComparator FINAL : public ValueObject {
 
   bool HasSameNameAndSignature(ArtMethod* other)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(!other->IsProxyMethod()) << PrettyMethod(other);
+    DCHECK(!other->IsRealProxyMethod()) << PrettyMethod(other);
     const DexFile* other_dex_file = other->GetDexFile();
     const DexFile::MethodId& other_mid = other_dex_file->GetMethodId(other->GetDexMethodIndex());
     if (dex_file_ == other_dex_file) {

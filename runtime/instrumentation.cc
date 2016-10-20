@@ -110,11 +110,14 @@ bool Instrumentation::NeedDebugVersionForBootImageCode(ArtMethod* method, const 
   return Dbg::IsDebuggerActive() &&
          Runtime::Current()->GetHeap()->IsInBootImageOatFile(code) &&
          !method->IsNative() &&
-         !method->IsProxyMethod();
+         !method->IsProxyOrHookedMethod();
 }
 
 void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
-  if (!method->IsInvokable() || method->IsProxyMethod()) {
+  if (UNLIKELY(method->IsXposedHookedMethod())) {
+    method = method->GetXposedOriginalMethod();
+  }
+  if (!method->IsInvokable() || method->IsRealProxyMethod()) {
     // Do not change stubs for these methods.
     return;
   }
@@ -758,7 +761,7 @@ bool Instrumentation::IsDeoptimizedMethodsEmpty() const {
 
 void Instrumentation::Deoptimize(ArtMethod* method) {
   CHECK(!method->IsNative());
-  CHECK(!method->IsProxyMethod());
+  CHECK(!method->IsProxyOrHookedMethod());
   CHECK(method->IsInvokable());
 
   Thread* self = Thread::Current();
@@ -781,7 +784,7 @@ void Instrumentation::Deoptimize(ArtMethod* method) {
 
 void Instrumentation::Undeoptimize(ArtMethod* method) {
   CHECK(!method->IsNative());
-  CHECK(!method->IsProxyMethod());
+  CHECK(!method->IsProxyOrHookedMethod());
   CHECK(method->IsInvokable());
 
   Thread* self = Thread::Current();

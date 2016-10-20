@@ -185,7 +185,7 @@ mirror::Object* StackVisitor::GetThisObject() const {
     } else {
       return cur_shadow_frame_->GetVRegReference(0);
     }
-  } else if (m->IsProxyMethod()) {
+  } else if (m->IsProxyOrHookedMethod()) {
     if (cur_quick_frame_ != nullptr) {
       return artQuickGetProxyThisObject(cur_quick_frame_);
     } else {
@@ -616,7 +616,7 @@ static instrumentation::InstrumentationStackFrame& GetInstrumentationStackFrame(
 
 static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  if (method->IsNative() || method->IsRuntimeMethod() || method->IsProxyMethod()) {
+  if (method->IsNative() || method->IsRuntimeMethod() || method->IsProxyOrHookedMethod()) {
     return;
   }
 
@@ -733,7 +733,7 @@ QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
   ArtMethod* method = GetMethod();
   Runtime* runtime = Runtime::Current();
 
-  if (method->IsAbstract()) {
+  if (method->IsAbstract() || method->IsXposedHookedMethod()) {
     return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
   }
 
@@ -742,11 +742,11 @@ QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
     return runtime->GetRuntimeMethodFrameInfo(method);
   }
 
-  if (method->IsProxyMethod()) {
+  if (method->IsRealProxyMethod()) {
     // There is only one direct method of a proxy class: the constructor. A direct method is
     // cloned from the original java.lang.reflect.Proxy and is executed as usual quick
     // compiled method without any stubs. Therefore the method must have a OatQuickMethodHeader.
-    DCHECK(!method->IsDirect() && !method->IsConstructor())
+    DCHECK(!method->IsRealDirect() && !method->IsConstructor())
         << "Constructors of proxy classes must have a OatQuickMethodHeader";
     return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
   }

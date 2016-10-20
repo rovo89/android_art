@@ -593,7 +593,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
     num_regs = code_item->registers_size_;
     DCHECK_EQ(string_init ? number_of_inputs - 1 : number_of_inputs, code_item->ins_size_);
   } else {
-    DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
+    DCHECK(called_method->IsNative() || called_method->IsProxyOrHookedMethod());
     num_regs = number_of_inputs;
   }
 
@@ -615,7 +615,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
 
     // The new StringFactory call is static and has one fewer argument.
     if (code_item == nullptr) {
-      DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
+      DCHECK(called_method->IsNative() || called_method->IsProxyOrHookedMethod());
       num_regs--;
     }  // else ... don't need to change num_regs since it comes up from the string_init's code item
     number_of_inputs--;

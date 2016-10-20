@@ -509,6 +509,7 @@ void QuickExceptionHandler::DeoptimizeSingleFrame() {
   // Compiled code made an explicit deoptimization.
   ArtMethod* deopt_method = visitor.GetSingleFrameDeoptMethod();
   DCHECK(deopt_method != nullptr);
+  CHECK(!deopt_method->IsXposedHookedMethod());
   if (Runtime::Current()->UseJitCompilation()) {
     Runtime::Current()->GetJit()->GetCodeCache()->InvalidateCompiledCodeFor(
         deopt_method, visitor.GetSingleFrameDeoptQuickMethodHeader());

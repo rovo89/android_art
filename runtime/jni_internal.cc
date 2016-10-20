@@ -2191,7 +2191,7 @@ class JNI {
         c->DumpClass(LOG(return_errors ? ERROR : FATAL), mirror::Class::kDumpClassFullDetail);
         ThrowNoSuchMethodError(soa, c, name, sig, "static or non-static");
         return JNI_ERR;
-      } else if (!m->IsNative()) {
+      } else if (!m->IsNative() && !(m->IsXposedHookedMethod() && m->GetXposedOriginalMethod()->IsNative())) {
         LOG(return_errors ? ERROR : FATAL) << "Failed to register non-native method "
             << PrettyDescriptor(c) << "." << name << sig
             << " as native";
@@ -2216,7 +2216,7 @@ class JNI {
     size_t unregistered_count = 0;
     auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
     for (auto& m : c->GetMethods(pointer_size)) {
-      if (m.IsNative()) {
+      if (m.IsNative() || (m.IsXposedHookedMethod() && m.GetXposedOriginalMethod()->IsNative())) {
         m.UnregisterNative();
         unregistered_count++;
       }

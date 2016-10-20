@@ -756,7 +756,7 @@ bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction, ArtMethod* metho
 bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
                                  ArtMethod* method,
                                  HInstruction** return_replacement) {
-  if (method->IsProxyMethod()) {
+  if (method->IsProxyOrHookedMethod()) {
     VLOG(compiler) << "Method " << PrettyMethod(method)
                    << " is not inlined because of unimplemented inline support for proxy methods.";
     return false;

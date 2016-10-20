@@ -295,7 +295,7 @@ class QuickArgumentVisitor {
   // 1st GPR.
   static mirror::Object* GetProxyThisObject(ArtMethod** sp)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    CHECK((*sp)->IsProxyMethod());
+    CHECK((*sp)->IsProxyOrHookedMethod());
     CHECK_GT(kNumQuickGprArgs, 0u);
     constexpr uint32_t kThisGprIndex = 0u;  // 'this' is in the 1st GPR.
     size_t this_arg_offset = kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset +
@@ -839,7 +839,7 @@ void BuildQuickArgumentVisitor::FixupReferences() {
 extern "C" uint64_t artQuickProxyInvokeHandler(
     ArtMethod* proxy_method, mirror::Object* receiver, Thread* self, ArtMethod** sp)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  DCHECK(proxy_method->IsProxyMethod()) << PrettyMethod(proxy_method);
+  DCHECK(proxy_method->IsProxyOrHookedMethod()) << PrettyMethod(proxy_method);
   DCHECK(receiver->GetClass()->IsProxyClass()) << PrettyMethod(proxy_method);
   // Ensure we don't get thread suspension until the object arguments are safely in jobjects.
   const char* old_cause =
@@ -870,7 +870,7 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
   // Convert proxy method into expected interface method.
   ArtMethod* interface_method = proxy_method->FindOverriddenMethod(sizeof(void*));
   DCHECK(interface_method != nullptr) << PrettyMethod(proxy_method);
-  DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
+  DCHECK(!interface_method->IsRealProxyMethod()) << PrettyMethod(interface_method);
   self->EndAssertNoThreadSuspension(old_cause);
   jobject interface_method_jobj = soa.AddLocalReference<jobject>(
       mirror::Method::CreateFromArtMethod(soa.Self(), interface_method));

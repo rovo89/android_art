@@ -3853,11 +3853,11 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
   }
   // See if the method type implied by the invoke instruction matches the access flags for the
   // target method.
-  if ((method_type == METHOD_DIRECT && (!res_method->IsDirect() || res_method->IsStatic())) ||
+  if ((method_type == METHOD_DIRECT && (!res_method->IsRealDirect() || res_method->IsStatic())) ||
       (method_type == METHOD_STATIC && !res_method->IsStatic()) ||
       ((method_type == METHOD_SUPER ||
         method_type == METHOD_VIRTUAL ||
-        method_type == METHOD_INTERFACE) && res_method->IsDirect())
+        method_type == METHOD_INTERFACE) && res_method->IsRealDirect())
       ) {
     Fail(VERIFY_ERROR_CLASS_CHANGE) << "invoke type (" << method_type << ") does not match method "
                                        " type of " << PrettyMethod(res_method);
@@ -4176,7 +4176,7 @@ ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer method from " << inst->Name();
     return nullptr;
   }
-  if (FailOrAbort(this, !res_method->IsDirect(), "Quick-invoked method is direct at ",
+  if (FailOrAbort(this, !res_method->IsRealDirect(), "Quick-invoked method is direct at ",
                   work_insn_idx_)) {
     return nullptr;
   }

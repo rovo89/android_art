@@ -1167,7 +1167,7 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
   }
 
   // Proxy methods should not be synchronized.
-  if (m->IsProxyMethod()) {
+  if (m->IsProxyOrHookedMethod()) {
     CHECK(!m->IsSynchronized());
     return;
   }
