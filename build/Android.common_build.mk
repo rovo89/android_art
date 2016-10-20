@@ -30,9 +30,9 @@ include art/build/Android.common_utils.mk
 # Beware that tests may use the non-debug build for performance, notable 055-enum-performance
 #
 ART_BUILD_TARGET_NDEBUG ?= true
-ART_BUILD_TARGET_DEBUG ?= true
-ART_BUILD_HOST_NDEBUG ?= true
-ART_BUILD_HOST_DEBUG ?= true
+ART_BUILD_TARGET_DEBUG ?= false
+ART_BUILD_HOST_NDEBUG ?= false
+ART_BUILD_HOST_DEBUG ?= false
 
 # Set this to change what opt level Art is built at.
 ART_DEBUG_OPT_FLAG ?= -O2
@@ -40,7 +40,7 @@ ART_NDEBUG_OPT_FLAG ?= -O3
 
 # Enable the static builds only for checkbuilds.
 ifneq (,$(filter checkbuild,$(MAKECMDGOALS)))
-  ART_BUILD_HOST_STATIC ?= true
+  ART_BUILD_HOST_STATIC ?= false
 else
   ART_BUILD_HOST_STATIC ?= false
 endif
@@ -57,14 +57,14 @@ endif
 ifeq ($(ART_BUILD_TARGET_NDEBUG),false)
 $(info Disabling ART_BUILD_TARGET_NDEBUG)
 endif
-ifeq ($(ART_BUILD_TARGET_DEBUG),false)
-$(info Disabling ART_BUILD_TARGET_DEBUG)
+ifeq ($(ART_BUILD_TARGET_DEBUG),true)
+$(info Enabling ART_BUILD_TARGET_DEBUG)
 endif
-ifeq ($(ART_BUILD_HOST_NDEBUG),false)
-$(info Disabling ART_BUILD_HOST_NDEBUG)
+ifeq ($(ART_BUILD_HOST_NDEBUG),true)
+$(info Enabling ART_BUILD_HOST_NDEBUG)
 endif
-ifeq ($(ART_BUILD_HOST_DEBUG),false)
-$(info Disabling ART_BUILD_HOST_DEBUG)
+ifeq ($(ART_BUILD_HOST_DEBUG),true)
+$(info Enabling ART_BUILD_HOST_DEBUG)
 endif
 ifeq ($(ART_BUILD_HOST_STATIC),true)
 $(info Enabling ART_BUILD_HOST_STATIC)
