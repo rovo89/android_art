@@ -18,6 +18,8 @@
 
 #include <fstream>
 
+#include "base/stringprintf.h"
+
 namespace art {
 
 CompilerOptions::CompilerOptions()
@@ -148,7 +150,7 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
   if (option.starts_with("--compiler-filter=")) {
     const char* compiler_filter_string = option.substr(strlen("--compiler-filter=")).data();
     if (!CompilerFilter::ParseCompilerFilter(compiler_filter_string, &compiler_filter_)) {
-      Usage("Unknown --compiler-filter value %s", compiler_filter_string);
+      LOG(WARNING) << StringPrintf("Unknown --compiler-filter value %s", compiler_filter_string);
     }
   } else if (option == "--compile-pic") {
     compile_pic_ = true;

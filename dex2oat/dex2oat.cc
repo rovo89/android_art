@@ -658,7 +658,7 @@ class Dex2Oat FINAL {
     } else if (backend_str == "Optimizing") {
       compiler_kind_ = Compiler::kOptimizing;
     } else {
-      Usage("Unknown compiler backend: %s", backend_str.data());
+      LOG(WARNING) << StringPrintf("Unknown compiler backend: %s", backend_str.data());
     }
   }
 
@@ -673,7 +673,7 @@ class Dex2Oat FINAL {
     } else if (format_str == "uncompressed") {
       image_storage_mode_ = ImageHeader::kStorageModeUncompressed;
     } else {
-      Usage("Unknown image format: %s", format_str.data());
+      LOG(WARNING) << StringPrintf("Unknown image format: %s", format_str.data());
     }
   }
 
@@ -1157,7 +1157,7 @@ class Dex2Oat FINAL {
         }
         force_determinism_ = true;
       } else if (!compiler_options_->ParseCompilerOption(option, Usage)) {
-        Usage("Unknown argument %s", option.data());
+        LOG(WARNING) << StringPrintf("Unknown argument %s", option.data());
       }
     }
 
