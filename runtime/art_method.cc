@@ -31,8 +31,10 @@
 #include "jit/jit_code_cache.h"
 #include "jit/profiling_info.h"
 #include "jni_internal.h"
+#include "linear_alloc.h"
 #include "mirror/abstract_method.h"
 #include "mirror/class-inl.h"
+#include "mirror/method.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
@@ -506,6 +508,47 @@ void ArtMethod::CopyFrom(ArtMethod* src, size_t image_pointer_size) {
   }
   // Clear hotness to let the JIT properly decide when to compile this method.
   hotness_count_ = 0;
+}
+
+void ArtMethod::EnableXposedHook(ScopedObjectAccess& soa, jobject additional_info) {
+  if (UNLIKELY(IsXposedHookedMethod())) {
+    // Already hooked
+    return;
+  } else if (UNLIKELY(IsXposedOriginalMethod())) {
+    // This should never happen
+    ThrowIllegalArgumentException(StringPrintf("Cannot hook the method backup: %s", PrettyMethod(this).c_str()).c_str());
+    return;
+  }
+
+  // Create a backup of the ArtMethod object
+  auto* cl = Runtime::Current()->GetClassLinker();
+  auto* linear_alloc = cl->GetAllocatorForClassLoader(GetClassLoader());
+  ArtMethod* backup_method = cl->CreateRuntimeMethod(linear_alloc);
+  backup_method->CopyFrom(this, cl->GetImagePointerSize());
+  backup_method->SetAccessFlags(backup_method->GetAccessFlags() | kAccXposedOriginalMethod);
+
+  // Create a Method/Constructor object for the backup ArtMethod object
+  mirror::AbstractMethod* reflected_method;
+  if (IsConstructor()) {
+    reflected_method = mirror::Constructor::CreateFromArtMethod(soa.Self(), backup_method);
+  } else {
+    reflected_method = mirror::Method::CreateFromArtMethod(soa.Self(), backup_method);
+  }
+  reflected_method->SetAccessible<false>(true);
+
+  // Save extra information in a separate structure, stored instead of the native method
+  XposedHookInfo* hook_info = reinterpret_cast<XposedHookInfo*>(linear_alloc->Alloc(soa.Self(), sizeof(XposedHookInfo)));
+  hook_info->reflected_method = soa.Vm()->AddGlobalRef(soa.Self(), reflected_method);
+  hook_info->additional_info = soa.Env()->NewGlobalRef(additional_info);
+  hook_info->original_method = backup_method;
+  SetEntryPointFromJniPtrSize(reinterpret_cast<uint8_t*>(hook_info), sizeof(void*));
+
+  SetEntryPointFromQuickCompiledCode(GetQuickProxyInvokeHandler());
+  SetCodeItemOffset(0);
+
+  // Adjust access flags.
+  const uint32_t kRemoveFlags = kAccNative | kAccSynchronized | kAccAbstract | kAccDefault | kAccDefaultConflict;
+  SetAccessFlags((GetAccessFlags() & ~kRemoveFlags) | kAccXposedHookedMethod);
 }
 
 }  // namespace art
