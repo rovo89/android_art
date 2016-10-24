@@ -732,6 +732,9 @@ class ArtMethod FINAL {
     return (GetAccessFlags() & kAccXposedOriginalMethod) != 0;
   }
 
+  void EnableXposedHook(ScopedObjectAccess& soa, jobject additional_info)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   const XposedHookInfo* GetXposedHookInfo() {
     DCHECK(IsXposedHookedMethod());
     return reinterpret_cast<const XposedHookInfo*>(GetEntryPointFromJniPtrSize(sizeof(void*)));
