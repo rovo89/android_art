@@ -2197,10 +2197,14 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
     StackHandleScope<3> hs(soa.Self());
     auto class_name_object(hs.NewHandle<mirror::String>(nullptr));
     auto source_name_object(hs.NewHandle<mirror::String>(nullptr));
-    if (method->IsProxyOrHookedMethod()) {
+    if (method->IsRealProxyMethod()) {
       line_number = -1;
       class_name_object.Assign(method->GetDeclaringClass()->GetName());
       // source_name_object intentionally left null for proxy methods
+    } else if (method->IsXposedHookedMethod()) {
+      line_number = -1;
+      class_name_object.Assign(method->GetDeclaringClass()->GetName());
+      source_name_object.Assign(mirror::String::AllocFromModifiedUtf8(soa.Self(), "<Xposed>"));
     } else {
       line_number = method->GetLineNumFromDexPC(dex_pc);
       // Allocate element, potentially triggering GC

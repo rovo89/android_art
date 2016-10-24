@@ -1515,10 +1515,14 @@ JDWP::JdwpError Dbg::OutputDeclaredFields(JDWP::RefTypeId class_id, bool with_ge
   return JDWP::ERR_NONE;
 }
 
-inline void OutputMethod(ArtMethod& m, bool with_generic, JDWP::ExpandBuf* pReply)
+inline void OutputMethod(ArtMethod& m, bool with_generic, bool is_xposed, JDWP::ExpandBuf* pReply)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   expandBufAddMethodId(pReply, ToMethodId(&m));
-  expandBufAddUtf8String(pReply, m.GetInterfaceMethodIfProxy(sizeof(void*))->GetName());
+  if (UNLIKELY(is_xposed)) {
+    expandBufAddUtf8String(pReply, StringPrintf("%s<Xposed>", m.GetInterfaceMethodIfProxy(sizeof(void*))->GetName()).c_str());
+  } else {
+    expandBufAddUtf8String(pReply, m.GetInterfaceMethodIfProxy(sizeof(void*))->GetName());
+  }
   expandBufAddUtf8String(pReply,
                          m.GetInterfaceMethodIfProxy(sizeof(void*))->GetSignature().ToString());
   if (with_generic) {
@@ -1549,9 +1553,10 @@ JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId class_id, bool with_g
   expandBufAdd4BE(pReply, c->NumMethods() + xposed_method_count);
 
   for (ArtMethod& m : c->GetMethods(ptr_size)) {
-    OutputMethod(m, with_generic, pReply);
-    if (UNLIKELY(xposed_method_count > 0 && m.IsXposedHookedMethod())) {
-      OutputMethod(*m.GetXposedOriginalMethod(), with_generic, pReply);
+    bool is_xposed = xposed_method_count > 0 && m.IsXposedHookedMethod();
+    OutputMethod(m, with_generic, is_xposed, pReply);
+    if (UNLIKELY(is_xposed)) {
+      OutputMethod(*m.GetXposedOriginalMethod(), with_generic, false, pReply);
     }
   }
   return JDWP::ERR_NONE;
