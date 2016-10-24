@@ -173,6 +173,11 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
                                     std::vector<jvalue>& args)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
+JValue InvokeXposedHandleHookedMethod(ScopedObjectAccessAlreadyRunnable& soa, const char* shorty,
+                                      jobject rcvr_jobj, jmethodID method,
+                                      std::vector<jvalue>& args)
+    SHARED_REQUIRES(Locks::mutator_lock_);
+
 bool FillArrayData(mirror::Object* obj, const Instruction::ArrayDataPayload* payload)
     SHARED_REQUIRES(Locks::mutator_lock_);
 

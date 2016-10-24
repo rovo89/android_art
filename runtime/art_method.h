@@ -741,6 +741,8 @@ class ArtMethod FINAL {
     return GetXposedHookInfo()->original_method;
   }
 
+  static jclass xposed_callback_class;
+  static jmethodID xposed_callback_method;
 
  protected:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
