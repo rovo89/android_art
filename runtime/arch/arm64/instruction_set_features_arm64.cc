@@ -30,7 +30,16 @@ const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromVariant(
 
   // Look for variants that need a fix for a53 erratum 835769.
   static const char* arm64_variants_with_a53_835769_bug[] = {
-      "default", "generic", "cortex-a53"  // Pessimistically assume all generic ARM64s are A53s.
+      // Pessimistically assume all generic CPUs are cortex-a53.
+      "default",
+      "generic",
+      "cortex-a53",
+      "cortex-a53.a57",
+      "cortex-a53.a72",
+      // Pessimistically assume all "big" cortex CPUs are paired with a cortex-a53.
+      "cortex-a57",
+      "cortex-a72",
+      "cortex-a73",
   };
   bool needs_a53_835769_fix = FindVariantInArray(arm64_variants_with_a53_835769_bug,
                                                  arraysize(arm64_variants_with_a53_835769_bug),
@@ -39,7 +48,10 @@ const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromVariant(
   if (!needs_a53_835769_fix) {
     // Check to see if this is an expected variant.
     static const char* arm64_known_variants[] = {
-        "denver64", "kryo", "exynos-m1"
+        "cortex-a35",
+        "exynos-m1",
+        "denver64",
+        "kryo"
     };
     if (!FindVariantInArray(arm64_known_variants, arraysize(arm64_known_variants), variant)) {
       std::ostringstream os;
