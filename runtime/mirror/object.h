@@ -115,7 +115,7 @@ class MANAGED LOCKABLE Object {
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   size_t SizeOf() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  Object* Clone(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_)
+  Object* Clone(Thread* self, size_t num_target_bytes = 0) SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
   int32_t IdentityHashCode() const
