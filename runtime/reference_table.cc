@@ -215,33 +215,87 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
   }
   std::sort(sorted_entries.begin(), sorted_entries.end(), GcRootComparator());
 
+  class SummaryElement {
+   public:
+    GcRoot<mirror::Object> root;
+    size_t equiv;
+    size_t identical;
+
+    SummaryElement() : equiv(0), identical(0) {}
+    SummaryElement(SummaryElement&& ref) {
+      root = ref.root;
+      equiv = ref.equiv;
+      identical = ref.identical;
+    }
+    SummaryElement(const SummaryElement&) = default;
+    SummaryElement& operator=(SummaryElement&&) = default;
+
+    void Reset(GcRoot<mirror::Object>& _root) {
+      root = _root;
+      equiv = 0;
+      identical = 0;
+    }
+  };
+  std::vector<SummaryElement> sorted_summaries;
+  {
+    SummaryElement prev;
+
+    for (GcRoot<mirror::Object>& root : sorted_entries) {
+      mirror::Object* current = root.Read<kWithoutReadBarrier>();
+
+      if (UNLIKELY(prev.root.IsNull())) {
+        prev.Reset(root);
+        continue;
+      }
+
+      mirror::Object* prevObj = prev.root.Read<kWithoutReadBarrier>();
+      if (current == prevObj) {
+        // Same reference, added more than once.
+        ++prev.identical;
+      } else if (current->GetClass() == prevObj->GetClass() &&
+          GetElementCount(current) == GetElementCount(prevObj)) {
+        // Same class / element count, different object.
+        ++prev.equiv;
+      } else {
+        sorted_summaries.push_back(prev);
+        prev.Reset(root);
+      }
+      prev.root = root;
+    }
+    sorted_summaries.push_back(prev);
+
+    // Compare summary elements, first by combined count, then by identical (indicating leaks),
+    // then by class (and size and address).
+    struct SummaryElementComparator {
+      GcRootComparator gc_root_cmp;
+
+      bool operator()(SummaryElement& elem1, SummaryElement& elem2) const
+          NO_THREAD_SAFETY_ANALYSIS {
+        Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+
+        size_t count1 = elem1.equiv + elem1.identical;
+        size_t count2 = elem2.equiv + elem2.identical;
+        if (count1 != count2) {
+          return count1 > count2;
+        }
+
+        if (elem1.identical != elem2.identical) {
+          return elem1.identical > elem2.identical;
+        }
+
+        // Otherwise, compare the GC roots as before.
+        return gc_root_cmp(elem1.root, elem2.root);
+      }
+    };
+    std::sort(sorted_summaries.begin(), sorted_summaries.end(), SummaryElementComparator());
+  }
+
   // Dump a summary of the whole table.
   os << "  Summary:\n";
-  size_t equiv = 0;
-  size_t identical = 0;
-  mirror::Object* prev = nullptr;
-  for (GcRoot<mirror::Object>& root : sorted_entries) {
-    mirror::Object* current = root.Read<kWithoutReadBarrier>();
-    if (prev != nullptr) {
-      const size_t element_count = GetElementCount(prev);
-      if (current == prev) {
-        // Same reference, added more than once.
-        ++identical;
-      } else if (current->GetClass() == prev->GetClass() &&
-          GetElementCount(current) == element_count) {
-        // Same class / element count, different object.
-        ++equiv;
-      } else {
-        // Different class.
-        DumpSummaryLine(os, prev, element_count, identical, equiv);
-        equiv = 0;
-        identical = 0;
-      }
-    }
-    prev = current;
+  for (SummaryElement& elem : sorted_summaries) {
+    mirror::Object* elemObj = elem.root.Read<kWithoutReadBarrier>();
+    DumpSummaryLine(os, elemObj, GetElementCount(elemObj), elem.identical, elem.equiv);
   }
-  // Handle the last entry.
-  DumpSummaryLine(os, prev, GetElementCount(prev), identical, equiv);
 }
 
 void ReferenceTable::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {

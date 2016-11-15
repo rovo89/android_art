@@ -106,4 +106,77 @@ TEST_F(ReferenceTableTest, Basics) {
   }
 }
 
+static std::vector<size_t> FindAll(const std::string& haystack, const char* needle) {
+  std::vector<size_t> res;
+  size_t start = 0;
+  do {
+    size_t pos = haystack.find(needle, start);
+    if (pos == std::string::npos) {
+      break;
+    }
+    res.push_back(pos);
+    start = pos + 1;
+  } while (start < haystack.size());
+  return res;
+}
+
+TEST_F(ReferenceTableTest, SummaryOrder) {
+  // Check that the summary statistics are sorted.
+  ScopedObjectAccess soa(Thread::Current());
+
+  ReferenceTable rt("test", 0, 20);
+
+  {
+    mirror::Object* s1 = mirror::String::AllocFromModifiedUtf8(soa.Self(), "hello");
+    mirror::Object* s2 = mirror::String::AllocFromModifiedUtf8(soa.Self(), "world");
+
+    // 3 copies of s1, 2 copies of s2, interleaved.
+    for (size_t i = 0; i != 2; ++i) {
+      rt.Add(s1);
+      rt.Add(s2);
+    }
+    rt.Add(s1);
+  }
+
+  {
+    // Differently sized byte arrays. Should be sorted by identical (non-unique cound).
+    mirror::Object* b1_1 = mirror::ByteArray::Alloc(soa.Self(), 1);
+    rt.Add(b1_1);
+    rt.Add(mirror::ByteArray::Alloc(soa.Self(), 2));
+    rt.Add(b1_1);
+    rt.Add(mirror::ByteArray::Alloc(soa.Self(), 2));
+    rt.Add(mirror::ByteArray::Alloc(soa.Self(), 1));
+    rt.Add(mirror::ByteArray::Alloc(soa.Self(), 2));
+  }
+
+  rt.Add(mirror::CharArray::Alloc(soa.Self(), 0));
+
+  // Now dump, and ensure order.
+  std::ostringstream oss;
+  rt.Dump(oss);
+
+  // Only do this on the part after Summary.
+  std::string base = oss.str();
+  size_t summary_pos = base.find("Summary:");
+  ASSERT_NE(summary_pos, std::string::npos);
+
+  std::string haystack = base.substr(summary_pos);
+
+  std::vector<size_t> strCounts = FindAll(haystack, "java.lang.String");
+  std::vector<size_t> b1Counts = FindAll(haystack, "byte[] (1 elements)");
+  std::vector<size_t> b2Counts = FindAll(haystack, "byte[] (2 elements)");
+  std::vector<size_t> cCounts = FindAll(haystack, "char[]");
+
+  // Only one each.
+  EXPECT_EQ(1u, strCounts.size());
+  EXPECT_EQ(1u, b1Counts.size());
+  EXPECT_EQ(1u, b2Counts.size());
+  EXPECT_EQ(1u, cCounts.size());
+
+  // Expect them to be in order.
+  EXPECT_LT(strCounts[0], b1Counts[0]);
+  EXPECT_LT(b1Counts[0], b2Counts[0]);
+  EXPECT_LT(b2Counts[0], cCounts[0]);
+}
+
 }  // namespace art
