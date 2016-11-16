@@ -167,6 +167,10 @@ class Jit {
 
   static bool LoadCompilerLibrary(std::string* error_msg);
 
+  ThreadPool* GetThreadPool() const {
+    return thread_pool_.get();
+  }
+
  private:
   Jit();
 
@@ -266,6 +270,16 @@ class JitOptions {
         save_profiling_info_(false) { }
 
   DISALLOW_COPY_AND_ASSIGN(JitOptions);
+};
+
+// Helper class to stop the JIT for a given scope. This will wait for the JIT to quiesce.
+class ScopedJitSuspend {
+ public:
+  ScopedJitSuspend();
+  ~ScopedJitSuspend();
+
+ private:
+  bool was_on_;
 };
 
 }  // namespace jit

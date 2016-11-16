@@ -706,5 +706,24 @@ void Jit::WaitForCompilationToFinish(Thread* self) {
   }
 }
 
+ScopedJitSuspend::ScopedJitSuspend() {
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  was_on_ = (jit != nullptr) && (jit->GetThreadPool() != nullptr);
+  if (was_on_) {
+    Thread* self = Thread::Current();
+    jit->WaitForCompilationToFinish(self);
+    jit->GetThreadPool()->StopWorkers(self);
+    jit->WaitForCompilationToFinish(self);
+  }
+}
+
+ScopedJitSuspend::~ScopedJitSuspend() {
+  if (was_on_) {
+    DCHECK(Runtime::Current()->GetJit() != nullptr);
+    DCHECK(Runtime::Current()->GetJit()->GetThreadPool() != nullptr);
+    Runtime::Current()->GetJit()->GetThreadPool()->StartWorkers(Thread::Current());
+  }
+}
+
 }  // namespace jit
 }  // namespace art
