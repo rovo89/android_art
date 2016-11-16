@@ -183,7 +183,7 @@ Task* ThreadPool::GetTask(Thread* self) {
     }
 
     ++waiting_count_;
-    if (waiting_count_ == GetThreadCount() && tasks_.empty()) {
+    if (waiting_count_ == GetThreadCount() && !HasOutstandingTasks()) {
       // We may be done, lets broadcast to the completion condition.
       completion_condition_.Broadcast(self);
     }
@@ -206,7 +206,7 @@ Task* ThreadPool::TryGetTask(Thread* self) {
 }
 
 Task* ThreadPool::TryGetTaskLocked() {
-  if (started_ && !tasks_.empty()) {
+  if (HasOutstandingTasks()) {
     Task* task = tasks_.front();
     tasks_.pop_front();
     return task;
@@ -225,7 +225,7 @@ void ThreadPool::Wait(Thread* self, bool do_work, bool may_hold_locks) {
   }
   // Wait until each thread is waiting and the task list is empty.
   MutexLock mu(self, task_queue_lock_);
-  while (!shutting_down_ && (waiting_count_ != GetThreadCount() || !tasks_.empty())) {
+  while (!shutting_down_ && (waiting_count_ != GetThreadCount() || HasOutstandingTasks())) {
     if (!may_hold_locks) {
       completion_condition_.Wait(self);
     } else {
