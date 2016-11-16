@@ -100,7 +100,8 @@ class ThreadPool {
   ThreadPool(const char* name, size_t num_threads);
   virtual ~ThreadPool();
 
-  // Wait for all tasks currently on queue to get completed.
+  // Wait for all tasks currently on queue to get completed. If the pool has been stopped, only
+  // wait till all already running tasks are done.
   void Wait(Thread* self, bool do_work, bool may_hold_locks) REQUIRES(!task_queue_lock_);
 
   size_t GetTaskCount(Thread* self) REQUIRES(!task_queue_lock_);
@@ -128,6 +129,10 @@ class ThreadPool {
   // Are we shutting down?
   bool IsShuttingDown() const REQUIRES(task_queue_lock_) {
     return shutting_down_;
+  }
+
+  bool HasOutstandingTasks() const REQUIRES(task_queue_lock_) {
+    return started_ && !tasks_.empty();
   }
 
   const std::string name_;

@@ -98,6 +98,24 @@ TEST_F(ThreadPoolTest, StopStart) {
   thread_pool.Wait(self, false, false);
 }
 
+TEST_F(ThreadPoolTest, StopWait) {
+  Thread* self = Thread::Current();
+  ThreadPool thread_pool("Thread pool test thread pool", num_threads);
+
+  AtomicInteger count(0);
+  static const int32_t num_tasks = num_threads * 100;
+  for (int32_t i = 0; i < num_tasks; ++i) {
+    thread_pool.AddTask(self, new CountTask(&count));
+  }
+
+  // Signal the threads to start processing tasks.
+  thread_pool.StartWorkers(self);
+  usleep(200);
+  thread_pool.StopWorkers(self);
+
+  thread_pool.Wait(self, false, false);  // We should not deadlock here.
+}
+
 class TreeTask : public Task {
  public:
   TreeTask(ThreadPool* const thread_pool, AtomicInteger* count, int depth)
