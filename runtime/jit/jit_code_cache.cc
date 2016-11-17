@@ -342,10 +342,16 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
           core_spill_mask,
           fp_spill_mask,
           code_size);
+      // Flush caches before we remove write permission because on some ARMv8 hardware,
+      // flushing caches require write permissions.
+      //
+      // For reference, here are kernel patches discussing about this issue:
+      // https://android.googlesource.com/kernel/msm/%2B/0e7f7bcc3fc87489cda5aa6aff8ce40eed912279
+      // https://patchwork.kernel.org/patch/9047921/
+      FlushInstructionCache(reinterpret_cast<char*>(code_ptr),
+                            reinterpret_cast<char*>(code_ptr + code_size));
     }
 
-    FlushInstructionCache(reinterpret_cast<char*>(code_ptr),
-                          reinterpret_cast<char*>(code_ptr + code_size));
     number_of_compilations_++;
   }
   // We need to update the entry point in the runnable state for the instrumentation.
