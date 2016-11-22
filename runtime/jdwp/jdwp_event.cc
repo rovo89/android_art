@@ -621,8 +621,8 @@ void JdwpState::SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy
   Thread* const self = Thread::Current();
   self->AssertThreadSuspensionIsAllowable();
   CHECK(pReq != nullptr);
+  CHECK_EQ(threadId, Dbg::GetThreadSelfId()) << "Only the current thread can suspend itself";
   /* send request and possibly suspend ourselves */
-  JDWP::ObjectId thread_self_id = Dbg::GetThreadSelfId();
   ScopedThreadSuspension sts(self, kWaitingForDebuggerSend);
   if (suspend_policy != SP_NONE) {
     AcquireJdwpTokenForEvent(threadId);
@@ -631,7 +631,7 @@ void JdwpState::SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy
   {
     // Before suspending, we change our state to kSuspended so the debugger sees us as RUNNING.
     ScopedThreadStateChange stsc(self, kSuspended);
-    SuspendByPolicy(suspend_policy, thread_self_id);
+    SuspendByPolicy(suspend_policy, threadId);
   }
 }
 
@@ -658,13 +658,10 @@ void JdwpState::ReleaseJdwpTokenForCommand() {
 }
 
 void JdwpState::AcquireJdwpTokenForEvent(ObjectId threadId) {
-  CHECK_NE(Thread::Current(), GetDebugThread()) << "Expected event thread";
-  CHECK_NE(debug_thread_id_, threadId) << "Not expected debug thread";
   SetWaitForJdwpToken(threadId);
 }
 
 void JdwpState::ReleaseJdwpTokenForEvent() {
-  CHECK_NE(Thread::Current(), GetDebugThread()) << "Expected event thread";
   ClearWaitForJdwpToken();
 }
 
@@ -685,23 +682,28 @@ void JdwpState::SetWaitForJdwpToken(ObjectId threadId) {
   /* this is held for very brief periods; contention is unlikely */
   MutexLock mu(self, jdwp_token_lock_);
 
-  CHECK_NE(jdwp_token_owner_thread_id_, threadId) << "Thread is already holding event thread lock";
+  if (jdwp_token_owner_thread_id_ == threadId) {
+    // Only the debugger thread may already hold the event token. For instance, it may trigger
+    // a CLASS_PREPARE event while processing a command that initializes a class.
+    CHECK_EQ(threadId, debug_thread_id_) << "Non-debugger thread is already holding event token";
+  } else {
+    /*
+     * If another thread is already doing stuff, wait for it.  This can
+     * go to sleep indefinitely.
+     */
 
-  /*
-   * If another thread is already doing stuff, wait for it.  This can
-   * go to sleep indefinitely.
-   */
-  while (jdwp_token_owner_thread_id_ != 0) {
-    VLOG(jdwp) << StringPrintf("event in progress (%#" PRIx64 "), %#" PRIx64 " sleeping",
-                               jdwp_token_owner_thread_id_, threadId);
-    waited = true;
-    jdwp_token_cond_.Wait(self);
-  }
+    while (jdwp_token_owner_thread_id_ != 0) {
+      VLOG(jdwp) << StringPrintf("event in progress (%#" PRIx64 "), %#" PRIx64 " sleeping",
+                                 jdwp_token_owner_thread_id_, threadId);
+      waited = true;
+      jdwp_token_cond_.Wait(self);
+    }
 
-  if (waited || threadId != debug_thread_id_) {
-    VLOG(jdwp) << StringPrintf("event token grabbed (%#" PRIx64 ")", threadId);
+    if (waited || threadId != debug_thread_id_) {
+      VLOG(jdwp) << StringPrintf("event token grabbed (%#" PRIx64 ")", threadId);
+    }
+    jdwp_token_owner_thread_id_ = threadId;
   }
-  jdwp_token_owner_thread_id_ = threadId;
 }
 
 /*
@@ -1224,14 +1226,15 @@ void JdwpState::PostClassPrepare(mirror::Class* klass) {
     VLOG(jdwp) << "  suspend_policy=" << suspend_policy;
   }
 
-  if (thread_id == debug_thread_id_) {
+  ObjectId reported_thread_id = thread_id;
+  if (reported_thread_id == debug_thread_id_) {
     /*
      * JDWP says that, for a class prep in the debugger thread, we
      * should set thread to null and if any threads were supposed
      * to be suspended then we suspend all other threads.
      */
     VLOG(jdwp) << "  NOTE: class prepare in debugger thread!";
-    thread_id = 0;
+    reported_thread_id = 0;
     if (suspend_policy == SP_EVENT_THREAD) {
       suspend_policy = SP_ALL;
     }
@@ -1244,7 +1247,7 @@ void JdwpState::PostClassPrepare(mirror::Class* klass) {
   for (const JdwpEvent* pEvent : match_list) {
     expandBufAdd1(pReq, pEvent->eventKind);
     expandBufAdd4BE(pReq, pEvent->requestId);
-    expandBufAddObjectId(pReq, thread_id);
+    expandBufAddObjectId(pReq, reported_thread_id);
     expandBufAdd1(pReq, tag);
     expandBufAddRefTypeId(pReq, class_id);
     expandBufAddUtf8String(pReq, signature);
