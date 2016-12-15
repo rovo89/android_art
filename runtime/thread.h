@@ -864,6 +864,15 @@ class Thread {
     --tls32_.disable_thread_flip_count;
   }
 
+  // Returns true if the thread is allowed to call into java.
+  bool CanCallIntoJava() const {
+    return can_call_into_java_;
+  }
+
+  void SetCanCallIntoJava(bool can_call_into_java) {
+    can_call_into_java_ = can_call_into_java;
+  }
+
   // Activates single step control for debugging. The thread takes the
   // ownership of the given SingleStepControl*. It is deleted by a call
   // to DeactivateSingleStepControl or upon thread destruction.
@@ -1517,6 +1526,10 @@ class Thread {
 
   // Debug disable read barrier count, only is checked for debug builds and only in the runtime.
   uint8_t debug_disallow_read_barrier_ = 0;
+
+  // True if the thread is allowed to call back into java (for e.g. during class resolution).
+  // By default this is true.
+  bool can_call_into_java_;
 
   friend class Dbg;  // For SetStateUnsafe.
   friend class gc::collector::SemiSpace;  // For getting stack traces.

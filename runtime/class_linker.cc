@@ -2409,6 +2409,14 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
 
       // We'll let the Java-side rediscover all this and throw the exception with the right stack
       // trace.
+      if (!self->CanCallIntoJava()) {
+        // Oops, we can't call into java so we can't run actual class-loader code.
+        // This is true for e.g. for the compiler (jit or aot).
+        mirror::Throwable* pre_allocated =
+            Runtime::Current()->GetPreAllocatedNoClassDefFoundError();
+        self->SetException(pre_allocated);
+        return nullptr;
+      }
     }
 
     if (Runtime::Current()->IsAotCompiler()) {

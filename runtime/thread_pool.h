@@ -77,6 +77,7 @@ class ThreadPoolWorker {
   DISALLOW_COPY_AND_ASSIGN(ThreadPoolWorker);
 };
 
+// Note that thread pool workers will set Thread#setCanCallIntoJava to false.
 class ThreadPool {
  public:
   // Returns the number of threads in the thread pool.
