@@ -789,6 +789,13 @@ bool ImageWriter::PruneAppImageClassInternal(
   result = result || PruneAppImageClassInternal(klass->GetSuperClass(),
                                                 &my_early_exit,
                                                 visited);
+  // Remove the class if the dex file is not in the set of dex files. This happens for classes that
+  // are from uses library if there is no profile. b/30688277
+  mirror::DexCache* dex_cache = klass->GetDexCache();
+  if (dex_cache != nullptr) {
+    result = result ||
+        dex_file_oat_index_map_.find(dex_cache->GetDexFile()) == dex_file_oat_index_map_.end();
+  }
   // Erase the element we stored earlier since we are exiting the function.
   auto it = visited->find(klass);
   DCHECK(it != visited->end());
