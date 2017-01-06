@@ -22,3 +22,4 @@ JNI_OnLoad called
 class null false test
 JNI_OnUnload called
 Number of loaded unload-ex maps 0
+Too small false

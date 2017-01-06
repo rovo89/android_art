@@ -98,7 +98,7 @@ class MarkSweep : public GarbageCollector {
       REQUIRES(!mark_stack_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void MarkConcurrentRoots(VisitRootFlags flags)
+  virtual void MarkConcurrentRoots(VisitRootFlags flags)
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES(!mark_stack_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);

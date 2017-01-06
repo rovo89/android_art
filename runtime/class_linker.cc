@@ -1848,7 +1848,7 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     boot_class_table_.VisitRoots(buffered_visitor);
 
     // If tracing is enabled, then mark all the class loaders to prevent unloading.
-    if (tracing_enabled) {
+    if ((flags & kVisitRootFlagClassLoader) != 0 || tracing_enabled) {
       for (const ClassLoaderData& data : class_loaders_) {
         GcRoot<mirror::Object> root(GcRoot<mirror::Object>(self->DecodeJObject(data.weak_root)));
         root.VisitRoot(visitor, RootInfo(kRootVMInternal));

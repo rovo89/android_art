@@ -56,6 +56,19 @@ void StickyMarkSweep::MarkReachableObjects() {
   RecursiveMarkDirtyObjects(false, accounting::CardTable::kCardDirty - 1);
 }
 
+void StickyMarkSweep::MarkConcurrentRoots(VisitRootFlags flags) {
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
+  // Visit all runtime roots and clear dirty flags including class loader. This is done to prevent
+  // incorrect class unloading since the GC does not card mark when storing store the class during
+  // object allocation. Doing this for each allocation would be slow.
+  // Since the card is not dirty, it means the object may not get scanned. This can cause class
+  // unloading to occur even though the class and class loader are reachable through the object's
+  // class.
+  Runtime::Current()->VisitConcurrentRoots(
+      this,
+      static_cast<VisitRootFlags>(flags | kVisitRootFlagClassLoader));
+}
+
 void StickyMarkSweep::Sweep(bool swap_bitmaps ATTRIBUTE_UNUSED) {
   SweepArray(GetHeap()->GetLiveStack(), false);
 }

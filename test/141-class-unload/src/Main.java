@@ -49,6 +49,8 @@ public class Main {
             stressTest(constructor);
             // Test that the oat files are unloaded.
             testOatFilesUnloaded(getPid());
+            // Test that objects keep class loader live for sticky GC.
+            testStickyUnload(constructor);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -150,6 +152,30 @@ public class Main {
         System.out.println((int) getValue.invoke(intHolder));
         waitForCompilation(intHolder);
         return new WeakReference(intHolder);
+    }
+
+    private static Object allocObjectInOtherClassLoader(Constructor<?> constructor)
+            throws Exception {
+      ClassLoader loader = (ClassLoader) constructor.newInstance(
+              DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
+      return loader.loadClass("IntHolder").newInstance();
+    }
+
+    // Regression test for public issue 227182.
+    private static void testStickyUnload(Constructor<?> constructor) throws Exception {
+        String s = "";
+        for (int i = 0; i < 10; ++i) {
+            s = "";
+            // The object is the only thing preventing the class loader from being unloaded.
+            Object o = allocObjectInOtherClassLoader(constructor);
+            for (int j = 0; j < 1000; ++j) {
+                s += j + " ";
+            }
+            // Make sure the object still has a valid class (hasn't been incorrectly unloaded).
+            s += o.getClass().getName();
+            o = null;
+        }
+        System.out.println("Too small " + (s.length() < 1000));
     }
 
     private static WeakReference<ClassLoader> setUpUnloadLoader(Constructor constructor,
