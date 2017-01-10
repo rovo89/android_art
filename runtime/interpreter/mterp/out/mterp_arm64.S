@@ -11554,13 +11554,7 @@ MterpExceptionReturn:
     b MterpDone
 MterpReturn:
     ldr     x2, [xFP, #OFF_FP_RESULT_REGISTER]
-    ldr     lr, [xSELF, #THREAD_FLAGS_OFFSET]
     str     x0, [x2]
-    mov     x0, xSELF
-    ands    lr, lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
-    b.eq    check2
-    bl      MterpSuspendCheck                       // (self)
-check2:
     mov     x0, #1                                  // signal return to caller.
 MterpDone:
 /*
