@@ -4119,12 +4119,35 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
                                                                              is_range, res_method);
 }
 
+uint16_t MethodVerifier::GetQuickenedInfo() const {
+  CHECK(mirror_method_ != nullptr);
+  const uint8_t* quickened_info = mirror_method_->GetQuickenedInfo();
+  CHECK(quickened_info != nullptr);
+  while (true) {
+    uint32_t dex_pc_in_map = DecodeUnsignedLeb128(&quickened_info);
+    uint16_t value_in_map = DecodeUnsignedLeb128(&quickened_info);
+    DCHECK_LE(dex_pc_in_map, work_insn_idx_);
+    if (dex_pc_in_map == work_insn_idx_) {
+      return value_in_map;
+    }
+  }
+}
+
 ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst, RegisterLine* reg_line,
                                                  bool is_range, bool allow_failure) {
   if (is_range) {
     DCHECK_EQ(inst->Opcode(), Instruction::INVOKE_VIRTUAL_RANGE_QUICK);
   } else {
     DCHECK_EQ(inst->Opcode(), Instruction::INVOKE_VIRTUAL_QUICK);
+  }
+  if (Runtime::Current()->IsAotCompiler()) {
+    const OatDexFile* oat_dex_file = dex_file_->GetOatDexFile();
+    if (oat_dex_file != nullptr) {
+      ClassLinker* linker = Runtime::Current()->GetClassLinker();
+      ArtMethod* method = linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+          *dex_file_, GetQuickenedInfo(), dex_cache_, class_loader_, mirror_method_, InvokeType::kVirtual);
+      return method;
+    }
   }
   const RegType& actual_arg_type = reg_line->GetInvocationThis(this, inst, is_range, allow_failure);
   if (!actual_arg_type.HasClass()) {
@@ -4742,6 +4765,12 @@ ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
                                                       RegisterLine* reg_line) {
   DCHECK(IsInstructionIGetQuickOrIPutQuick(inst->Opcode())) << inst->Opcode();
   const RegType& object_type = reg_line->GetRegisterType(this, inst->VRegB_22c());
+  if (Runtime::Current()->IsAotCompiler()) {
+    const OatDexFile* oat_dex_file = dex_file_->GetOatDexFile();
+    if (oat_dex_file != nullptr) {
+      return GetInstanceField(object_type, GetQuickenedInfo());
+    }
+  }
   if (!object_type.HasClass()) {
     VLOG(verifier) << "Failed to get mirror::Class* from '" << object_type << "'";
     return nullptr;

@@ -269,6 +269,8 @@ class MethodVerifier {
   ArtField* GetQuickFieldAccess(const Instruction* inst, RegisterLine* reg_line)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  uint16_t GetQuickenedInfo() const SHARED_REQUIRES(Locks::mutator_lock_);
+
   uint32_t GetEncounteredFailureTypes() {
     return encountered_failure_types_;
   }
