@@ -84,7 +84,10 @@ void ThreadPoolWorker::Run() {
 void* ThreadPoolWorker::Callback(void* arg) {
   ThreadPoolWorker* worker = reinterpret_cast<ThreadPoolWorker*>(arg);
   Runtime* runtime = Runtime::Current();
-  CHECK(runtime->AttachCurrentThread(worker->name_.c_str(), true, nullptr, false));
+  CHECK(runtime->AttachCurrentThread(worker->name_.c_str(),
+                                     true,
+                                     nullptr,
+                                     worker->thread_pool_->create_peers_));
   // Thread pool workers cannot call into java.
   Thread::Current()->SetCanCallIntoJava(false);
   // Do work until its time to shut down.
@@ -107,7 +110,7 @@ void ThreadPool::RemoveAllTasks(Thread* self) {
   tasks_.clear();
 }
 
-ThreadPool::ThreadPool(const char* name, size_t num_threads)
+ThreadPool::ThreadPool(const char* name, size_t num_threads, bool create_peers)
   : name_(name),
     task_queue_lock_("task queue lock"),
     task_queue_condition_("task queue condition", task_queue_lock_),
@@ -119,7 +122,8 @@ ThreadPool::ThreadPool(const char* name, size_t num_threads)
     total_wait_time_(0),
     // Add one since the caller of constructor waits on the barrier too.
     creation_barier_(num_threads + 1),
-    max_active_workers_(num_threads) {
+    max_active_workers_(num_threads),
+    create_peers_(create_peers) {
   Thread* self = Thread::Current();
   while (GetThreadCount() < num_threads) {
     const std::string worker_name = StringPrintf("%s worker thread %zu", name_.c_str(),
@@ -212,6 +216,7 @@ Task* ThreadPool::TryGetTaskLocked() {
 
 void ThreadPool::Wait(Thread* self, bool do_work, bool may_hold_locks) {
   if (do_work) {
+    CHECK(!create_peers_);
     Task* task = nullptr;
     while ((task = TryGetTask(self)) != nullptr) {
       task->Run(self);
