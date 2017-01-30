@@ -583,24 +583,6 @@ bool Runtime::Start() {
 
   started_ = true;
 
-  // Create the JIT either if we have to use JIT compilation or save profiling info.
-  // TODO(calin): We use the JIT class as a proxy for JIT compilation and for
-  // recoding profiles. Maybe we should consider changing the name to be more clear it's
-  // not only about compiling. b/28295073.
-  if (jit_options_->UseJitCompilation() || jit_options_->GetSaveProfilingInfo()) {
-    std::string error_msg;
-    if (!IsZygote()) {
-    // If we are the zygote then we need to wait until after forking to create the code cache
-    // due to SELinux restrictions on r/w/x memory regions.
-      CreateJit();
-    } else if (jit_options_->UseJitCompilation()) {
-      if (!jit::Jit::LoadCompilerLibrary(&error_msg)) {
-        // Try to load compiler pre zygote to reduce PSS. b/27744947
-        LOG(WARNING) << "Failed to load JIT compiler with error " << error_msg;
-      }
-    }
-  }
-
   if (!IsImageDex2OatEnabled() || !GetHeap()->HasBootImageSpace()) {
     ScopedObjectAccess soa(self);
     StackHandleScope<2> hs(soa.Self());
@@ -624,6 +606,27 @@ bool Runtime::Start() {
   InitThreadGroups(self);
 
   Thread::FinishStartup();
+
+  // Create the JIT either if we have to use JIT compilation or save profiling info. This is
+  // done after FinishStartup as the JIT pool needs Java thread peers, which require the main
+  // ThreadGroup to exist.
+  //
+  // TODO(calin): We use the JIT class as a proxy for JIT compilation and for
+  // recoding profiles. Maybe we should consider changing the name to be more clear it's
+  // not only about compiling. b/28295073.
+  if (jit_options_->UseJitCompilation() || jit_options_->GetSaveProfilingInfo()) {
+    std::string error_msg;
+    if (!IsZygote()) {
+    // If we are the zygote then we need to wait until after forking to create the code cache
+    // due to SELinux restrictions on r/w/x memory regions.
+      CreateJit();
+    } else if (jit_options_->UseJitCompilation()) {
+      if (!jit::Jit::LoadCompilerLibrary(&error_msg)) {
+        // Try to load compiler pre zygote to reduce PSS. b/27744947
+        LOG(WARNING) << "Failed to load JIT compiler with error " << error_msg;
+      }
+    }
+  }
 
   system_class_loader_ = CreateSystemClassLoader(this);
 
