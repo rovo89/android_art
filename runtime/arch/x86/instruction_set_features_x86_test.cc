@@ -69,6 +69,43 @@ TEST(X86InstructionSetFeaturesTest, X86FeaturesFromAtomVariant) {
   EXPECT_FALSE(x86_features->Equals(x86_default_features.get()));
 }
 
+TEST(X86InstructionSetFeaturesTest, X86FeaturesFromSandybridgeVariant) {
+  // Build features for a 32-bit x86 sandybridge processor.
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> x86_features(
+      InstructionSetFeatures::FromVariant(kX86, "sandybridge", &error_msg));
+  ASSERT_TRUE(x86_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(x86_features->GetInstructionSet(), kX86);
+  EXPECT_TRUE(x86_features->Equals(x86_features.get()));
+  EXPECT_STREQ("ssse3,sse4.1,sse4.2,-avx,-avx2,popcnt",
+               x86_features->GetFeatureString().c_str());
+  EXPECT_EQ(x86_features->AsBitmap(), 39U);
+
+  // Build features for a 32-bit x86 default processor.
+  std::unique_ptr<const InstructionSetFeatures> x86_default_features(
+      InstructionSetFeatures::FromVariant(kX86, "default", &error_msg));
+  ASSERT_TRUE(x86_default_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(x86_default_features->GetInstructionSet(), kX86);
+  EXPECT_TRUE(x86_default_features->Equals(x86_default_features.get()));
+  EXPECT_STREQ("-ssse3,-sse4.1,-sse4.2,-avx,-avx2,-popcnt",
+               x86_default_features->GetFeatureString().c_str());
+  EXPECT_EQ(x86_default_features->AsBitmap(), 0U);
+
+  // Build features for a 64-bit x86-64 sandybridge processor.
+  std::unique_ptr<const InstructionSetFeatures> x86_64_features(
+      InstructionSetFeatures::FromVariant(kX86_64, "sandybridge", &error_msg));
+  ASSERT_TRUE(x86_64_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(x86_64_features->GetInstructionSet(), kX86_64);
+  EXPECT_TRUE(x86_64_features->Equals(x86_64_features.get()));
+  EXPECT_STREQ("ssse3,sse4.1,sse4.2,-avx,-avx2,popcnt",
+               x86_64_features->GetFeatureString().c_str());
+  EXPECT_EQ(x86_64_features->AsBitmap(), 39U);
+
+  EXPECT_FALSE(x86_64_features->Equals(x86_features.get()));
+  EXPECT_FALSE(x86_64_features->Equals(x86_default_features.get()));
+  EXPECT_FALSE(x86_features->Equals(x86_default_features.get()));
+}
+
 TEST(X86InstructionSetFeaturesTest, X86FeaturesFromSilvermontVariant) {
   // Build features for a 32-bit x86 silvermont processor.
   std::string error_msg;
