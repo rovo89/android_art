@@ -40,6 +40,7 @@
 #include "elf_file.h"
 #include "elf_utils.h"
 #include "oat.h"
+#include "oat_xposed.h"
 #include "mem_map.h"
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
@@ -125,6 +126,14 @@ class OatFileBase : public OatFile {
     end_ = end;
   }
 
+  void SetXposedBegin(const uint8_t* xposed_begin) {
+    xposed_begin_ = xposed_begin;
+  }
+
+  void SetXposedEnd(const uint8_t* xposed_end) {
+    xposed_end_ = xposed_end;
+  }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(OatFileBase);
 };
@@ -195,6 +204,20 @@ bool OatFileBase::ComputeFields(uint8_t* requested_base,
   }
   // Readjust to be non-inclusive upper bound.
   end_ += sizeof(uint32_t);
+
+  xposed_begin_ = const_cast<uint8_t*>(FindDynamicSymbolAddress("oatxposed", &symbol_error_msg));
+  if (xposed_begin_ == nullptr) {
+    // No .xposed section.
+    xposed_end_ = nullptr;
+  } else {
+    xposed_end_ = const_cast<uint8_t*>(FindDynamicSymbolAddress("oatxposedlastword", &symbol_error_msg));
+    if (xposed_end_ == nullptr) {
+      *error_msg = StringPrintf("Failed to find oatxposedlastword symbol in '%s'", file_path.c_str());
+      return false;
+    }
+    // Readjust to be non-inclusive upper bound.
+    xposed_end_ += sizeof(uint32_t);
+  }
 
   bss_begin_ = const_cast<uint8_t*>(FindDynamicSymbolAddress("oatbss", &symbol_error_msg));
   if (bss_begin_ == nullptr) {
@@ -482,6 +505,9 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
                               GetLocation().c_str(),
                               static_cast<size_t>(bss_end_ - dex_cache_arrays));
     return false;
+  }
+  if (NeedsOatXposedFile() && !InitOatXposedFile(error_msg) && ShouldShowOatXposedFileError()) {
+    XLOG(WARNING) << "Failed to load Xposed info for " << GetLocation() << ": " << *error_msg;
   }
   return true;
 }
@@ -856,6 +882,10 @@ bool ElfOatFile::InitializeFromElfFile(ElfFile* elf_file,
   CHECK(has_section);
   SetBegin(elf_file->Begin() + offset);
   SetEnd(elf_file->Begin() + size + offset);
+  if (elf_file->GetSectionOffsetAndSize(".xposed", &offset, &size)) {
+    SetXposedBegin(elf_file->Begin() + offset);
+    SetXposedEnd(elf_file->Begin() + size + offset);
+  }
   // Ignore the optional .bss section when opening non-executable.
   return Setup(abs_dex_location, error_msg);
 }
@@ -1037,6 +1067,8 @@ OatFile::OatFile(const std::string& location, bool is_executable)
     : location_(location),
       begin_(nullptr),
       end_(nullptr),
+      xposed_begin_(nullptr),
+      xposed_end_(nullptr),
       bss_begin_(nullptr),
       bss_end_(nullptr),
       is_executable_(is_executable),
@@ -1060,6 +1092,14 @@ const uint8_t* OatFile::Begin() const {
 const uint8_t* OatFile::End() const {
   CHECK(end_ != nullptr);
   return end_;
+}
+
+const uint8_t* OatFile::XposedBegin() const {
+  return xposed_begin_;
+}
+
+const uint8_t* OatFile::XposedEnd() const {
+  return xposed_end_;
 }
 
 const uint8_t* OatFile::BssBegin() const {
@@ -1157,7 +1197,8 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
       dex_file_pointer_(dex_file_pointer),
       lookup_table_data_(lookup_table_data),
       oat_class_offsets_pointer_(oat_class_offsets_pointer),
-      dex_cache_arrays_(dex_cache_arrays) {}
+      dex_cache_arrays_(dex_cache_arrays),
+      oat_xposed_dex_file_(nullptr) {}
 
 OatFile::OatDexFile::~OatDexFile() {}
 
@@ -1405,6 +1446,56 @@ bool OatFile::GetDexLocationsFromDependencies(const char* dex_dependencies,
 
   for (auto it = split.begin(), end = split.end(); it != end; it += 2) {
     locations->push_back(*it);
+  }
+
+  return true;
+}
+
+bool OatFile::InitOatXposedFile(std::string* error_msg) {
+  std::unique_ptr<OatXposedFile> oat_xposed_file;
+  if (xposed_begin_ != nullptr) {
+    oat_xposed_file.reset(new OatXposedFile(GetLocation(), xposed_begin_, xposed_end_));
+  }
+
+  if (oat_xposed_file.get() == nullptr
+      || !oat_xposed_file->Setup(error_msg)
+      || !oat_xposed_file->Validate(*this, error_msg)) {
+    // Don't reset the fields if we already had a valid file which needs them.
+    if (oat_xposed_file_.get() == nullptr) {
+      xposed_begin_ = nullptr;
+      xposed_end_ = nullptr;
+    }
+    return false;
+  }
+
+  uint32_t dex_file_count = GetOatHeader().GetDexFileCount();
+  auto& oat_xposed_dex_files = oat_xposed_file->GetOatXposedDexFiles();
+  for (size_t i = 0; i < dex_file_count; i++) {
+    OatDexFile* oat_dex_file = const_cast<OatDexFile*>(oat_dex_files_storage_[i]);
+    oat_dex_file->SetOatXposedDexFile(oat_xposed_dex_files[i]);
+  }
+
+  oat_xposed_file_ = std::move(oat_xposed_file);
+  return true;
+}
+
+bool OatFile::ShouldShowOatXposedFileError() const {
+  // For non-executable files, Xposed info isn't strictly required.
+  if (!IsExecutable()) {
+    return false;
+  }
+
+  // We also don't want to show an error for .oat files which can easily be regenerated as the
+  // original .dex files still exist. Android should trigger this automatically.
+  bool has_original_dex_files = true;
+  for (const OatDexFile* oat_dex_file : GetOatDexFiles()) {
+    if (!DexFile::MaybeDex(oat_dex_file->GetDexFileLocation().c_str())) {
+      has_original_dex_files = false;
+      break;
+    }
+  }
+  if (has_original_dex_files) {
+    return false;
   }
 
   return true;
