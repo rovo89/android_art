@@ -39,6 +39,8 @@ class MemMap;
 class OatMethodOffsets;
 class OatHeader;
 class OatDexFile;
+class OatXposedFile;
+class OatXposedDexFile;
 
 namespace gc {
 namespace collector {
@@ -101,6 +103,12 @@ class OatFile {
 
   const std::string& GetLocation() const {
     return location_;
+  }
+
+  bool InitOatXposedFile(std::string* error_msg);
+
+  bool NeedsOatXposedFile() const {
+    return CompilerFilter::IsBytecodeCompilationEnabled(GetCompilerFilter());
   }
 
   const OatHeader& GetOatHeader() const;
@@ -230,12 +238,19 @@ class OatFile {
     return p >= Begin() && p < End();
   }
 
+  size_t XposedSize() const {
+    return XposedEnd() - XposedBegin();
+  }
+
   size_t BssSize() const {
     return BssEnd() - BssBegin();
   }
 
   const uint8_t* Begin() const;
   const uint8_t* End() const;
+
+  const uint8_t* XposedBegin() const;
+  const uint8_t* XposedEnd() const;
 
   const uint8_t* BssBegin() const;
   const uint8_t* BssEnd() const;
@@ -267,6 +282,8 @@ class OatFile {
  protected:
   OatFile(const std::string& filename, bool executable);
 
+  bool ShouldShowOatXposedFileError() const;
+
  private:
   // The oat file name.
   //
@@ -279,6 +296,12 @@ class OatFile {
   // Pointer to end of oat region for bounds checking.
   const uint8_t* end_;
 
+  // Pointer to the .xposed section, if present, otherwise null.
+  const uint8_t* xposed_begin_;
+
+  // Pointer to the end of the .xposed section, if present, otherwise null.
+  const uint8_t* xposed_end_;
+
   // Pointer to the .bss section, if present, otherwise null.
   uint8_t* bss_begin_;
 
@@ -290,6 +313,9 @@ class OatFile {
 
   // Owning storage for the OatDexFile objects.
   std::vector<const OatDexFile*> oat_dex_files_storage_;
+
+  // Additional information stored by Xposed.
+  std::unique_ptr<const OatXposedFile> oat_xposed_file_;
 
   // NOTE: We use a StringPiece as the key type to avoid a memory allocation on every
   // lookup with a const char* key. The StringPiece doesn't own its backing storage,
@@ -377,6 +403,10 @@ class OatDexFile FINAL {
     return dex_file_pointer_;
   }
 
+  const OatXposedDexFile* GetOatXposedDexFile() const {
+    return oat_xposed_dex_file_;
+  }
+
   ~OatDexFile();
 
  private:
@@ -389,6 +419,10 @@ class OatDexFile FINAL {
              const uint32_t* oat_class_offsets_pointer,
              uint8_t* dex_cache_arrays);
 
+  void SetOatXposedDexFile(const OatXposedDexFile* oat_xposed_dex_file) {
+    oat_xposed_dex_file_ = oat_xposed_dex_file;
+  }
+
   const OatFile* const oat_file_;
   const std::string dex_file_location_;
   const std::string canonical_dex_file_location_;
@@ -397,6 +431,7 @@ class OatDexFile FINAL {
   const uint8_t* lookup_table_data_;
   const uint32_t* const oat_class_offsets_pointer_;
   uint8_t* const dex_cache_arrays_;
+  const OatXposedDexFile* oat_xposed_dex_file_;
 
   friend class OatFile;
   friend class OatFileBase;

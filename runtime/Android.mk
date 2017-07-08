@@ -160,6 +160,7 @@ LIBART_COMMON_SRC_FILES := \
   native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc \
   native/sun_misc_Unsafe.cc \
   oat.cc \
+  oat_xposed.cc \
   oat_file.cc \
   oat_file_assistant.cc \
   oat_file_manager.cc \
