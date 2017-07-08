@@ -362,6 +362,7 @@ CompiledMethod* ArtCompileDEX(
         0,
         0,
         0,
+        ArrayRef<const uint32_t>(),                  // called_methods
         ArrayRef<const SrcMapElem>(),                // src_mapping_table
         ArrayRef<const uint8_t>(builder.GetData()),  // vmap_table
         ArrayRef<const uint8_t>(),                   // cfi data

@@ -728,6 +728,10 @@ class ArtMethod FINAL {
     return GetXposedHookInfo()->original_method;
   }
 
+  uint32_t GetHash() SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetDexFile()->GetMethodHash(GetDexMethodIndex());
+  }
+
   static jclass xposed_callback_class;
   static jmethodID xposed_callback_method;
 

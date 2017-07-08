@@ -464,6 +464,12 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   virtual void GenerateNop() = 0;
 
+  void AddCalledMethod(const DexFile& dex_file, uint32_t dex_method_index);
+
+  void ComputeCalledMethods();
+
+  const ArrayRef<const uint32_t> GetCalledMethods();
+
  protected:
   // Method patch info used for recording locations of required linker patches and
   // target methods. The target method can be used for various purposes, whether for
@@ -521,7 +527,8 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
         current_slow_path_(nullptr),
         current_block_index_(0),
         is_leaf_(true),
-        requires_current_method_(false) {
+        requires_current_method_(false),
+        called_methods_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
     slow_paths_.reserve(8);
   }
 
@@ -632,6 +639,9 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   // Whether an instruction in the graph accesses the current method.
   bool requires_current_method_;
+
+  // Hashes of methods called by this method.
+  ArenaSet<uint32_t> called_methods_;
 
   friend class OptimizingCFITest;
 

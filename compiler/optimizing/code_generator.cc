@@ -1298,4 +1298,50 @@ void CodeGenerator::CreateSystemArrayCopyLocationSummary(HInvoke* invoke) {
   locations->AddTemp(Location::RequiresRegister());
 }
 
+void CodeGenerator::AddCalledMethod(const DexFile& dex_file, uint32_t dex_method_index) {
+   // Exclude some classes/methods which are called a lot, but shouldn't be hooked anyway.
+   const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_index);
+   const char* clazz = dex_file.GetMethodDeclaringClassDescriptor(method_id);
+   if (strcmp(clazz, "Ljava/lang/Object;") == 0) {
+     return;
+   } else if (strcmp(clazz, "Ljava/lang/String;") == 0) {
+     const char* method = dex_file.GetMethodName(method_id);
+     if (strcmp(method, "hashCode") == 0 || strcmp(method, "length") == 0
+         || strcmp(method, "charAt") == 0 || strcmp(method, "equals") == 0) {
+       return;
+     }
+   }
+
+   called_methods_.insert(dex_file.GetMethodHash(dex_method_index));
+ }
+
+void CodeGenerator::ComputeCalledMethods() {
+  DCHECK(block_order_ != nullptr);
+  for (HBasicBlock* block : *block_order_) {
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      HInstruction* instruction = it.Current();
+      HInvoke* invoke = instruction->AsInvoke();
+      if (invoke != nullptr) {
+        HInvokeStaticOrDirect* direct = instruction->AsInvokeStaticOrDirect();
+        if (direct != nullptr) {
+          MethodReference target = direct->GetTargetMethod();
+          AddCalledMethod(*target.dex_file, target.dex_method_index);
+        } else {
+          AddCalledMethod(invoke->GetDexFile(), invoke->GetDexMethodIndex());
+        }
+      }
+    }
+  }
+}
+
+const ArrayRef<const uint32_t> CodeGenerator::GetCalledMethods() {
+  if (called_methods_.empty()) {
+    return ArrayRef<const uint32_t>();
+  }
+  ArenaVector<uint32_t> called_methods(called_methods_.begin(),
+                                       called_methods_.end(),
+                                       graph_->GetArena()->Adapter(kArenaAllocCodeGenerator));
+  return ArrayRef<const uint32_t>(called_methods);
+}
+
 }  // namespace art

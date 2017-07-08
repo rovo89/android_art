@@ -834,6 +834,8 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
     return false;
   }
 
+  codegen_->AddCalledMethod(*method->GetDexFile(), method->GetDexMethodIndex());
+
   VLOG(compiler) << "Successfully inlined " << PrettyMethod(method);
   MaybeRecordStat(kInlinedInvoke);
   return true;

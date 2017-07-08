@@ -52,6 +52,9 @@ class CompiledMethodStorage {
   const LengthPrefixedArray<uint8_t>* DeduplicateCode(const ArrayRef<const uint8_t>& code);
   void ReleaseCode(const LengthPrefixedArray<uint8_t>* code);
 
+  const LengthPrefixedArray<uint32_t>* DeduplicateCalledMethods(const ArrayRef<const uint32_t>& table);
+  void ReleaseCalledMethods(const LengthPrefixedArray<uint32_t>* table);
+
   const LengthPrefixedArray<SrcMapElem>* DeduplicateSrcMappingTable(
       const ArrayRef<const SrcMapElem>& src_map);
   void ReleaseSrcMappingTable(const LengthPrefixedArray<SrcMapElem>* src_map);
@@ -96,6 +99,7 @@ class CompiledMethodStorage {
   bool dedupe_enabled_;
 
   ArrayDedupeSet<uint8_t> dedupe_code_;
+  ArrayDedupeSet<uint32_t> dedupe_called_methods_;
   ArrayDedupeSet<SrcMapElem> dedupe_src_mapping_table_;
   ArrayDedupeSet<uint8_t> dedupe_vmap_table_;
   ArrayDedupeSet<uint8_t> dedupe_cfi_info_;

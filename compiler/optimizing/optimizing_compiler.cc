@@ -597,6 +597,7 @@ CompiledMethod* OptimizingCompiler::Emit(ArenaAllocator* arena,
       codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
+      codegen->GetCalledMethods(),
       ArrayRef<const SrcMapElem>(),
       ArrayRef<const uint8_t>(stack_map),
       ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
@@ -777,6 +778,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                      &pass_observer,
                      &handles);
 
+    codegen->ComputeCalledMethods();
     codegen->Compile(code_allocator);
     pass_observer.DumpDisassembly();
   }

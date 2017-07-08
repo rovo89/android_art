@@ -658,6 +658,9 @@ class DexFile {
     return GetTypeDescriptor(type_id);
   }
 
+  // Returns a hash for the method, based on its class, name and signature.
+  uint32_t GetMethodHash(uint32_t idx) const;
+
   // Returns the prototype of a method id.
   const ProtoId& GetMethodPrototype(const MethodId& method_id) const {
     return GetProtoId(method_id.proto_idx_);
