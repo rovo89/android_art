@@ -105,6 +105,7 @@ CompiledMethod::CompiledMethod(CompilerDriver* driver,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask,
+                               const ArrayRef<const uint32_t>& called_methods,
                                const ArrayRef<const SrcMapElem>& src_mapping_table,
                                const ArrayRef<const uint8_t>& vmap_table,
                                const ArrayRef<const uint8_t>& cfi_info,
@@ -112,6 +113,7 @@ CompiledMethod::CompiledMethod(CompilerDriver* driver,
     : CompiledCode(driver, instruction_set, quick_code),
       frame_size_in_bytes_(frame_size_in_bytes), core_spill_mask_(core_spill_mask),
       fp_spill_mask_(fp_spill_mask),
+      called_methods_(driver->GetCompiledMethodStorage()->DeduplicateCalledMethods(called_methods)),
       src_mapping_table_(
           driver->GetCompiledMethodStorage()->DeduplicateSrcMappingTable(src_mapping_table)),
       vmap_table_(driver->GetCompiledMethodStorage()->DeduplicateVMapTable(vmap_table)),
@@ -126,6 +128,7 @@ CompiledMethod* CompiledMethod::SwapAllocCompiledMethod(
     const size_t frame_size_in_bytes,
     const uint32_t core_spill_mask,
     const uint32_t fp_spill_mask,
+    const ArrayRef<const uint32_t>& called_methods,
     const ArrayRef<const SrcMapElem>& src_mapping_table,
     const ArrayRef<const uint8_t>& vmap_table,
     const ArrayRef<const uint8_t>& cfi_info,
@@ -139,6 +142,7 @@ CompiledMethod* CompiledMethod::SwapAllocCompiledMethod(
                   frame_size_in_bytes,
                   core_spill_mask,
                   fp_spill_mask,
+                  called_methods,
                   src_mapping_table,
                   vmap_table,
                   cfi_info, patches);
@@ -153,6 +157,7 @@ void CompiledMethod::ReleaseSwapAllocatedCompiledMethod(CompilerDriver* driver, 
 
 CompiledMethod::~CompiledMethod() {
   CompiledMethodStorage* storage = GetCompilerDriver()->GetCompiledMethodStorage();
+  storage->ReleaseCalledMethods(called_methods_);
   storage->ReleaseLinkerPatches(patches_);
   storage->ReleaseCFIInfo(cfi_info_);
   storage->ReleaseVMapTable(vmap_table_);

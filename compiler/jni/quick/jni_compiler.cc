@@ -494,6 +494,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
                                                  frame_size,
                                                  main_jni_conv->CoreSpillMask(),
                                                  main_jni_conv->FpSpillMask(),
+                                                 ArrayRef<const uint32_t>(), // called_methods.
                                                  ArrayRef<const SrcMapElem>(),
                                                  ArrayRef<const uint8_t>(),  // vmap_table.
                                                  ArrayRef<const uint8_t>(*jni_asm->cfi().data()),

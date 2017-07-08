@@ -172,6 +172,8 @@ CompiledMethodStorage::CompiledMethodStorage(int swap_fd)
     : swap_space_(swap_fd == -1 ? nullptr : new SwapSpace(swap_fd, 10 * MB)),
       dedupe_enabled_(true),
       dedupe_code_("dedupe code", LengthPrefixedArrayAlloc<uint8_t>(swap_space_.get())),
+      dedupe_called_methods_("dedupe called methods",
+                               LengthPrefixedArrayAlloc<uint32_t>(swap_space_.get())),
       dedupe_src_mapping_table_("dedupe source mapping table",
                                 LengthPrefixedArrayAlloc<SrcMapElem>(swap_space_.get())),
       dedupe_vmap_table_("dedupe vmap table",
@@ -195,6 +197,7 @@ void CompiledMethodStorage::DumpMemoryUsage(std::ostream& os, bool extended) con
     os << "\nCode dedupe: " << dedupe_code_.DumpStats(self);
     os << "\nVmap table dedupe: " << dedupe_vmap_table_.DumpStats(self);
     os << "\nCFI info dedupe: " << dedupe_cfi_info_.DumpStats(self);
+    os << "\nCalled methods dedupe: " << dedupe_called_methods_.DumpStats(self);
   }
 }
 
@@ -205,6 +208,15 @@ const LengthPrefixedArray<uint8_t>* CompiledMethodStorage::DeduplicateCode(
 
 void CompiledMethodStorage::ReleaseCode(const LengthPrefixedArray<uint8_t>* code) {
   ReleaseArrayIfNotDeduplicated(code);
+}
+
+const LengthPrefixedArray<uint32_t>* CompiledMethodStorage::DeduplicateCalledMethods(
+    const ArrayRef<const uint32_t>& table) {
+  return AllocateOrDeduplicateArray(table, &dedupe_called_methods_);
+}
+
+void CompiledMethodStorage::ReleaseCalledMethods(const LengthPrefixedArray<uint32_t>* table) {
+  ReleaseArrayIfNotDeduplicated(table);
 }
 
 const LengthPrefixedArray<SrcMapElem>* CompiledMethodStorage::DeduplicateSrcMappingTable(

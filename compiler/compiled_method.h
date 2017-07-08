@@ -376,6 +376,7 @@ class CompiledMethod FINAL : public CompiledCode {
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
+                 const ArrayRef<const uint32_t>& called_methods,
                  const ArrayRef<const SrcMapElem>& src_mapping_table,
                  const ArrayRef<const uint8_t>& vmap_table,
                  const ArrayRef<const uint8_t>& cfi_info,
@@ -390,6 +391,7 @@ class CompiledMethod FINAL : public CompiledCode {
       const size_t frame_size_in_bytes,
       const uint32_t core_spill_mask,
       const uint32_t fp_spill_mask,
+      const ArrayRef<const uint32_t>& called_methods,
       const ArrayRef<const SrcMapElem>& src_mapping_table,
       const ArrayRef<const uint8_t>& vmap_table,
       const ArrayRef<const uint8_t>& cfi_info,
@@ -407,6 +409,10 @@ class CompiledMethod FINAL : public CompiledCode {
 
   uint32_t GetFpSpillMask() const {
     return fp_spill_mask_;
+  }
+
+  ArrayRef<const uint32_t> GetCalledMethods() const {
+    return GetArray(called_methods_);
   }
 
   ArrayRef<const SrcMapElem> GetSrcMappingTable() const {
@@ -432,6 +438,8 @@ class CompiledMethod FINAL : public CompiledCode {
   const uint32_t core_spill_mask_;
   // For quick code, a bit mask describing spilled FPR callee-save registers.
   const uint32_t fp_spill_mask_;
+  // For quick code, the hashes of called methods.
+  const LengthPrefixedArray<uint32_t>* const called_methods_;
   // For quick code, a set of pairs (PC, DEX) mapping from native PC offset to DEX offset.
   const LengthPrefixedArray<SrcMapElem>* const src_mapping_table_;
   // For quick code, a uleb128 encoded map from GPR/FPR register to dex register. Size prefixed.

@@ -1571,6 +1571,13 @@ bool DexFile::GetInnerClassFlags(Handle<mirror::Class> klass, uint32_t* flags) c
   return true;
 }
 
+uint32_t DexFile::GetMethodHash(uint32_t idx) const {
+  const MethodId& method = GetMethodId(idx);
+  return ComputeModifiedUtf8Hash(GetMethodDeclaringClassDescriptor(method)) * 31
+      + ComputeModifiedUtf8Hash(GetMethodName(method)) * 31
+      + ComputeModifiedUtf8Hash(GetMethodSignature(method).ToString().c_str());
+}
+
 mirror::ObjectArray<mirror::String>* DexFile::GetSignatureAnnotationForClass(
     Handle<mirror::Class> klass) const {
   const AnnotationSetItem* annotation_set = FindAnnotationSetForClass(klass);
