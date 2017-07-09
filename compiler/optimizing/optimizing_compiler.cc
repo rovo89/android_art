@@ -867,6 +867,10 @@ bool IsCompilingWithCoreImage() {
   return false;
 }
 
+template<typename T> ALWAYS_INLINE static ArraySlice<T> ArrayRefToSlice(ArrayRef<T> array_ref) {
+  return ArraySlice<T>(array_ref.data(), array_ref.size());
+}
+
 bool OptimizingCompiler::JitCompile(Thread* self,
                                     jit::JitCodeCache* code_cache,
                                     ArtMethod* method,
@@ -932,6 +936,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
       codegen->GetFpuSpillMask(),
       code_allocator.GetMemory().data(),
       code_allocator.GetSize(),
+      ArrayRefToSlice(codegen->GetCalledMethods()),
       osr);
 
   if (code == nullptr) {
