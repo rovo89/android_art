@@ -38,6 +38,7 @@ namespace art {
 //   Elf_Phdr[]                  - Program headers for the linker.
 //   .rodata                     - DEX files and oat metadata.
 //   .text                       - Compiled code.
+//   .xposed                     - Xposed extensions.
 //   .bss                        - Zero-initialized writeable section.
 //   .MIPS.abiflags              - MIPS specific section.
 //   .dynstr                     - Names for .dynsym.
@@ -464,6 +465,7 @@ class ElfBuilder FINAL {
         stream_(output),
         rodata_(this, ".rodata", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
         text_(this, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR, nullptr, 0, kPageSize, 0),
+        xposed_(this, ".xposed", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
         bss_(this, ".bss", SHT_NOBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
         dynstr_(this, ".dynstr", SHF_ALLOC, kPageSize),
         dynsym_(this, ".dynsym", SHT_DYNSYM, SHF_ALLOC, &dynstr_),
@@ -495,6 +497,7 @@ class ElfBuilder FINAL {
   InstructionSet GetIsa() { return isa_; }
   Section* GetRoData() { return &rodata_; }
   Section* GetText() { return &text_; }
+  Section* GetXposed() { return &xposed_; }
   Section* GetBss() { return &bss_; }
   StringSection* GetStrTab() { return &strtab_; }
   SymbolSection* GetSymTab() { return &symtab_; }
@@ -554,7 +557,7 @@ class ElfBuilder FINAL {
   void End() {
     DCHECK(started_);
 
-    // Note: loaded_size_ == 0 for tests that don't write .rodata, .text, .bss,
+    // Note: loaded_size_ == 0 for tests that don't write .rodata, .text, .xposed, .bss,
     // .dynstr, dynsym, .hash and .dynamic. These tests should not read loaded_size_.
     // TODO: Either refactor the .eh_frame creation so that it counts towards loaded_size_,
     // or remove all support for .eh_frame. (The currently unused .eh_frame counts towards
@@ -619,6 +622,7 @@ class ElfBuilder FINAL {
   void PrepareDynamicSection(const std::string& elf_file_path,
                              Elf_Word rodata_size,
                              Elf_Word text_size,
+                             Elf_Word xposed_size,
                              Elf_Word bss_size) {
     std::string soname(elf_file_path);
     size_t directory_separator_pos = soname.rfind('/');
@@ -630,10 +634,12 @@ class ElfBuilder FINAL {
     DCHECK_EQ(rodata_.header_.sh_addralign, static_cast<Elf_Word>(kPageSize));
     DCHECK_EQ(text_.header_.sh_addralign, static_cast<Elf_Word>(kPageSize));
     DCHECK_EQ(bss_.header_.sh_addralign, static_cast<Elf_Word>(kPageSize));
+    DCHECK_EQ(xposed_.header_.sh_addralign, static_cast<Elf_Word>(kPageSize));
     DCHECK_EQ(dynstr_.header_.sh_addralign, static_cast<Elf_Word>(kPageSize));
     Elf_Word rodata_address = rodata_.GetAddress();
     Elf_Word text_address = RoundUp(rodata_address + rodata_size, kPageSize);
-    Elf_Word bss_address = RoundUp(text_address + text_size, kPageSize);
+    Elf_Word xposed_address = RoundUp(text_address + text_size, kPageSize);
+    Elf_Word bss_address = RoundUp(xposed_address + xposed_size, kPageSize);
     Elf_Word abiflags_address = RoundUp(bss_address + bss_size, kPageSize);
     Elf_Word abiflags_size = 0;
     if (isa_ == kMips || isa_ == kMips64) {
@@ -659,8 +665,16 @@ class ElfBuilder FINAL {
       Elf_Word oatlastword_address = rodata_address + rodata_size - 4;
       dynsym_.Add(oatlastword, rodata_index, oatlastword_address, 4, STB_GLOBAL, STT_OBJECT);
     }
+    if (xposed_size != 0u) {
+      Elf_Word xposed_index = rodata_index + 1u + (text_size != 0 ? 1u : 0u);
+      Elf_Word oatxposed = dynstr_.Add("oatxposed");
+      dynsym_.Add(oatxposed, xposed_index, xposed_address, xposed_size, STB_GLOBAL, STT_OBJECT);
+      Elf_Word oatxposedlastword = dynstr_.Add("oatxposedlastword");
+      Elf_Word xposedlastword_address = xposed_address + xposed_size - 4;
+      dynsym_.Add(oatxposedlastword, xposed_index, xposedlastword_address, 4, STB_GLOBAL, STT_OBJECT);
+    }
     if (bss_size != 0u) {
-      Elf_Word bss_index = rodata_index + 1u + (text_size != 0 ? 1u : 0u);
+      Elf_Word bss_index = rodata_index + 1u + (text_size != 0 ? 1u : 0u) + (xposed_size != 0 ? 1u : 0u);
       Elf_Word oatbss = dynstr_.Add("oatbss");
       dynsym_.Add(oatbss, bss_index, bss_address, bss_size, STB_GLOBAL, STT_OBJECT);
       Elf_Word oatbsslastword = dynstr_.Add("oatbsslastword");
@@ -907,6 +921,7 @@ class ElfBuilder FINAL {
 
   Section rodata_;
   Section text_;
+  Section xposed_;
   Section bss_;
   CachedStringSection dynstr_;
   SymbolSection dynsym_;

@@ -107,6 +107,7 @@ class OatSymbolizer FINAL {
       no_bits_(no_bits) {
   }
 
+  // TODO: Copy the .xposed section as well.
   bool Symbolize() {
     const InstructionSet isa = oat_file_->GetOatHeader().GetInstructionSet();
     const InstructionSetFeatures* features = InstructionSetFeatures::FromBitmap(
@@ -151,7 +152,7 @@ class OatSymbolizer FINAL {
       builder_->WriteMIPSabiflagsSection();
     }
     builder_->PrepareDynamicSection(
-        elf_file->GetPath(), rodata_size, text_size, oat_file_->BssSize());
+        elf_file->GetPath(), rodata_size, text_size, 0, oat_file_->BssSize());
     builder_->WriteDynamicSection();
 
     Walk();
