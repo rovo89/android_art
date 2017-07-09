@@ -93,12 +93,14 @@ class ElfWriterQuick FINAL : public ElfWriter {
   ~ElfWriterQuick();
 
   void Start() OVERRIDE;
-  void SetLoadedSectionSizes(size_t rodata_size, size_t text_size, size_t bss_size) OVERRIDE;
+  void SetLoadedSectionSizes(size_t rodata_size, size_t text_size, size_t xposed_size, size_t bss_size) OVERRIDE;
   void PrepareDebugInfo(const ArrayRef<const debug::MethodDebugInfo>& method_infos) OVERRIDE;
   OutputStream* StartRoData() OVERRIDE;
   void EndRoData(OutputStream* rodata) OVERRIDE;
   OutputStream* StartText() OVERRIDE;
   void EndText(OutputStream* text) OVERRIDE;
+  OutputStream* StartXposed() OVERRIDE;
+  void EndXposed(OutputStream* xposed) OVERRIDE;
   void WriteDynamicSection() OVERRIDE;
   void WriteDebugInfo(const ArrayRef<const debug::MethodDebugInfo>& method_infos) OVERRIDE;
   void WritePatchLocations(const ArrayRef<const uintptr_t>& patch_locations) OVERRIDE;
@@ -117,6 +119,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
   File* const elf_file_;
   size_t rodata_size_;
   size_t text_size_;
+  size_t xposed_size_;
   size_t bss_size_;
   std::unique_ptr<BufferedOutputStream> output_stream_;
   std::unique_ptr<ElfBuilder<ElfTypes>> builder_;
@@ -154,6 +157,7 @@ ElfWriterQuick<ElfTypes>::ElfWriterQuick(InstructionSet instruction_set,
       elf_file_(elf_file),
       rodata_size_(0u),
       text_size_(0u),
+      xposed_size_(0u),
       bss_size_(0u),
       output_stream_(MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(elf_file))),
       builder_(new ElfBuilder<ElfTypes>(instruction_set, features, output_stream_.get())) {}
@@ -169,14 +173,17 @@ void ElfWriterQuick<ElfTypes>::Start() {
 template <typename ElfTypes>
 void ElfWriterQuick<ElfTypes>::SetLoadedSectionSizes(size_t rodata_size,
                                                      size_t text_size,
+                                                     size_t xposed_size,
                                                      size_t bss_size) {
   DCHECK_EQ(rodata_size_, 0u);
   rodata_size_ = rodata_size;
   DCHECK_EQ(text_size_, 0u);
   text_size_ = text_size;
+  DCHECK_EQ(xposed_size_, 0u);
+  xposed_size_ = xposed_size;
   DCHECK_EQ(bss_size_, 0u);
   bss_size_ = bss_size;
-  builder_->PrepareDynamicSection(elf_file_->GetPath(), rodata_size_, text_size_, bss_size_);
+  builder_->PrepareDynamicSection(elf_file_->GetPath(), rodata_size_, text_size_, xposed_size_, bss_size_);
 }
 
 template <typename ElfTypes>
@@ -203,6 +210,19 @@ template <typename ElfTypes>
 void ElfWriterQuick<ElfTypes>::EndText(OutputStream* text) {
   CHECK_EQ(builder_->GetText(), text);
   builder_->GetText()->End();
+}
+
+template <typename ElfTypes>
+OutputStream* ElfWriterQuick<ElfTypes>::StartXposed() {
+  auto* xposed = builder_->GetXposed();
+  xposed->Start();
+  return xposed;
+}
+
+template <typename ElfTypes>
+void ElfWriterQuick<ElfTypes>::EndXposed(OutputStream* xposed) {
+  CHECK_EQ(builder_->GetXposed(), xposed);
+  builder_->GetXposed()->End();
 }
 
 template <typename ElfTypes>

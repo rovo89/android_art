@@ -81,6 +81,7 @@ LIBART_COMPILER_SRC_FILES := \
 	compiler.cc \
 	elf_writer.cc \
 	elf_writer_quick.cc \
+	oat_xposed_writer.cc \
 	image_writer.cc \
 	oat_writer.cc
 

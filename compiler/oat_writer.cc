@@ -491,6 +491,7 @@ bool OatWriter::WriteAndOpenDexFiles(
 void OatWriter::PrepareLayout(const CompilerDriver* compiler,
                               ImageWriter* image_writer,
                               const std::vector<const DexFile*>& dex_files,
+                              size_t xposed_size,
                               linker::MultiOatRelativePatcher* relative_patcher) {
   CHECK(write_state_ == WriteState::kPrepareLayout);
 
@@ -527,7 +528,7 @@ void OatWriter::PrepareLayout(const CompilerDriver* compiler,
 
   if (!HasBootImage()) {
     // Allocate space for app dex cache arrays in the .bss section.
-    size_t bss_start = RoundUp(size_, kPageSize);
+    size_t bss_start = RoundUp(size_, kPageSize) + RoundUp(xposed_size, kPageSize);
     size_t pointer_size = GetInstructionSetPointerSize(instruction_set);
     bss_size_ = 0u;
     for (const DexFile* dex_file : *dex_files_) {

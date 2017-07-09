@@ -159,6 +159,7 @@ class OatWriter {
   void PrepareLayout(const CompilerDriver* compiler,
                      ImageWriter* image_writer,
                      const std::vector<const DexFile*>& dex_files,
+                     size_t xposed_size,
                      linker::MultiOatRelativePatcher* relative_patcher);
   // Write the rest of .rodata section (ClassOffsets[], OatClass[], maps).
   bool WriteRodata(OutputStream* out);

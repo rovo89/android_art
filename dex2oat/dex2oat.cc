@@ -70,6 +70,7 @@
 #include "mirror/object_array-inl.h"
 #include "oat_file_assistant.h"
 #include "oat_writer.h"
+#include "oat_xposed_writer.h"
 #include "os.h"
 #include "runtime.h"
 #include "runtime_options.h"
@@ -1664,19 +1665,28 @@ class Dex2Oat FINAL {
       }
     }
 
+    std::vector<std::unique_ptr<OatXposedWriter>> oat_xposed_writers(oat_files_.size());
+
     linker::MultiOatRelativePatcher patcher(instruction_set_, instruction_set_features_.get());
     {
       TimingLogger::ScopedTiming t2("dex2oat Write ELF", timings_);
       for (size_t i = 0, size = oat_files_.size(); i != size; ++i) {
         std::unique_ptr<ElfWriter>& elf_writer = elf_writers_[i];
         std::unique_ptr<OatWriter>& oat_writer = oat_writers_[i];
+        std::unique_ptr<OatXposedWriter>& oat_xposed_writer = oat_xposed_writers[i];
 
         std::vector<const DexFile*>& dex_files = dex_files_per_oat_file_[i];
-        oat_writer->PrepareLayout(driver_.get(), image_writer_.get(), dex_files, &patcher);
+        size_t xposed_size = 0;
+        if (compiler_options_->IsBytecodeCompilationEnabled()) {
+          oat_xposed_writer.reset(new OatXposedWriter(driver_.get(), dex_files, 0, timings_));
+          oat_xposed_writer->Prepare();
+          xposed_size = oat_xposed_writer->GetSize();
+        }
+        oat_writer->PrepareLayout(driver_.get(), image_writer_.get(), dex_files, xposed_size, &patcher);
 
         size_t rodata_size = oat_writer->GetOatHeader().GetExecutableOffset();
         size_t text_size = oat_writer->GetSize() - rodata_size;
-        elf_writer->SetLoadedSectionSizes(rodata_size, text_size, oat_writer->GetBssSize());
+        elf_writer->SetLoadedSectionSizes(rodata_size, text_size, xposed_size, oat_writer->GetBssSize());
 
         if (IsImage()) {
           // Update oat layout.
@@ -1693,6 +1703,7 @@ class Dex2Oat FINAL {
         std::unique_ptr<File>& oat_file = oat_files_[i];
         std::unique_ptr<ElfWriter>& elf_writer = elf_writers_[i];
         std::unique_ptr<OatWriter>& oat_writer = oat_writers_[i];
+        std::unique_ptr<OatXposedWriter>& oat_xposed_writer = oat_xposed_writers[i];
 
         oat_writer->AddMethodDebugInfos(debug::MakeTrampolineInfos(oat_writer->GetOatHeader()));
 
@@ -1715,6 +1726,15 @@ class Dex2Oat FINAL {
           return false;
         }
         elf_writer->EndText(text);
+
+        if (oat_xposed_writer.get() != nullptr) {
+          OutputStream* xposed = elf_writer->StartXposed();
+          if (!oat_xposed_writer->Write(xposed)) {
+            LOG(ERROR) << "Failed to write .xposed section to the ELF file " << oat_file->GetPath();
+            return false;
+          }
+          elf_writer->EndXposed(xposed);
+        }
 
         if (!oat_writer->WriteHeader(elf_writer->GetStream(),
                                      image_file_location_oat_checksum_,

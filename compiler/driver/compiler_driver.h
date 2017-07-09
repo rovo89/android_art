@@ -172,6 +172,12 @@ class CompilerDriver {
   CompiledClass* GetCompiledClass(ClassReference ref) const
       REQUIRES(!compiled_classes_lock_);
 
+  typedef SafeMap<const MethodReference, CompiledMethod*, MethodReferenceComparator> MethodTable;
+
+  MethodTable GetCompiledMethods() const SHARED_REQUIRES(compiled_methods_lock_) {
+    return compiled_methods_;
+  }
+
   CompiledMethod* GetCompiledMethod(MethodReference ref) const
       REQUIRES(!compiled_methods_lock_);
   size_t GetNonRelativeLinkerPatchCount() const
@@ -646,8 +652,6 @@ class CompilerDriver {
   // All class references that this compiler has compiled.
   mutable Mutex compiled_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ClassTable compiled_classes_ GUARDED_BY(compiled_classes_lock_);
-
-  typedef SafeMap<const MethodReference, CompiledMethod*, MethodReferenceComparator> MethodTable;
 
  public:
   // Lock is public so that non-members can have lock annotations.
