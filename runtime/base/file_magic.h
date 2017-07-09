@@ -30,6 +30,7 @@ ScopedFd OpenAndReadMagic(const char* filename, uint32_t* magic, std::string* er
 // Check whether the given magic matches a known file type.
 bool IsZipMagic(uint32_t magic);
 bool IsDexMagic(uint32_t magic);
+bool IsElfMagic(uint32_t magic);
 
 }  // namespace art
 

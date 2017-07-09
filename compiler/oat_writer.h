@@ -38,6 +38,7 @@ class BitVector;
 class CompiledMethod;
 class CompilerDriver;
 class ImageWriter;
+class OatFile;
 class OutputStream;
 class TimingLogger;
 class TypeLookupTable;
@@ -286,6 +287,7 @@ class OatWriter {
   TimingLogger* timings_;
 
   std::vector<std::unique_ptr<File>> raw_dex_files_;
+  std::vector<std::unique_ptr<const OatFile>> raw_oat_files_;
   std::vector<std::unique_ptr<ZipArchive>> zip_archives_;
   std::vector<std::unique_ptr<ZipEntry>> zipped_dex_files_;
 
