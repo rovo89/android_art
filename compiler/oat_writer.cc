@@ -211,7 +211,8 @@ class OatWriter::OatDexFile {
  public:
   OatDexFile(const char* dex_file_location,
              DexFileSource source,
-             CreateTypeLookupTable create_type_lookup_table);
+             CreateTypeLookupTable create_type_lookup_table,
+             const ::art::OatDexFile* source_oat_dex_file = nullptr);
   OatDexFile(OatDexFile&& src) = default;
 
   const char* GetLocation() const {
@@ -230,6 +231,9 @@ class OatWriter::OatDexFile {
 
   // Whether to create the type lookup table.
   CreateTypeLookupTable create_type_lookup_table_;
+
+  // The OatDexFile that this was loaded from.
+  const ::art::OatDexFile* source_oat_dex_file_;
 
   // Dex file size. Initialized when writing the dex file.
   size_t dex_file_size_;
@@ -269,6 +273,7 @@ OatWriter::OatWriter(bool compiling_boot_image, TimingLogger* timings)
   : write_state_(WriteState::kAddingDexFileSources),
     timings_(timings),
     raw_dex_files_(),
+    raw_oat_files_(),
     zip_archives_(),
     zipped_dex_files_(),
     zipped_dex_file_locations_(),
@@ -338,6 +343,23 @@ bool OatWriter::AddDexFileSource(const char* filename,
     if (!AddZippedDexFilesSource(std::move(fd), location, create_type_lookup_table)) {
       return false;
     }
+  } else if (IsElfMagic(magic)) {
+    std::string err_msg;
+    std::unique_ptr<const OatFile> oat_file(
+        OatFile::OpenReadable(new File(fd.release(), location, /* checkUsage */ false),
+                              location, nullptr, &error_msg));
+    if (oat_file.get() != nullptr) {
+      for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
+        CHECK(oat_dex_file != nullptr);
+        oat_dex_files_.emplace_back(location, DexFileSource(oat_dex_file->GetDexFilePointer()),
+                                    create_type_lookup_table, oat_dex_file);
+        oat_dex_files_.back().dex_file_location_checksum_ = oat_dex_file->GetDexFileLocationChecksum();
+      }
+    } else {
+      LOG(ERROR) << "Could not open oat file: '" << filename << "': " << error_msg;
+      return false;
+    }
+    raw_oat_files_.push_back(std::move(oat_file));
   } else {
     LOG(ERROR) << "Expected valid zip or dex file: '" << filename << "'";
     return false;
@@ -1828,6 +1850,7 @@ bool OatWriter::WriteDexFiles(OutputStream* rodata, File* file) {
   zipped_dex_files_.clear();
   zip_archives_.clear();
   raw_dex_files_.clear();
+  // Don't clear raw_oat_files_ here, there are still references to them in the opened DexFiles.
   return true;
 }
 
@@ -2179,8 +2202,8 @@ bool OatWriter::OpenDexFiles(
                                          oat_dex_file.dex_file_size_,
                                          oat_dex_file.GetLocation(),
                                          oat_dex_file.dex_file_location_checksum_,
-                                         /* oat_dex_file */ nullptr,
-                                         verify,
+                                         /* oat_dex_file */ oat_dex_file.source_oat_dex_file_,
+                                         verify && oat_dex_file.source_oat_dex_file_ == nullptr,
                                          &error_msg));
     if (dex_files.back() == nullptr) {
       LOG(ERROR) << "Failed to open dex file from oat file. File: " << oat_dex_file.GetLocation()
@@ -2247,9 +2270,11 @@ void OatWriter::SetMultiOatRelativePatcherAdjustment() {
 
 OatWriter::OatDexFile::OatDexFile(const char* dex_file_location,
                                   DexFileSource source,
-                                  CreateTypeLookupTable create_type_lookup_table)
+                                  CreateTypeLookupTable create_type_lookup_table,
+                                  const ::art::OatDexFile* source_oat_dex_file)
     : source_(source),
       create_type_lookup_table_(create_type_lookup_table),
+      source_oat_dex_file_(source_oat_dex_file),
       dex_file_size_(0),
       offset_(0),
       dex_file_location_size_(strlen(dex_file_location)),

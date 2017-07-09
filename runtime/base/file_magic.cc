@@ -22,6 +22,7 @@
 
 #include "base/logging.h"
 #include "dex_file.h"
+#include "elf.h"
 #include "stringprintf.h"
 
 namespace art {
@@ -53,6 +54,10 @@ bool IsZipMagic(uint32_t magic) {
 
 bool IsDexMagic(uint32_t magic) {
   return DexFile::IsMagicValid(reinterpret_cast<const uint8_t*>(&magic));
+}
+
+bool IsElfMagic(uint32_t magic) {
+  return (memcmp(reinterpret_cast<const char*>(&magic), ElfMagic, 4) == 0);
 }
 
 }  // namespace art

@@ -538,7 +538,7 @@ MethodVerifier::MethodVerifier(Thread* self,
       need_precise_constants_(need_precise_constants),
       has_check_casts_(false),
       has_virtual_or_interface_invokes_(false),
-      verify_to_dump_(verify_to_dump),
+      verify_to_dump_(verify_to_dump || dex_file->GetOatDexFile() != nullptr),
       allow_thread_suspension_(allow_thread_suspension),
       is_constructor_(false),
       link_(nullptr) {
