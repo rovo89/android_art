@@ -502,6 +502,10 @@ static optimizer::DexToDexCompilationLevel GetDexToDexCompilationLevel(
     // Verify at runtime shouldn't dex to dex since we didn't resolve of verify.
     return optimizer::DexToDexCompilationLevel::kDontDexToDexCompile;
   }
+  if (runtime->IsAotCompiler() && dex_file.GetOatDexFile() != nullptr) {
+    // If the DexFile is coming from an .oat file, it has already been optimized.
+    return optimizer::DexToDexCompilationLevel::kDontDexToDexCompile;
+  }
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
   ClassLinker* class_linker = runtime->GetClassLinker();
   mirror::Class* klass = class_linker->FindClass(self, descriptor, class_loader);
