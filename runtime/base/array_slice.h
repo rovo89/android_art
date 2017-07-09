@@ -129,6 +129,10 @@ class ArraySlice {
     return element_size_;
   }
 
+  size_t DataSize() const {
+    return size_ * element_size_;
+  }
+
  private:
   T& AtUnchecked(size_t index) {
     return *reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(array_) + index * element_size_);

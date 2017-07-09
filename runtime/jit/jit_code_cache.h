@@ -20,6 +20,7 @@
 #include "instrumentation.h"
 
 #include "atomic.h"
+#include "base/array_slice.h"
 #include "base/histogram-inl.h"
 #include "base/macros.h"
 #include "base/mutex.h"
@@ -39,6 +40,12 @@ class LinearAlloc;
 class ProfilingInfo;
 
 namespace jit {
+
+struct JitXposedHeader {
+  ArraySlice<const uint32_t> called_methods;
+
+  static JitXposedHeader* FromCodePointer(const void* code_ptr);
+};
 
 class JitInstrumentationCache;
 
@@ -98,6 +105,7 @@ class JitCodeCache {
                       size_t fp_spill_mask,
                       const uint8_t* code,
                       size_t code_size,
+                      ArraySlice<const uint32_t> called_methods,
                       bool osr)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!lock_);
@@ -208,6 +216,7 @@ class JitCodeCache {
                               size_t fp_spill_mask,
                               const uint8_t* code,
                               size_t code_size,
+                              ArraySlice<const uint32_t> called_methods,
                               bool osr)
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);

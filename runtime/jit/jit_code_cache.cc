@@ -52,6 +52,12 @@ static constexpr size_t kStackMapSizeLogThreshold = 50 * KB;
     }                                                       \
   } while (false)                                           \
 
+JitXposedHeader* JitXposedHeader::FromCodePointer(const void* code_ptr) {
+  uintptr_t code = reinterpret_cast<uintptr_t>(code_ptr);
+  uintptr_t header = code - OFFSETOF_MEMBER(OatQuickMethodHeader, code_) - sizeof(JitXposedHeader);
+  return reinterpret_cast<JitXposedHeader*>(header);
+}
+
 JitCodeCache* JitCodeCache::Create(size_t initial_capacity,
                                    size_t max_capacity,
                                    bool generate_debug_info,
@@ -201,6 +207,7 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                   size_t fp_spill_mask,
                                   const uint8_t* code,
                                   size_t code_size,
+                                  ArraySlice<const uint32_t> called_methods,
                                   bool osr) {
   uint8_t* result = CommitCodeInternal(self,
                                        method,
@@ -210,6 +217,7 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                        fp_spill_mask,
                                        code,
                                        code_size,
+                                       called_methods,
                                        osr);
   if (result == nullptr) {
     // Retry.
@@ -222,6 +230,7 @@ uint8_t* JitCodeCache::CommitCode(Thread* self,
                                 fp_spill_mask,
                                 code,
                                 code_size,
+                                called_methods,
                                 osr);
   }
   return result;
@@ -238,7 +247,7 @@ bool JitCodeCache::WaitForPotentialCollectionToComplete(Thread* self) {
 
 static uintptr_t FromCodeToAllocation(const void* code) {
   size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
-  return reinterpret_cast<uintptr_t>(code) - RoundUp(sizeof(OatQuickMethodHeader), alignment);
+  return reinterpret_cast<uintptr_t>(code) - RoundUp(sizeof(OatQuickMethodHeader) + sizeof(JitXposedHeader), alignment);
 }
 
 void JitCodeCache::FreeCode(const void* code_ptr, ArtMethod* method ATTRIBUTE_UNUSED) {
@@ -312,11 +321,23 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
                                           size_t fp_spill_mask,
                                           const uint8_t* code,
                                           size_t code_size,
+                                          ArraySlice<const uint32_t> called_methods,
                                           bool osr) {
   size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
   // Ensure the header ends up at expected instruction alignment.
-  size_t header_size = RoundUp(sizeof(OatQuickMethodHeader), alignment);
+  size_t header_size = RoundUp(sizeof(OatQuickMethodHeader) + sizeof(JitXposedHeader), alignment);
   size_t total_size = header_size + code_size;
+
+  uint8_t* xposed_memory = nullptr;
+  if (called_methods.size() != 0) {
+    xposed_memory = ReserveData(self, called_methods.DataSize(), method);
+    if (xposed_memory == nullptr) {
+      return nullptr;
+    }
+    memcpy(xposed_memory, &called_methods.At(0), called_methods.DataSize());
+    called_methods = ArraySlice<const uint32_t>(
+        reinterpret_cast<const uint32_t*>(xposed_memory), called_methods.size());
+  }
 
   OatQuickMethodHeader* method_header = nullptr;
   uint8_t* code_ptr = nullptr;
@@ -329,6 +350,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
       ScopedCodeCacheWrite scc(code_map_.get());
       memory = AllocateCode(total_size);
       if (memory == nullptr) {
+        FreeData(xposed_memory);
         return nullptr;
       }
       code_ptr = memory + header_size;
@@ -341,6 +363,9 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
           core_spill_mask,
           fp_spill_mask,
           code_size);
+
+      JitXposedHeader* xposed_header = JitXposedHeader::FromCodePointer(code_ptr);
+      xposed_header->called_methods = called_methods;
     }
 
     FlushInstructionCache(reinterpret_cast<char*>(code_ptr),
@@ -996,7 +1021,7 @@ uint8_t* JitCodeCache::AllocateCode(size_t code_size) {
   size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
   uint8_t* result = reinterpret_cast<uint8_t*>(
       mspace_memalign(code_mspace_, alignment, code_size));
-  size_t header_size = RoundUp(sizeof(OatQuickMethodHeader), alignment);
+  size_t header_size = RoundUp(sizeof(OatQuickMethodHeader) + sizeof(JitXposedHeader), alignment);
   // Ensure the header ends up at expected instruction alignment.
   DCHECK_ALIGNED_PARAM(reinterpret_cast<uintptr_t>(result + header_size), alignment);
   used_memory_for_code_ += mspace_usable_size(result);
