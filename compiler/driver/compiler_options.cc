@@ -46,7 +46,8 @@ CompilerOptions::CompilerOptions()
       init_failure_output_(nullptr),
       dump_cfg_file_name_(""),
       dump_cfg_append_(false),
-      force_determinism_(false) {
+      force_determinism_(false),
+      xposed_only_(false) {
 }
 
 CompilerOptions::~CompilerOptions() {
@@ -101,7 +102,8 @@ CompilerOptions::CompilerOptions(CompilerFilter::Filter compiler_filter,
     init_failure_output_(init_failure_output),
     dump_cfg_file_name_(dump_cfg_file_name),
     dump_cfg_append_(dump_cfg_append),
-    force_determinism_(force_determinism) {
+    force_determinism_(force_determinism),
+    xposed_only_(false) {
 }
 
 void CompilerOptions::ParseHugeMethodMax(const StringPiece& option, UsageFn Usage) {

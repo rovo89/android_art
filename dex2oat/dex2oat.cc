@@ -63,6 +63,8 @@
 #include "interpreter/unstarted_runtime.h"
 #include "jit/offline_profiling_info.h"
 #include "leb128.h"
+#include "linker/buffered_output_stream.h"
+#include "linker/file_output_stream.h"
 #include "linker/multi_oat_relative_patcher.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
@@ -365,6 +367,10 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("      This option is incompatible with read barriers (e.g., if dex2oat has been");
   UsageError("      built with the environment variable `ART_USE_READ_BARRIER` set to `true`).");
   UsageError("");
+  UsageError("  --xposed-only: specify that only the xposed-specific data shall be written.");
+  UsageError("      The data will be written to the output file (e.g. given via --oat-file).");
+  UsageError("      Only .oat files are accepted as input (--dex-file).");
+  UsageError("");
   std::cerr << "See log for usage error information\n";
   exit(EXIT_FAILURE);
 }
@@ -509,6 +515,7 @@ class Dex2Oat FINAL {
       thread_count_(sysconf(_SC_NPROCESSORS_CONF)),
       start_ns_(NanoTime()),
       oat_fd_(-1),
+      xposed_only_(false),
       zip_fd_(-1),
       image_base_(0U),
       image_classes_zip_filename_(nullptr),
@@ -902,6 +909,7 @@ class Dex2Oat FINAL {
       }
     }
     compiler_options_->force_determinism_ = force_determinism_;
+    compiler_options_->xposed_only_ = xposed_only_;
   }
 
   static bool SupportsDeterministicCompilation() {
@@ -1077,6 +1085,8 @@ class Dex2Oat FINAL {
         parser_options->oat_symbols.push_back(option.substr(strlen("--oat-symbols=")).data());
       } else if (option.starts_with("--oat-fd=")) {
         ParseOatFd(option);
+      } else if (option == "--xposed-only") {
+        xposed_only_ = true;
       } else if (option == "--watch-dog") {
         parser_options->watch_dog_enabled = true;
       } else if (option == "--no-watch-dog") {
@@ -1308,9 +1318,11 @@ class Dex2Oat FINAL {
       return false;
     }
 
-    CreateOatWriters();
-    if (!AddDexFileSources()) {
-      return false;
+    if (!IsXposedAnalysisOnly()) {
+      CreateOatWriters();
+      if (!AddDexFileSources()) {
+        return false;
+      }
     }
 
     if (IsBootImage() && image_filenames_.size() > 1) {
@@ -1371,7 +1383,7 @@ class Dex2Oat FINAL {
     }
 
     // Now that we have finalized key_value_store_, start writing the oat file.
-    {
+    if (!IsXposedAnalysisOnly()) {
       TimingLogger::ScopedTiming t_dex("Writing and opening dex files", timings_);
       rodata_.reserve(oat_writers_.size());
       for (size_t i = 0, size = oat_writers_.size(); i != size; ++i) {
@@ -1399,6 +1411,39 @@ class Dex2Oat FINAL {
         } else {
           DCHECK(opened_dex_files.empty());
         }
+      }
+    } else {
+      TimingLogger::ScopedTiming t_dex("Opening input oat files", timings_);
+      for (size_t i = 0, size = dex_filenames_.size(); i != size; ++i) {
+        std::string error_msg;
+        const OatFile* oat_file = OatFile::Open(dex_filenames_[i],
+                                                dex_locations_[i],
+                                                nullptr,
+                                                nullptr,
+                                                false,
+                                                /*low_4gb*/false,
+                                                nullptr,
+                                                &error_msg);
+        if (oat_file == nullptr) {
+          LOG(ERROR) << "Could not open '" << dex_filenames_[i] << "': " << error_msg;
+          return false;
+        }
+
+        std::vector<const DexFile*> dex_files;
+        for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
+          CHECK(oat_dex_file != nullptr);
+          std::unique_ptr<const DexFile> dex_file(oat_dex_file->OpenDexFile(&error_msg));
+          if (dex_file.get() != nullptr) {
+            dex_files.push_back(dex_file.get());
+            dex_file_oat_index_map_.emplace(dex_file.get(), i);
+            opened_dex_files_.push_back(std::move(dex_file));
+          } else {
+            LOG(ERROR) << "Failed to open dex file '" << oat_dex_file->GetDexFileLocation()
+                << "' from file '" << dex_filenames_[i] << "': " << error_msg;
+            return false;
+          }
+        }
+        dex_files_per_oat_file_.push_back(dex_files);
       }
     }
 
@@ -1778,6 +1823,21 @@ class Dex2Oat FINAL {
     return true;
   }
 
+  bool WriteXposedFiles() {
+    for (size_t i = 0, size = oat_files_.size(); i != size; ++i) {
+      std::unique_ptr<BufferedOutputStream> output_stream(
+          MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(oat_files_[i].get())));
+      const std::vector<const DexFile*>& dex_files = dex_files_per_oat_file_[i];
+      const OatFile* oat_file = dex_files[0]->GetOatDexFile()->GetOatFile();
+      uint32_t oat_file_checksum = oat_file->GetOatHeader().GetChecksum();
+      OatXposedWriter oat_xposed_writer(driver_.get(), dex_files, oat_file_checksum, timings_);
+      oat_xposed_writer.Prepare();
+      oat_xposed_writer.Write(output_stream.get());
+    }
+
+    return true;
+  }
+
   // If we are compiling an image, invoke the image creation routine. Else just skip.
   bool HandleImage() {
     if (IsImage()) {
@@ -1884,6 +1944,10 @@ class Dex2Oat FINAL {
     return boot_image_;
   }
 
+  bool IsXposedAnalysisOnly() const {
+    return xposed_only_;
+  }
+
   bool IsHost() const {
     return is_host_;
   }
@@ -1979,10 +2043,16 @@ class Dex2Oat FINAL {
   std::vector<std::string> GetClassPathLocations(const std::string& class_path) {
     // This function is used only for apps and for an app we have exactly one oat file.
     DCHECK(!IsBootImage());
-    DCHECK_EQ(oat_writers_.size(), 1u);
     std::vector<std::string> dex_files_canonical_locations;
-    for (const char* location : oat_writers_[0]->GetSourceLocations()) {
-      dex_files_canonical_locations.push_back(DexFile::GetDexCanonicalLocation(location));
+    if (IsXposedAnalysisOnly()) {
+      for (const char* location : dex_locations_) {
+        dex_files_canonical_locations.push_back(DexFile::GetDexCanonicalLocation(location));
+      }
+    } else {
+      DCHECK_EQ(oat_writers_.size(), 1u);
+      for (const char* location : oat_writers_[0]->GetSourceLocations()) {
+        dex_files_canonical_locations.push_back(DexFile::GetDexCanonicalLocation(location));
+      }
     }
 
     std::vector<std::string> parsed;
@@ -2462,6 +2532,7 @@ class Dex2Oat FINAL {
   std::vector<const char*> oat_filenames_;
   std::vector<const char*> oat_unstripped_;
   int oat_fd_;
+  bool xposed_only_;
   std::vector<const char*> dex_filenames_;
   std::vector<const char*> dex_locations_;
   int zip_fd_;
@@ -2553,6 +2624,19 @@ static int CompileImage(Dex2Oat& dex2oat) {
   dex2oat.LoadClassProfileDescriptors();
   dex2oat.Compile();
 
+  // When given --xposed-only, skip some of the steps.
+  if (dex2oat.IsXposedAnalysisOnly()) {
+    if (!dex2oat.WriteXposedFiles()) {
+      dex2oat.EraseOatFiles();
+      return EXIT_FAILURE;
+    } else if (!dex2oat.FlushCloseOatFiles()) {
+      return EXIT_FAILURE;
+    }
+
+    dex2oat.DumpTiming();
+    return EXIT_SUCCESS;
+  }
+
   if (!dex2oat.WriteOatFiles()) {
     dex2oat.EraseOatFiles();
     return EXIT_FAILURE;
@@ -2596,6 +2680,19 @@ static int CompileImage(Dex2Oat& dex2oat) {
 
 static int CompileApp(Dex2Oat& dex2oat) {
   dex2oat.Compile();
+
+  // When given --xposed-only, skip some of the steps.
+  if (dex2oat.IsXposedAnalysisOnly()) {
+    if (!dex2oat.WriteXposedFiles()) {
+      dex2oat.EraseOatFiles();
+      return EXIT_FAILURE;
+    } else if (!dex2oat.FlushCloseOatFiles()) {
+      return EXIT_FAILURE;
+    }
+
+    dex2oat.DumpTiming();
+    return EXIT_SUCCESS;
+  }
 
   if (!dex2oat.WriteOatFiles()) {
     dex2oat.EraseOatFiles();

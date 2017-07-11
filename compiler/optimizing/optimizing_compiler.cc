@@ -779,8 +779,11 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                      &handles);
 
     codegen->ComputeCalledMethods();
-    codegen->Compile(code_allocator);
-    pass_observer.DumpDisassembly();
+
+    if (!compiler_options.IsXposedAnalysisOnly()) {
+      codegen->Compile(code_allocator);
+      pass_observer.DumpDisassembly();
+    }
   }
 
   return codegen.release();

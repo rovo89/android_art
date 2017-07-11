@@ -245,6 +245,10 @@ class CompilerOptions FINAL {
     return force_determinism_;
   }
 
+  bool IsXposedAnalysisOnly() const {
+    return xposed_only_;
+  }
+
  private:
   void ParseDumpInitFailures(const StringPiece& option, UsageFn Usage);
   void ParseDumpCfgPasses(const StringPiece& option, UsageFn Usage);
@@ -297,6 +301,9 @@ class CompilerOptions FINAL {
   // Whether the compiler should trade performance for determinism to guarantee exactly reproducable
   // outcomes.
   bool force_determinism_;
+
+  // Whether only Xposed data needs to be collected.
+  bool xposed_only_;
 
   friend class Dex2Oat;
 
