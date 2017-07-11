@@ -689,6 +689,10 @@ class Dex2Oat FINAL {
     boot_image_ = !image_filenames_.empty();
     app_image_ = app_image_fd_ != -1 || !app_image_file_name_.empty();
 
+    if (xposed_only_) {
+      compiler_options_->SetCompilerFilter(CompilerFilter::kEverything);
+    }
+
     if (IsAppImage() && IsBootImage()) {
       Usage("Can't have both --image and (--app-image-fd or --app-image-file)");
     }
