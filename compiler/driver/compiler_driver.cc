@@ -46,6 +46,7 @@
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_options.h"
 #include "jni_internal.h"
+#include "oat_file-inl.h"
 #include "object_lock.h"
 #include "profiler.h"
 #include "runtime.h"
@@ -2627,6 +2628,13 @@ class CompileClassVisitor : public CompilationVisitor {
   virtual void Visit(size_t class_def_index) REQUIRES(!Locks::mutator_lock_) OVERRIDE {
     ATRACE_CALL();
     const DexFile& dex_file = *manager_->GetDexFile();
+    const bool xposed_only = manager_->GetCompiler()->GetCompilerOptions().IsXposedAnalysisOnly();
+    const OatFile::OatClass oat_class = xposed_only
+        ? dex_file.GetOatDexFile()->GetOatClass(class_def_index)
+        : OatFile::OatClass::Invalid();
+    if (xposed_only && oat_class.GetType() == kOatClassNoneCompiled) {
+      return;
+    }
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     ClassLinker* class_linker = manager_->GetClassLinker();
     jobject jclass_loader = manager_->GetClassLoader();
@@ -2682,16 +2690,22 @@ class CompileClassVisitor : public CompilationVisitor {
         dex_file.StringByTypeIdx(class_def.class_idx_));
 
     // Compile direct methods
+    uint32_t class_method_index = 0;
     int64_t previous_direct_method_idx = -1;
     while (it.HasNextDirectMethod()) {
       uint32_t method_idx = it.GetMemberIndex();
       if (method_idx == previous_direct_method_idx) {
         // smali can create dex files with two encoded_methods sharing the same method_idx
         // http://code.google.com/p/smali/issues/detail?id=119
+        class_method_index++;
         it.Next();
         continue;
       }
       previous_direct_method_idx = method_idx;
+      if (xposed_only && oat_class.GetOatMethod(class_method_index++).GetQuickCode() == nullptr) {
+        it.Next();
+        continue;
+      }
       CompileMethod(soa.Self(), driver, it.GetMethodCodeItem(), it.GetMethodAccessFlags(),
                     it.GetMethodInvokeType(class_def), class_def_index,
                     method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level,
@@ -2705,10 +2719,15 @@ class CompileClassVisitor : public CompilationVisitor {
       if (method_idx == previous_virtual_method_idx) {
         // smali can create dex files with two encoded_methods sharing the same method_idx
         // http://code.google.com/p/smali/issues/detail?id=119
+        class_method_index++;
         it.Next();
         continue;
       }
       previous_virtual_method_idx = method_idx;
+      if (xposed_only && oat_class.GetOatMethod(class_method_index++).GetQuickCode() == nullptr) {
+        it.Next();
+        continue;
+      }
       CompileMethod(soa.Self(), driver, it.GetMethodCodeItem(), it.GetMethodAccessFlags(),
                     it.GetMethodInvokeType(class_def), class_def_index,
                     method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level,
