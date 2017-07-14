@@ -107,7 +107,6 @@ class OatSymbolizer FINAL {
       no_bits_(no_bits) {
   }
 
-  // TODO: Copy the .xposed section as well.
   bool Symbolize() {
     const InstructionSet isa = oat_file_->GetOatHeader().GetInstructionSet();
     const InstructionSetFeatures* features = InstructionSetFeatures::FromBitmap(
@@ -122,6 +121,7 @@ class OatSymbolizer FINAL {
 
     auto* rodata = builder_->GetRoData();
     auto* text = builder_->GetText();
+    auto* xposed = builder_->GetXposed();
     auto* bss = builder_->GetBss();
 
     const uint8_t* rodata_begin = oat_file_->Begin();
@@ -144,6 +144,18 @@ class OatSymbolizer FINAL {
       text->End();
     }
 
+    if (oat_file_->XposedSize() != 0) {
+      const uint8_t* xposed_begin = oat_file_->XposedBegin();
+      const size_t xposed_size = oat_file_->XposedEnd() - xposed_begin;
+      if (no_bits_) {
+        xposed->WriteNoBitsSection(xposed_size);
+      } else {
+        xposed->Start();
+        xposed->WriteFully(xposed_begin, xposed_size);
+        xposed->End();
+      }
+    }
+
     if (oat_file_->BssSize() != 0) {
       bss->WriteNoBitsSection(oat_file_->BssSize());
     }
@@ -152,7 +164,7 @@ class OatSymbolizer FINAL {
       builder_->WriteMIPSabiflagsSection();
     }
     builder_->PrepareDynamicSection(
-        elf_file->GetPath(), rodata_size, text_size, 0, oat_file_->BssSize());
+        elf_file->GetPath(), rodata_size, text_size, oat_file_->XposedSize(), oat_file_->BssSize());
     builder_->WriteDynamicSection();
 
     Walk();
@@ -434,10 +446,19 @@ class OatDumper {
 
       os << "END:\n";
       os << reinterpret_cast<const void*>(oat_file_.End()) << "\n\n";
+
+      os << "XPOSED BEGIN:\n";
+      os << reinterpret_cast<const void*>(oat_file_.XposedBegin()) << "\n\n";
+
+      os << "XPOSED END:\n";
+      os << reinterpret_cast<const void*>(oat_file_.XposedEnd()) << "\n\n";
     }
 
     os << "SIZE:\n";
     os << oat_file_.Size() << "\n\n";
+
+    os << "XPOSED SIZE:\n";
+    os << oat_file_.XposedSize() << "\n\n";
 
     os << std::flush;
 
