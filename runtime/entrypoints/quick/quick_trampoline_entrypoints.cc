@@ -1131,7 +1131,7 @@ extern "C" const void* artQuickResolutionTrampoline(
         code = called->GetEntryPointFromQuickCompiledCode();
       }
     } else if (called_class->IsInitializing()) {
-      if (UNLIKELY(Dbg::IsForcedInterpreterNeededForResolution(self, called))) {
+      if (UNLIKELY(Dbg::IsForcedInterpreterNeededForResolution(self, called) || called->IgnoreAotCode())) {
         // If we are single-stepping or the called method is deoptimized (by a
         // breakpoint, for example), then we have to execute the called method
         // with the interpreter.

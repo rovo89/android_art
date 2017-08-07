@@ -484,7 +484,7 @@ bool ArtMethod::HasAnyCompiledCode() {
   }
 
   // Check whether we have AOT code.
-  return Runtime::Current()->GetClassLinker()->GetOatMethodQuickCodeFor(this) != nullptr;
+  return !IgnoreAotCode() && Runtime::Current()->GetClassLinker()->GetOatMethodQuickCodeFor(this) != nullptr;
 }
 
 void ArtMethod::CopyFrom(ArtMethod* src, size_t image_pointer_size) {

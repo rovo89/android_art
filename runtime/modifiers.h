@@ -65,6 +65,9 @@ static constexpr uint32_t kAccDefaultConflict =       0x00800000;  // method (ru
 // Set by the verifier for a method we do not want the compiler to compile.
 static constexpr uint32_t kAccCompileDontBother =     0x01000000;  // method (runtime)
 
+// Set by Xposed for a method for which the compiled code from the AOT compiler should be ignored.
+static constexpr uint32_t kAccIgnoreAotCode     =     0x04000000;  // method (runtime)
+
 // Set by the verifier for a method that could not be verified to follow structured locking.
 static constexpr uint32_t kAccMustCountLocks =        0x02000000;  // method (runtime)
 

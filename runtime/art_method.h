@@ -342,6 +342,10 @@ class ArtMethod FINAL {
     return (GetAccessFlags() & kAccCompileDontBother) == 0;
   }
 
+  bool IgnoreAotCode() {
+    return (GetAccessFlags() & kAccIgnoreAotCode) != 0;
+  }
+
   // A default conflict method is a special sentinel method that stands for a conflict between
   // multiple default methods. It cannot be invoked, throwing an IncompatibleClassChangeError if one
   // attempts to do so.
