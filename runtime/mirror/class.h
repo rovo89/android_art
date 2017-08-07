@@ -868,6 +868,10 @@ class MANAGED Class FINAL : public Object {
   void PopulateEmbeddedVTable(size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  ArtMethod* FindDeclaredMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
+                                      size_t pointer_size)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   // Given a method implemented by this class but potentially from a super class, return the
   // specific implementation method for this class.
   ArtMethod* FindVirtualMethodForVirtual(ArtMethod* method, size_t pointer_size)

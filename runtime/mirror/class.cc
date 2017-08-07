@@ -334,6 +334,18 @@ void Class::SetClassLoader(ClassLoader* new_class_loader) {
   }
 }
 
+ArtMethod* Class::FindDeclaredMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
+                                           size_t pointer_size) {
+  if (GetDexCache() == dex_cache) {
+    for (auto& method : GetDeclaredMethods(pointer_size)) {
+      if (method.GetDexMethodIndex() == dex_method_idx) {
+        return &method;
+      }
+    }
+  }
+  return nullptr;
+}
+
 ArtMethod* Class::FindInterfaceMethod(const StringPiece& name, const StringPiece& signature,
                                       size_t pointer_size) {
   // Check the current class before checking the interfaces.

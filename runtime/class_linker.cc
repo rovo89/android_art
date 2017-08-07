@@ -82,6 +82,7 @@
 #include "oat_file-inl.h"
 #include "oat_file_assistant.h"
 #include "oat_file_manager.h"
+#include "oat_xposed.h"
 #include "object_lock.h"
 #include "os.h"
 #include "runtime.h"
@@ -311,6 +312,7 @@ static void ShuffleForward(size_t* current_field_idx,
 ClassLinker::ClassLinker(InternTable* intern_table)
     // dex_lock_ is recursive as it may be used in stack dumping.
     : dex_lock_("ClassLinker dex lock", kDefaultMutexLevel),
+      hooked_methods_lock_("ClassLinker hooked methods lock", kDefaultMutexLevel),
       dex_cache_boot_image_class_lookup_required_(false),
       failed_dex_cache_class_lookups_(0),
       class_roots_(nullptr),
@@ -2930,6 +2932,146 @@ void ClassLinker::LinkCode(ArtMethod* method, const OatFile::OatClass* oat_class
   }
 }
 
+static uint32_t FindMethodInOtherDexFile(const DexFile& dex_file, uint32_t dex_method_index, const DexFile& other_dex_file) {
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_index);
+
+  const char* class_descriptor = dex_file.StringByTypeIdx(method_id.class_idx_);
+  const DexFile::TypeId* other_type_id = other_dex_file.FindTypeId(class_descriptor);
+  if (other_type_id == nullptr) {
+    return DexFile::kDexNoIndex;
+  }
+
+  const DexFile::StringId* other_name = other_dex_file.FindStringId(dex_file.GetMethodName(method_id));
+  if (other_name == nullptr) {
+    return DexFile::kDexNoIndex;
+  }
+
+  uint16_t return_type_idx;
+  std::vector<uint16_t> param_type_indices;
+  bool success = other_dex_file.CreateTypeList(dex_file.GetMethodSignature(method_id).ToString(), &return_type_idx, &param_type_indices);
+  if (!success) {
+    return DexFile::kDexNoIndex;
+  }
+
+  const DexFile::ProtoId* other_proto_id = other_dex_file.FindProtoId(return_type_idx, param_type_indices);
+  if (other_proto_id == nullptr) {
+    return DexFile::kDexNoIndex;
+  }
+
+  const DexFile::MethodId* other_method_id = other_dex_file.FindMethodId(*other_type_id, *other_name, *other_proto_id);
+  if (other_method_id != nullptr) {
+    return other_dex_file.GetIndexForMethodId(*other_method_id);
+  } else {
+    return DexFile::kDexNoIndex;
+  }
+}
+
+ArtMethod* ClassLinker::FindArtMethodForIdx(mirror::DexCache* dex_cache,
+                                            const DexFile* dex_file,
+                                            uint32_t dex_method_idx,
+                                            size_t pointer_size) {
+  // Easiest case: The method is already in the DexCache.
+  ArtMethod* method = dex_cache->GetResolvedMethod(dex_method_idx, pointer_size);
+  if (method != nullptr) {
+    return method;
+  }
+
+  const DexFile::MethodId& method_id = dex_file->GetMethodId(dex_method_idx);
+  mirror::Class* klass = dex_cache->GetResolvedType(method_id.class_idx_);
+  if (klass != nullptr) {
+    // At least the class is in the DexCache, find the method from it.
+    if (!klass->IsLoaded()) {
+      // There is no ArtMethod yet.
+      return nullptr;
+    }
+    return klass->FindDeclaredMethod(dex_cache, dex_method_idx, pointer_size);
+  } else {
+    // The class isn't even in the DexCache, look through all classes with this name now.
+    std::vector<mirror::Class*> classes;
+    LookupClasses(dex_file->GetMethodDeclaringClassDescriptor(method_id), classes);
+    for (auto* c : classes) {
+      CHECK(c->IsLoaded());
+      method = c->FindDeclaredMethod(dex_cache, dex_method_idx, pointer_size);
+      if (method != nullptr) {
+        return method;
+      }
+    }
+  }
+  return nullptr;
+}
+
+void ClassLinker::InvalidateCallersForMethod(Thread* self, ArtMethod* method) {
+  const DexFile* method_dex_file = method->GetDexFile();
+  uint32_t dex_method_index = method->GetDexMethodIndex();
+  uint32_t hash = method->GetHash();
+
+  Runtime* runtime = Runtime::Current();
+  if (runtime->UseJitCompilation()) {
+    for (ArtMethod* caller : runtime->GetJit()->GetCodeCache()->GetCallers(hash)) {
+      caller->InvalidateCompiledCode();
+    }
+  }
+
+  {
+    // Remember the hash for callers which aren't initialized yet. When loading further methods,
+    // we'll check whether they call a hooked methods and invalidate their code immediately.
+    WriterMutexLock mu(self, hooked_methods_lock_);
+    hooked_methods_hashes_.insert(
+        std::upper_bound(hooked_methods_hashes_.begin(), hooked_methods_hashes_.end(), hash),
+        hash);
+  }
+
+  std::vector<const DexFile*> loaded_dex_files;
+  {
+    // Avoid holding the dex lock too long, it conflicts with LookupClasses() down the line.
+    ReaderMutexLock mu(self, dex_lock_);
+    for (const DexCacheData& data : dex_caches_) {
+      loaded_dex_files.push_back(data.dex_file);
+    }
+  }
+
+  for (const DexFile* dex_file : loaded_dex_files) {
+    // Get OatDexFile.
+    const OatDexFile* oat_dex_file = dex_file->GetOatDexFile();
+    if (oat_dex_file == nullptr) {
+      continue;
+    }
+
+    // Get OatXposedDexFile.
+    const OatXposedDexFile* oat_xposed_dex_file = oat_dex_file->GetOatXposedDexFile();
+    if (oat_xposed_dex_file == nullptr) {
+      continue;
+    }
+
+    // Check whether the method could have possibly been called from this DexFile.
+    // All callees which aren't declared explicitly are listed in the foreign hashes.
+    if (dex_file != method_dex_file) {
+      if (FindMethodInOtherDexFile(*method_dex_file, dex_method_index, *dex_file) == DexFile::kDexNoIndex) {
+        if (!oat_xposed_dex_file->HasForeignHash(hash)) {
+          continue;
+        }
+      }
+    }
+
+    // Get DexCache.
+    mirror::DexCache* dex_cache = FindDexCache(self, *dex_file, true);
+    if (dex_cache == nullptr) {
+      continue;
+    }
+
+    // Check for callers of this method and invalidate them.
+    for (uint32_t caller_idx : oat_xposed_dex_file->GetCallers(hash)) {
+      ArtMethod* caller = FindArtMethodForIdx(dex_cache, dex_file, caller_idx, image_pointer_size_);
+      if (caller != nullptr) {
+        if (UNLIKELY(caller->IsXposedHookedMethod())) {
+          caller = caller->GetXposedOriginalMethod();
+        }
+        caller->InvalidateCompiledCode();
+      }
+    }
+  }
+}
+
 void ClassLinker::SetupClass(const DexFile& dex_file,
                              const DexFile::ClassDef& dex_class_def,
                              Handle<mirror::Class> klass,
@@ -3195,6 +3337,26 @@ void ClassLinker::LoadMethod(Thread* self,
       }
     }
   }
+
+  const OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
+  if (oat_dex_file != nullptr) {
+    const OatXposedDexFile* oat_xposed_dex_file = oat_dex_file->GetOatXposedDexFile();
+    if (oat_xposed_dex_file != nullptr) {
+      ArraySlice<const uint32_t> called_methods = oat_xposed_dex_file->GetCalledMethods(dex_method_idx);
+      if (called_methods.size() != 0) {
+        ReaderMutexLock mu(self, hooked_methods_lock_);
+        for (uint32_t hash : called_methods) {
+          if (std::binary_search(hooked_methods_hashes_.begin(), hooked_methods_hashes_.end(), hash)) {
+            access_flags |= kAccIgnoreAotCode;
+          }
+        }
+      }
+    } else if (LIKELY((access_flags & kAccNative) == 0)) {
+      // We should have Xposed information at this point. If not, better play safe.
+      access_flags |= kAccIgnoreAotCode;
+    }
+  }
+
   dst->SetAccessFlags(access_flags);
 }
 
