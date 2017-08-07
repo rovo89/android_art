@@ -132,7 +132,7 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
   ClassLinker* const class_linker = runtime->GetClassLinker();
   bool is_class_initialized = method->GetDeclaringClass()->IsInitialized();
   if (uninstall) {
-    if ((forced_interpret_only_ || IsDeoptimized(method)) && !method->IsNative()) {
+    if ((forced_interpret_only_ || IsDeoptimized(method) || method->IgnoreAotCode()) && !method->IsNative()) {
       new_quick_code = GetQuickToInterpreterBridge();
     } else if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
       new_quick_code = class_linker->GetQuickOatCodeFor(method);
@@ -143,7 +143,7 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
       new_quick_code = GetQuickResolutionStub();
     }
   } else {  // !uninstall
-    if ((interpreter_stubs_installed_ || forced_interpret_only_ || IsDeoptimized(method)) &&
+    if ((interpreter_stubs_installed_ || forced_interpret_only_ || IsDeoptimized(method) || method->IgnoreAotCode()) &&
         !method->IsNative()) {
       new_quick_code = GetQuickToInterpreterBridge();
     } else {
@@ -806,7 +806,7 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
       UpdateEntrypoints(method, GetQuickResolutionStub());
     } else {
       const void* quick_code = class_linker->GetQuickOatCodeFor(method);
-      if (NeedDebugVersionForBootImageCode(method, quick_code)) {
+      if (NeedDebugVersionForBootImageCode(method, quick_code) || method->IgnoreAotCode()) {
         quick_code = GetQuickToInterpreterBridge();
       }
       UpdateEntrypoints(method, quick_code);
@@ -901,6 +901,9 @@ const void* Instrumentation::GetQuickCodeFor(ArtMethod* method, size_t pointer_s
                !class_linker->IsQuickToInterpreterBridge(code)) {
       return code;
     }
+  }
+  if (UNLIKELY(method->IgnoreAotCode())) {
+    return GetQuickToInterpreterBridge();
   }
   return runtime->GetClassLinker()->GetQuickOatCodeFor(method);
 }
@@ -1091,6 +1094,9 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
   bool deoptimize = (visitor.caller != nullptr) &&
                     (interpreter_stubs_installed_ || IsDeoptimized(visitor.caller) ||
                     Dbg::IsForcedInterpreterNeededForUpcall(self, visitor.caller));
+  if (!deoptimize && visitor.caller != nullptr && visitor.caller->IgnoreAotCode()) {
+    deoptimize = true;
+  }
   if (deoptimize) {
     if (kVerboseInstrumentation) {
       LOG(INFO) << StringPrintf("Deoptimizing %s by returning from %s with result %#" PRIx64 " in ",
