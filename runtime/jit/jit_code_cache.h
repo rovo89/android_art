@@ -193,6 +193,10 @@ class JitCodeCache {
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  void InvalidateCompiledCodeFor(ArtMethod* method)
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   bool IsInvalidated(ArtMethod* method, uintptr_t pc)
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);

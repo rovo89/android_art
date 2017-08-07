@@ -510,6 +510,19 @@ void ArtMethod::CopyFrom(ArtMethod* src, size_t image_pointer_size) {
   hotness_count_ = 0;
 }
 
+void ArtMethod::InvalidateCompiledCode() {
+  CHECK(!IsXposedHookedMethod());
+  if (!IgnoreAotCode()) {
+    SetIgnoreAotCode();
+  }
+  Runtime* runtime = Runtime::Current();
+  if (runtime->UseJitCompilation()) {
+    runtime->GetJit()->GetCodeCache()->InvalidateCompiledCodeFor(this);
+  } else {
+    SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+  }
+}
+
 void ArtMethod::EnableXposedHook(ScopedObjectAccess& soa, jobject additional_info) {
   if (UNLIKELY(IsXposedHookedMethod())) {
     // Already hooked

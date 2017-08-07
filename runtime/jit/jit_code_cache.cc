@@ -1017,6 +1017,22 @@ void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,
   number_of_deoptimizations_++;
 }
 
+void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method) {
+  ProfilingInfo* profiling_info = method->GetProfilingInfo(sizeof(void*));
+  if (profiling_info != nullptr) {
+    // Prevent future uses of the compiled code.
+    profiling_info->SetSavedEntryPoint(nullptr);
+  }
+
+  Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
+      method, GetQuickToInterpreterBridge());
+  method->ClearCounter();
+
+  MutexLock mu(Thread::Current(), lock_);
+  osr_code_map_.erase(method);
+  number_of_deoptimizations_++;
+}
+
 bool JitCodeCache::IsInvalidated(ArtMethod* method, uintptr_t pc) {
   OatQuickMethodHeader* method_header = LookupMethodHeader(pc, method);
   CHECK(method_header != nullptr) << "Non-JIT pc=" << pc << " for " << PrettyMethod(method);
