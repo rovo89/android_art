@@ -346,6 +346,12 @@ class ArtMethod FINAL {
     return (GetAccessFlags() & kAccIgnoreAotCode) != 0;
   }
 
+  void SetIgnoreAotCode() {
+    DCHECK(!IgnoreAotCode());
+    DCHECK(!IsNative());
+    SetAccessFlags(GetAccessFlags() | kAccIgnoreAotCode);
+  }
+
   // A default conflict method is a special sentinel method that stands for a conflict between
   // multiple default methods. It cannot be invoked, throwing an IncompatibleClassChangeError if one
   // attempts to do so.
@@ -751,6 +757,8 @@ class ArtMethod FINAL {
   uint32_t GetHash() SHARED_REQUIRES(Locks::mutator_lock_) {
     return GetDexFile()->GetMethodHash(GetDexMethodIndex());
   }
+
+  void InvalidateCompiledCode() SHARED_REQUIRES(Locks::mutator_lock_);
 
   static jclass xposed_callback_class;
   static jmethodID xposed_callback_method;
