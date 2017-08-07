@@ -1095,7 +1095,13 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
                     (interpreter_stubs_installed_ || IsDeoptimized(visitor.caller) ||
                     Dbg::IsForcedInterpreterNeededForUpcall(self, visitor.caller));
   if (!deoptimize && visitor.caller != nullptr && visitor.caller->IgnoreAotCode()) {
-    deoptimize = true;
+    if (Runtime::Current()->UseJitCompilation()) {
+      jit::JitCodeCache* code_cache = Runtime::Current()->GetJit()->GetCodeCache();
+      deoptimize = !code_cache->ContainsPc(reinterpret_cast<const void*>(*return_pc)) ||
+          code_cache->IsInvalidated(visitor.caller, *return_pc);
+    } else {
+      deoptimize = true;
+    }
   }
   if (deoptimize) {
     if (kVerboseInstrumentation) {

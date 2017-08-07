@@ -1027,6 +1027,35 @@ void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,
   number_of_deoptimizations_++;
 }
 
+bool JitCodeCache::IsInvalidated(ArtMethod* method, uintptr_t pc) {
+  OatQuickMethodHeader* method_header = LookupMethodHeader(pc, method);
+  CHECK(method_header != nullptr) << "Non-JIT pc=" << pc << " for " << PrettyMethod(method);
+
+  const void* entry_point = method_header->GetEntryPoint();
+
+  // Check the current entry point.
+  if (method->GetEntryPointFromQuickCompiledCode() == entry_point) {
+    return false;
+  }
+
+  // Check the saved entry point.
+  ProfilingInfo* profiling_info = method->GetProfilingInfo(sizeof(void*));
+  if ((profiling_info != nullptr) && (profiling_info->GetSavedEntryPoint() == entry_point)) {
+    return false;
+  }
+
+  // Check osr method.
+  MutexLock mu(Thread::Current(), lock_);
+  auto it = osr_code_map_.find(method);
+  if (it != osr_code_map_.end() && it->second == entry_point) {
+    return false;
+  }
+
+  // Otherwise, it must be invalidated code, as there's no place where the given method is stored.
+  // It won't be called anymore and will soon be garbage-collected.
+  return true;
+}
+
 uint8_t* JitCodeCache::AllocateCode(size_t code_size) {
   size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
   uint8_t* result = reinterpret_cast<uint8_t*>(
