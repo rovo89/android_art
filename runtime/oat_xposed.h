@@ -110,6 +110,11 @@ class OatXposedDexFile {
   // Returns the indexes of the methods calling a method with the given hash.
   std::vector<uint16_t> GetCallers(uint32_t hash) const;
 
+  // Returns whether a method with the given hash is called, but not declared in the dex file.
+  bool HasForeignHash(uint32_t hash) const {
+    return std::binary_search(foreign_hashes_.begin(), foreign_hashes_.end(), hash);
+  }
+
  private:
   OatXposedDexFile(uint32_t num_methods,
                    const uint16_t* called_methods_num,

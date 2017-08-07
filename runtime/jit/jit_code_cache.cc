@@ -408,6 +408,22 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
   return reinterpret_cast<uint8_t*>(method_header);
 }
 
+std::vector<ArtMethod*> JitCodeCache::GetCallers(uint32_t hash) {
+  std::vector<ArtMethod*> callers;
+  MutexLock mu(Thread::Current(), lock_);
+  for (auto& it : method_code_map_) {
+    JitXposedHeader* xposed_header = JitXposedHeader::FromCodePointer(it.first);
+    for (uint32_t called_hash : xposed_header->called_methods) {
+      if (called_hash == hash) {
+        callers.push_back(it.second);
+      } else if (called_hash > hash) {
+        break;
+      }
+    }
+  }
+  return callers;
+}
+
 size_t JitCodeCache::CodeCacheSize() {
   MutexLock mu(Thread::Current(), lock_);
   return CodeCacheSizeLocked();

@@ -205,6 +205,11 @@ class JitCodeCache {
 
   bool IsOsrCompiled(ArtMethod* method) REQUIRES(!lock_);
 
+  // Returns the methods which call the method with the given hash.
+  std::vector<ArtMethod*> GetCallers(uint32_t hash)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!lock_);
+
  private:
   // Take ownership of maps.
   JitCodeCache(MemMap* code_map,
