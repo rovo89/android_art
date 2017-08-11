@@ -204,6 +204,11 @@ class JitCodeCache {
 
   bool IsOsrCompiled(ArtMethod* method) REQUIRES(!lock_);
 
+  // Notify the code cache that the method at the pointer 'old_method' is being moved to the pointer
+  // 'new_method' since it is being made obsolete.
+  void MoveObsoleteMethod(ArtMethod* old_method, ArtMethod* new_method)
+      REQUIRES(!lock_) REQUIRES(Locks::mutator_lock_);
+
   // Returns the methods which call the method with the given hash.
   std::vector<ArtMethod*> GetCallers(uint32_t hash)
       SHARED_REQUIRES(Locks::mutator_lock_)

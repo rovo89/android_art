@@ -173,7 +173,7 @@ class ProfilingInfo {
   const uint32_t number_of_inline_caches_;
 
   // Method this profiling info is for.
-  ArtMethod* const method_;
+  ArtMethod* method_;
 
   // Holding class for the method in case method is a copied method.
   GcRoot<mirror::Class> holding_class_;

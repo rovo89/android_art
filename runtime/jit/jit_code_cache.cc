@@ -415,6 +415,39 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
   return reinterpret_cast<uint8_t*>(method_header);
 }
 
+// Cherry-picked from art/master obsolete method support.
+// Commits dba61481035b7944173181ec9ee02aea41dd0e29 and eee0bd448ec057d3f224895ddb868786758eeb5b.
+void JitCodeCache::MoveObsoleteMethod(ArtMethod* old_method, ArtMethod* new_method) {
+  // Native methods have no profiling info and need no special handling from the JIT code cache.
+  if (old_method->IsNative()) {
+    return;
+  }
+  MutexLock mu(Thread::Current(), lock_);
+  // Update ProfilingInfo to the new one and remove it from the old_method.
+  if (old_method->GetProfilingInfo(sizeof(void*)) != nullptr) {
+    DCHECK_EQ(old_method->GetProfilingInfo(sizeof(void*))->GetMethod(), old_method);
+    ProfilingInfo* info = old_method->GetProfilingInfo(sizeof(void*));
+    old_method->SetProfilingInfo(nullptr);
+    // Since the JIT should be paused and all threads suspended by the time this is called these
+    // checks should always pass.
+    DCHECK(!info->IsInUseByCompiler());
+    new_method->SetProfilingInfo(info);
+    info->method_ = new_method;
+  }
+  // Update method_code_map_ to point to the new method.
+  for (auto& it : method_code_map_) {
+    if (it.second == old_method) {
+      it.second = new_method;
+    }
+  }
+  // Update osr_code_map_ to point to the new method.
+  auto code_map = osr_code_map_.find(old_method);
+  if (code_map != osr_code_map_.end()) {
+    osr_code_map_.Put(new_method, code_map->second);
+    osr_code_map_.erase(old_method);
+  }
+}
+
 std::vector<ArtMethod*> JitCodeCache::GetCallers(uint32_t hash) {
   std::vector<ArtMethod*> callers;
   MutexLock mu(Thread::Current(), lock_);

@@ -40,6 +40,7 @@
 #include "mirror/string.h"
 #include "oat_file-inl.h"
 #include "scoped_thread_state_change.h"
+#include "thread_list.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -523,6 +524,31 @@ void ArtMethod::InvalidateCompiledCode() {
   }
 }
 
+static void StackReplaceMethodAndInstallInstrumentation(Thread* thread, void* arg)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  struct StackReplaceMethodVisitor FINAL : public StackVisitor {
+    StackReplaceMethodVisitor(Thread* thread_in, ArtMethod* search, ArtMethod* replace)
+        : StackVisitor(thread_in, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFramesNoResolve),
+          search_(search), replace_(replace) {};
+
+    bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
+      if (GetMethod() == search_) {
+        SetMethod(replace_);
+      }
+      return true;
+    }
+
+    ArtMethod* search_;
+    ArtMethod* replace_;
+  };
+
+  ArtMethod* search = reinterpret_cast<ArtMethod*>(arg);
+  StackReplaceMethodVisitor visitor(thread, search, search->GetXposedOriginalMethod());
+  visitor.WalkStack();
+
+  Runtime::Current()->GetInstrumentation()->InstrumentThreadStack(thread);
+}
+
 void ArtMethod::EnableXposedHook(ScopedObjectAccess& soa, jobject additional_info) {
   if (UNLIKELY(IsXposedHookedMethod())) {
     // Already hooked
@@ -554,14 +580,28 @@ void ArtMethod::EnableXposedHook(ScopedObjectAccess& soa, jobject additional_inf
   hook_info->reflected_method = soa.Vm()->AddGlobalRef(soa.Self(), reflected_method);
   hook_info->additional_info = soa.Env()->NewGlobalRef(additional_info);
   hook_info->original_method = backup_method;
-  SetEntryPointFromJniPtrSize(reinterpret_cast<uint8_t*>(hook_info), sizeof(void*));
 
+  ScopedThreadSuspension sts(soa.Self(), kSuspended);
+  jit::ScopedJitSuspend sjs;
+  ScopedSuspendAll ssa(__FUNCTION__);
+
+  cl->InvalidateCallersForMethod(soa.Self(), this);
+
+  jit::Jit* jit = art::Runtime::Current()->GetJit();
+  if (jit != nullptr) {
+    jit->GetCodeCache()->MoveObsoleteMethod(this, backup_method);
+  }
+
+  SetEntryPointFromJniPtrSize(reinterpret_cast<uint8_t*>(hook_info), sizeof(void*));
   SetEntryPointFromQuickCompiledCode(GetQuickProxyInvokeHandler());
   SetCodeItemOffset(0);
 
   // Adjust access flags.
   const uint32_t kRemoveFlags = kAccNative | kAccSynchronized | kAccAbstract | kAccDefault | kAccDefaultConflict;
   SetAccessFlags((GetAccessFlags() & ~kRemoveFlags) | kAccXposedHookedMethod);
+
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+  Runtime::Current()->GetThreadList()->ForEach(StackReplaceMethodAndInstallInstrumentation, this);
 }
 
 }  // namespace art
