@@ -183,7 +183,7 @@ class ProfilingInfo {
   const uint32_t number_of_inline_caches_;
 
   // Method this profiling info is for.
-  ArtMethod* const method_;
+  ArtMethod* method_;
 
   // Whether the ArtMethod is currently being compiled. This flag
   // is implicitly guarded by the JIT code cache lock.
