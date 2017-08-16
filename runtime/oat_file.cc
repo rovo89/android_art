@@ -1455,6 +1455,8 @@ bool OatFile::InitOatXposedFile(std::string* error_msg) {
   std::unique_ptr<OatXposedFile> oat_xposed_file;
   if (xposed_begin_ != nullptr) {
     oat_xposed_file.reset(new OatXposedFile(GetLocation(), xposed_begin_, xposed_end_));
+  } else {
+    oat_xposed_file.reset(OatXposedFile::OpenFromFile(GetOatXposedFilename().c_str(), error_msg));
   }
 
   if (oat_xposed_file.get() == nullptr
@@ -1475,8 +1477,46 @@ bool OatFile::InitOatXposedFile(std::string* error_msg) {
     oat_dex_file->SetOatXposedDexFile(oat_xposed_dex_files[i]);
   }
 
+  if (xposed_begin_ == nullptr) {
+    xposed_begin_ = oat_xposed_file->Begin();
+    xposed_end_ = oat_xposed_file->End();
+  }
   oat_xposed_file_ = std::move(oat_xposed_file);
   return true;
+}
+
+static const std::string GetCanonicalPath(std::string path) {
+  // Resolve symlinks. Looks strange because realpath() is supposed to do that, but SELinux
+  // blocks dex2oat from getting attributes for symlinks, while allowing it to read them.
+  // Therefore avoid checking whether the path is a symlink and just try resolving it.
+  std::unique_ptr<char[]> buf(new char[PATH_MAX]);
+  ssize_t len;
+  while (TEMP_FAILURE_RETRY(len = readlink(path.c_str(), buf.get(), PATH_MAX - 1)) != -1) {
+    buf.get()[len] = '\0';
+    path = buf.get();
+  }
+  if (errno != EINVAL) {
+    PXLOG(WARNING) << "Could not determine canonical path for " << path;
+    return path;
+  }
+
+  if (realpath(path.c_str(), buf.get()) == nullptr) {
+    PXLOG(WARNING) << "Could not determine canonical path for " << path;
+    return path;
+  }
+
+  return buf.get();
+}
+
+const std::string OatFile::GetOatXposedFilename() const {
+  std::string cache_location = GetDalvikCache(
+      GetInstructionSetString(GetOatHeader().GetInstructionSet()), false);
+  CHECK(!cache_location.empty()) << "Dalvik cache does not exist";
+
+  std::string cache_file = GetCanonicalPath(location_);
+  std::replace(cache_file.begin(), cache_file.end(), '/', '@');
+
+  return StringPrintf("%s/%s@xposed", cache_location.c_str(), cache_file.substr(1).c_str());
 }
 
 bool OatFile::ShouldShowOatXposedFileError() const {

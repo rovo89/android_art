@@ -11,6 +11,7 @@
 
 namespace art {
 
+class MemMap;
 class OatFile;
 class OatXposedDexFile;
 
@@ -48,6 +49,8 @@ class OatXposedFile {
  public:
   OatXposedFile(const std::string& location, const uint8_t* begin, const uint8_t* end);
 
+  static OatXposedFile* OpenFromFile(const char* filename, std::string* error_msg);
+
   const std::string& GetLocation() const {
     return location_;
   }
@@ -70,11 +73,17 @@ class OatXposedFile {
     return end_;
   }
 
+  bool IsEmbedded() const {
+    return mem_map_.get() == nullptr;
+  }
+
   bool Setup(std::string* error_msg);
 
   bool Validate(const OatFile& oat_file, std::string* error_msg) const;
 
  private:
+  OatXposedFile(const std::string& location, MemMap* mem_map);
+
   const std::string location_;
 
   // Pointer to OatXposedHeader.
@@ -82,6 +91,9 @@ class OatXposedFile {
 
   // Pointer to end of oat region for bounds checking.
   const uint8_t* end_;
+
+  // Manages the underlying memory allocation.
+  std::unique_ptr<MemMap> mem_map_;
 
   // Owning storage for the OatXposedDexFile objects.
   std::vector<const OatXposedDexFile*> oat_xposed_dex_files_storage_;
