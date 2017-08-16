@@ -105,6 +105,8 @@ class OatFile {
     return location_;
   }
 
+  const std::string GetOatXposedFilename() const;
+
   bool InitOatXposedFile(std::string* error_msg);
 
   bool NeedsOatXposedFile() const {

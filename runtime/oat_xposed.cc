@@ -1,10 +1,15 @@
 #include "oat_xposed.h"
 
 #include <memory>
+#include <sys/file.h>
+#include <sys/stat.h>
 
 #include "base/bit_vector.h"
 #include "base/stringprintf.h"
+#include "mem_map.h"
 #include "oat_file.h"
+#include "os.h"
+#include "ScopedFd.h"
 
 namespace art {
 
@@ -57,6 +62,58 @@ OatXposedFile::OatXposedFile(const std::string& location, const uint8_t* begin, 
   CHECK(begin_ != nullptr);
   CHECK(end_ != nullptr);
   CHECK_GE(end_, begin_);
+}
+
+OatXposedFile::OatXposedFile(const std::string& location, MemMap* mem_map)
+    : location_(location),
+      mem_map_(mem_map) {
+  CHECK(!location_.empty());
+  CHECK(mem_map != nullptr);
+  begin_ = mem_map_->Begin();
+  end_ = mem_map_->End();
+}
+
+OatXposedFile* OatXposedFile::OpenFromFile(const char* filename, std::string* error_msg) {
+  std::unique_ptr<MemMap> map;
+  {
+    ScopedFd fd(open(filename, O_RDONLY, 0));
+    if (fd.get() == -1) {
+      *error_msg = StringPrintf("Unable to open '%s' : %s", filename, strerror(errno));
+      return nullptr;
+    }
+
+    struct stat sbuf;
+    memset(&sbuf, 0, sizeof(sbuf));
+    if (fstat(fd.get(), &sbuf) == -1) {
+      *error_msg = StringPrintf("OatXposedFile: fstat '%s' failed: %s", filename, strerror(errno));
+      return nullptr;
+    }
+    if (S_ISDIR(sbuf.st_mode)) {
+      *error_msg = StringPrintf("Attempt to mmap directory '%s'", filename);
+      return nullptr;
+    }
+    size_t length = sbuf.st_size;
+    map.reset(MemMap::MapFile(length,
+                              PROT_READ,
+                              MAP_PRIVATE,
+                              fd.get(),
+                              0,
+                              /*low_4gb*/false,
+                              filename,
+                              error_msg));
+    if (map.get() == nullptr) {
+      DCHECK(!error_msg->empty());
+      return nullptr;
+    }
+  }
+
+  if (map->Size() < sizeof(OatXposedHeader)) {
+    *error_msg = StringPrintf(
+        "OatXposedFile: failed to open oat xposed file '%s' that is too short to have a header", filename);
+    return nullptr;
+  }
+
+  return new OatXposedFile(filename, map.release());
 }
 
 const OatXposedHeader& OatXposedFile::GetOatXposedHeader() const {
@@ -161,6 +218,15 @@ bool OatXposedFile::Setup(std::string* error_msg) {
 bool OatXposedFile::Validate(const OatFile& oat_file, std::string* error_msg) const {
    const OatHeader& oat_header = oat_file.GetOatHeader();
    const OatXposedHeader& oat_xposed_header = GetOatXposedHeader();
+   if (!IsEmbedded()) {
+     uint32_t oat_checksum = oat_header.GetChecksum();
+     uint32_t expected_checksum = oat_xposed_header.GetOatFileChecksum();
+     if (oat_checksum != expected_checksum) {
+       *error_msg = StringPrintf("Xposed info is outdated, checksum mismatch (0x%x, expected 0x%x)",
+           oat_checksum, expected_checksum);
+       return false;
+     }
+   }
    CHECK_EQ(oat_xposed_header.GetDexFileCount(), oat_header.GetDexFileCount()) << GetLocation();
    return true;
  }
