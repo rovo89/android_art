@@ -32,6 +32,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <dirent.h>
 #include <limits>
 #include <memory_representation.h>
 #include <vector>
@@ -932,6 +933,126 @@ void Runtime::SetSentinel(mirror::Object* sentinel) {
   sentinel_ = GcRoot<mirror::Object>(sentinel);
 }
 
+class PrepareOdexForXposedHelper {
+ public:
+  explicit PrepareOdexForXposedHelper()
+      : runtime_(Runtime::Current()),
+        subdir_("oat/" + std::string(GetInstructionSetString(kRuntimeISA))) {
+  }
+
+  // Scans the standard directories which might contain system apps.
+  // These apps usually don't have original dex files and therefore can't be recompiled.
+  void ScanSystemApps() {
+    std::string android_root(GetAndroidRoot());
+    ScanDir(android_root + "/framework/" + subdir_);
+    ScanAppsBaseDir(android_root + "/app");
+    ScanAppsBaseDir(android_root + "/priv-app");
+
+    ScanAppsBaseDir("/vendor/app");
+    ScanAppsBaseDir("/vendor/overlay");
+
+    const char* oem_root = getenv("OEM_ROOT");
+    if (oem_root == nullptr) {
+      oem_root = "/oem";
+    }
+    ScanAppsBaseDir(StringPrintf("%s/app", oem_root));
+
+    // The directories below aren't checked in AOSP PackageManagerService, but are used by vendors.
+
+    // Google itself, Oppo, probably many others.
+    ScanDir("/vendor/framework/" + subdir_);
+    // Oppo.
+    ScanAppsBaseDir(android_root + "/reserve");
+  }
+
+  // Scans a base directory which contains individual apps in its subfolders.
+  void ScanAppsBaseDir(std::string app_dir) {
+    if (!OS::DirectoryExists(app_dir.c_str())) {
+      return;
+    }
+    DIR* c_dir = opendir(app_dir.c_str());
+    if (c_dir == nullptr) {
+      PLOG(ERROR) << "Unable to open " << app_dir << " to prepare apps for Xposed";
+      return;
+    }
+    for (struct dirent* de = readdir(c_dir); de != nullptr; de = readdir(c_dir)) {
+      if (de->d_type == DT_DIR && strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0) {
+        ScanDir(StringPrintf("%s/%s/%s", app_dir.c_str(), de->d_name, subdir_.c_str()));
+      }
+    }
+    CHECK_EQ(0, closedir(c_dir)) << "Unable to close directory.";
+  }
+
+  // Scans a directory which might contain .odex files.
+  void ScanDir(std::string dir) {
+    if (!OS::DirectoryExists(dir.c_str())) {
+      return;
+    }
+    DIR* c_dir = opendir(dir.c_str());
+    if (c_dir == nullptr) {
+      PLOG(ERROR | LOG_XPOSED) << "Unable to open " << dir << " to prepare apps for Xposed";
+      return;
+    }
+    for (struct dirent* de = readdir(c_dir); de != nullptr; de = readdir(c_dir)) {
+      if (!EndsWith(de->d_name, ".odex")) {
+        continue;
+      }
+      ProcessOdex(StringPrintf("%s/%s", dir.c_str(), de->d_name));
+    }
+    CHECK_EQ(0, closedir(c_dir)) << "Unable to close directory.";
+  }
+
+  // Checks whether the given .odex file has Xposed information, and compiles them if not.
+  void ProcessOdex(std::string odex_file) {
+    std::unique_ptr<File> file(OS::OpenFileForReading(odex_file.c_str()));
+    if (file.get() == nullptr) {
+      PXLOG(ERROR) << "Failed to open oat " << odex_file << " for reading";
+      return;
+    }
+
+    std::string error_msg;
+    std::unique_ptr<const OatFile> oat_file(
+        OatFile::OpenReadable(file.get(), odex_file, nullptr, &error_msg));
+    if (oat_file.get() == nullptr) {
+      XLOG(ERROR) << "Failed to open oat " << odex_file << ": " << error_msg;
+      return;
+    }
+
+    if (oat_file->NeedsOatXposedFile() && !oat_file->HasOatXposedFile()) {
+      CompileXposedOnly(oat_file.get());
+    }
+  }
+
+  // Creates Xposed information for an .odex using dex2oat --xposed-only.
+  void CompileXposedOnly(const OatFile* oat_file) {
+    std::vector<std::string> argv;
+    argv.push_back(runtime_->GetCompilerExecutable());
+
+    argv.push_back("--boot-image=" + runtime_->GetImageLocation());
+
+    runtime_->AddCurrentRuntimeFeaturesAsDex2OatArguments(&argv);
+    std::vector<std::string> compiler_options = runtime_->GetCompilerOptions();
+    argv.insert(argv.end(), compiler_options.begin(), compiler_options.end());
+
+    if (!kIsTargetBuild) {
+      argv.push_back("--host");
+    }
+
+    argv.push_back("--dex-file=" + oat_file->GetLocation());
+    argv.push_back("--oat-file=" + oat_file->GetOatXposedFilename());
+    argv.push_back("--xposed-only");
+
+    std::string error_msg;
+    if (!Exec(argv, &error_msg)) {
+      XLOG(ERROR) << "Failed to generate Xposed info for " << oat_file->GetLocation() << ": " << error_msg;
+    }
+  }
+
+ private:
+  const Runtime* runtime_;
+  const std::string subdir_;
+};
+
 bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // (b/30160149): protect subprocesses from modifications to LD_LIBRARY_PATH, etc.
   // Take a snapshot of the environment at the time the runtime was created, for use by Exec, etc.
@@ -1049,6 +1170,11 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   if (!heap_->HasBootImageSpace() && !allow_dex_file_fallback_) {
     LOG(ERROR) << "Dex file fallback disabled, cannot continue without image.";
     return false;
+  }
+
+  if (is_zygote_) {
+    PrepareOdexForXposedHelper odex_xposed_helper;
+    odex_xposed_helper.ScanSystemApps();
   }
 
   dump_gc_performance_on_shutdown_ = runtime_options.Exists(Opt::DumpGCPerformanceOnShutdown);
