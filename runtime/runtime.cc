@@ -940,6 +940,65 @@ class PrepareOdexForXposedHelper {
         subdir_("oat/" + std::string(GetInstructionSetString(kRuntimeISA))) {
   }
 
+  // Makes sure that the boot oat files have Xposed info.
+  void PrepareBootImage() {
+    // Check whether the boot image has Xposed info.
+    std::vector<gc::space::ImageSpace*> boot_image_spaces
+        = Runtime::Current()->GetHeap()->GetBootImageSpaces();
+    bool needs_xposed_info = false;
+    for (gc::space::ImageSpace* image_space : boot_image_spaces) {
+      const OatFile* oat_file = image_space->GetOatFile();
+      if (oat_file->NeedsOatXposedFile() && !oat_file->HasOatXposedFile()) {
+        needs_xposed_info = true;
+        break;
+      }
+    }
+    if (!needs_xposed_info) {
+      return;
+    }
+
+    // Compile Xposed info for the boot oat files.
+    std::vector<std::string> argv;
+    argv.push_back(runtime_->GetCompilerExecutable());
+
+    runtime_->AddCurrentRuntimeFeaturesAsDex2OatArguments(&argv);
+    std::vector<std::string> compiler_options = runtime_->GetImageCompilerOptions();
+    argv.insert(argv.end(), compiler_options.begin(), compiler_options.end());
+
+    if (!kIsTargetBuild) {
+      argv.push_back("--host");
+    }
+
+    const ImageHeader& image_header = boot_image_spaces[0]->GetImageHeader();
+    argv.push_back(StringPrintf("--base=%p", image_header.GetImageBegin()));
+
+    for (gc::space::ImageSpace* image_space : boot_image_spaces) {
+      const OatFile* oat_file = image_space->GetOatFile();
+      argv.push_back(std::string("--dex-file=") + oat_file->GetLocation());
+      argv.push_back(std::string("--oat-file=") + oat_file->GetOatXposedFilename());
+      argv.push_back(std::string("--image=") + image_space->GetImageFilename());
+    }
+
+    argv.push_back("--xposed-only");
+
+    std::string error_msg;
+    if (!Exec(argv, &error_msg)) {
+      XLOG(ERROR) << "Failed to generate Xposed info for boot image: " << error_msg;
+      return;
+    }
+
+    // Now try to reload the Xposed info for the boot oat files.
+    for (gc::space::ImageSpace* image_space : boot_image_spaces) {
+      OatFile* oat_file = const_cast<OatFile*>(image_space->GetOatFile());
+      if (oat_file->IsExecutable()) {
+        if (!oat_file->InitOatXposedFile(&error_msg)) {
+          XLOG(ERROR) << "Failed to load Xposed info for "
+              << image_space->GetOatFile()->GetLocation() << ": " << error_msg;
+        }
+      }
+    }
+  }
+
   // Scans the standard directories which might contain system apps.
   // These apps usually don't have original dex files and therefore can't be recompiled.
   void ScanSystemApps() {
@@ -1174,6 +1233,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
 
   if (is_zygote_) {
     PrepareOdexForXposedHelper odex_xposed_helper;
+    odex_xposed_helper.PrepareBootImage();
     odex_xposed_helper.ScanSystemApps();
   }
 
