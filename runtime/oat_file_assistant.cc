@@ -562,6 +562,11 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
     VLOG(oat) << "Profile check skipped for compiler filter " << current_compiler_filter;
   }
 
+  if (file.NeedsOatXposedFile() && !file.HasOatXposedFile() && HasOriginalDexFiles()) {
+    VLOG(oat) << "No valid Xposed info found.";
+    return true;
+  }
+
   // Everything looks good; the dex file is not out of date.
   return false;
 }

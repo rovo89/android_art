@@ -113,6 +113,10 @@ class OatFile {
     return CompilerFilter::IsBytecodeCompilationEnabled(GetCompilerFilter());
   }
 
+  bool HasOatXposedFile() const {
+    return oat_xposed_file_.get() != nullptr;
+  }
+
   const OatHeader& GetOatHeader() const;
 
   class OatMethod FINAL {
