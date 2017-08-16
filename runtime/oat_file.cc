@@ -1525,6 +1525,13 @@ bool OatFile::ShouldShowOatXposedFileError() const {
     return false;
   }
 
+  // For the boot image, we try to compile the Xposed info later and then reload it.
+  // If it still fails, we'll show the error message at that point.
+  bool is_boot_oat = GetOatHeader().GetStoreValueByKey(OatHeader::kBootClassPathKey) != nullptr;
+  if (is_boot_oat) {
+    return false;
+  }
+
   // We also don't want to show an error for .oat files which can easily be regenerated as the
   // original .dex files still exist. Android should trigger this automatically.
   bool has_original_dex_files = true;
