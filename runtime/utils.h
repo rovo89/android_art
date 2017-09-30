@@ -413,6 +413,8 @@ inline void FlushInstructionCache(char* begin, char* end) {
 #endif
 }
 
+bool IsSamsungROM();
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_

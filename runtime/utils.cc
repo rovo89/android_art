@@ -1893,4 +1893,14 @@ void SleepForever() {
   }
 }
 
+bool IsSamsungROM() {
+  static bool checked = false;
+  static bool result = false;
+  if (!checked) {
+    result = OS::FileExists("/system/framework/touchwiz.jar");
+    checked = true;
+  }
+  return result;
+}
+
 }  // namespace art
