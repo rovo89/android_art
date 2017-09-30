@@ -351,14 +351,14 @@ JValue InvokeXposedHandleHookedMethod(ScopedObjectAccessAlreadyRunnable& soa, co
     }
   }
 
-  const XposedHookInfo* hookInfo = soa.DecodeMethod(method)->GetXposedHookInfo();
+  const XposedHookInfo* hook_info = soa.DecodeMethod(method)->GetXposedHookInfo();
 
   // Call XposedBridge.handleHookedMethod(Member method, int originalMethodId, Object additionalInfoObj,
   //                                      Object thisObject, Object[] args)
   jvalue invocation_args[5];
-  invocation_args[0].l = hookInfo->reflectedMethod;
+  invocation_args[0].l = hook_info->reflected_method;
   invocation_args[1].i = 1;
-  invocation_args[2].l = hookInfo->additionalInfo;
+  invocation_args[2].l = hook_info->additional_info;
   invocation_args[3].l = rcvr_jobj;
   invocation_args[4].l = args_jobj;
   jobject result =

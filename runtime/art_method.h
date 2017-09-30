@@ -39,9 +39,9 @@ class StringPiece;
 class ShadowFrame;
 
 struct XposedHookInfo {
-  jobject reflectedMethod;
-  jobject additionalInfo;
-  ArtMethod* originalMethod;
+  jobject reflected_method;
+  jobject additional_info;
+  ArtMethod* original_method;
 };
 
 namespace mirror {
@@ -570,7 +570,7 @@ class ArtMethod FINAL {
   }
 
   ArtMethod* GetXposedOriginalMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetXposedHookInfo()->originalMethod;
+    return GetXposedHookInfo()->original_method;
   }
 
   static jclass xposed_callback_class;
