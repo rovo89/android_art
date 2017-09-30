@@ -691,7 +691,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, isBootClassPathOnDisk, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(VMRuntime, getCurrentInstructionSet, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, didPruneDalvikCache, "()Z"),
-  NATIVE_METHOD(VMRuntime, setSystemDaemonThreadPriority, "()V"),
+  NATIVE_METHOD(VMRuntime, setSystemDaemonThreadPriority, "?()V"),
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {
