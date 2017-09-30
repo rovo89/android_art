@@ -420,7 +420,7 @@ static void StackReplaceMethod(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(
 
   // We cannot use GetXposedOriginalMethod() because the access flags aren't modified yet.
   auto hook_info = reinterpret_cast<const XposedHookInfo*>(search->GetNativeMethod());
-  ArtMethod* replace = hook_info->originalMethod;
+  ArtMethod* replace = hook_info->original_method;
 
   StackReplaceMethodVisitor visitor(thread, search, replace);
   visitor.WalkStack();
@@ -453,11 +453,11 @@ void ArtMethod::EnableXposedHook(ScopedObjectAccess& soa, jobject additional_inf
       env->NewGlobalRef(soa.AddLocalReference<jobject>(backup_method)));
 
   // Save extra information in a separate structure, stored instead of the native method
-  XposedHookInfo* hookInfo = reinterpret_cast<XposedHookInfo*>(calloc(1, sizeof(XposedHookInfo)));
-  hookInfo->reflectedMethod = env->NewGlobalRef(reflect_method);
-  hookInfo->additionalInfo = env->NewGlobalRef(additional_info);
-  hookInfo->originalMethod = backup_method;
-  SetNativeMethod(reinterpret_cast<uint8_t*>(hookInfo));
+  XposedHookInfo* hook_info = reinterpret_cast<XposedHookInfo*>(calloc(1, sizeof(XposedHookInfo)));
+  hook_info->reflected_method = env->NewGlobalRef(reflect_method);
+  hook_info->additional_info = env->NewGlobalRef(additional_info);
+  hook_info->original_method = backup_method;
+  SetNativeMethod(reinterpret_cast<uint8_t*>(hook_info));
 
   ThreadList* tl = Runtime::Current()->GetThreadList();
   soa.Self()->TransitionFromRunnableToSuspended(kSuspended);
