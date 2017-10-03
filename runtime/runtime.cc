@@ -944,24 +944,37 @@ class PrepareOdexForXposedHelper {
     const ImageHeader& image_header = boot_image_spaces[0]->GetImageHeader();
     argv.push_back(StringPrintf("--base=%p", image_header.GetImageBegin()));
 
+    std::string error_msg;
     for (gc::space::ImageSpace* image_space : boot_image_spaces) {
       const OatFile* oat_file = image_space->GetOatFile();
       argv.push_back(std::string("--dex-file=") + oat_file->GetLocation());
       argv.push_back(std::string("--oat-file=") + oat_file->GetOatXposedFilename());
       argv.push_back(std::string("--image=") + image_space->GetImageFilename());
+      if (IsSamsungROM() && !CreateOatXposedFile(oat_file->GetOatXposedFilename(), &error_msg)) {
+        XLOG(ERROR) << "Failed to generate Xposed info for boot image: " << error_msg;
+        return;
+      }
     }
 
     argv.push_back("--xposed-only");
 
-    std::string error_msg;
     if (!Exec(argv, &error_msg)) {
       XLOG(ERROR) << "Failed to generate Xposed info for boot image: " << error_msg;
+      if (IsSamsungROM()) {
+        for (gc::space::ImageSpace* image_space : boot_image_spaces) {
+          const OatFile* oat_file = image_space->GetOatFile();
+          unlink(oat_file->GetOatXposedFilename().c_str());
+        }
+      }
       return;
     }
 
     // Now try to reload the Xposed info for the boot oat files.
     for (gc::space::ImageSpace* image_space : boot_image_spaces) {
       OatFile* oat_file = const_cast<OatFile*>(image_space->GetOatFile());
+      if (IsSamsungROM()) {
+        chown(oat_file->GetOatXposedFilename().c_str(), 0, 0);
+      }
       if (oat_file->IsExecutable()) {
         if (!oat_file->InitOatXposedFile(&error_msg)) {
           XLOG(ERROR) << "Failed to load Xposed info for "
@@ -1074,12 +1087,47 @@ class PrepareOdexForXposedHelper {
     argv.push_back("--xposed-only");
 
     std::string error_msg;
+    if (IsSamsungROM() && !CreateOatXposedFile(oat_file->GetOatXposedFilename(), &error_msg)) {
+      XLOG(ERROR) << "Failed to generate Xposed info for " << oat_file->GetLocation() << ": " << error_msg;
+      return;
+    }
+
     if (!Exec(argv, &error_msg)) {
       XLOG(ERROR) << "Failed to generate Xposed info for " << oat_file->GetLocation() << ": " << error_msg;
+      if (IsSamsungROM()) {
+        unlink(oat_file->GetOatXposedFilename().c_str());
+      }
+    } else if (IsSamsungROM()) {
+      chown(oat_file->GetOatXposedFilename().c_str(), 0, 0);
     }
   }
 
  private:
+
+  // Pre-create the file with uid 2000, as Samsung's security measures force this uid on dex2oat.
+  bool CreateOatXposedFile(std::string filename, std::string* error_msg) {
+    std::unique_ptr<File> file(OS::CreateEmptyFile(filename.c_str()));
+    if (file.get() == nullptr) {
+      *error_msg = StringPrintf("Failed to create %s: %s", filename.c_str(), strerror(errno));
+      return false;
+    }
+
+    if (fchown(file->Fd(), 2000, 2000) != 0) {
+      *error_msg = StringPrintf("Failed to change owner of %s: %s", filename.c_str(), strerror(errno));
+      file->Erase();
+      unlink(filename.c_str());
+      return false;
+    }
+
+    if (file->FlushCloseOrErase() != 0) {
+      *error_msg = "Unable to close file " + filename;
+      unlink(filename.c_str());
+      return false;
+    }
+
+    return true;
+  }
+
   const Runtime* runtime_;
   const std::string subdir_;
 };
