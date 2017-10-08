@@ -25,7 +25,7 @@
 namespace art {
 
 const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromVariant(
-    const std::string& variant, std::string* error_msg) {
+    const std::string& variant, std::string* error_msg ATTRIBUTE_UNUSED) {
   const bool smp = true;  // Conservative default.
 
   // Look for variants that need a fix for a53 erratum 835769.
@@ -55,10 +55,7 @@ const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromVariant(
         "kryo"
     };
     if (!FindVariantInArray(arm64_known_variants, arraysize(arm64_known_variants), variant)) {
-      std::ostringstream os;
-      os << "Unexpected CPU variant for Arm64: " << variant;
-      *error_msg = os.str();
-      return nullptr;
+      LOG(WARNING) << "Unexpected CPU variant for Arm64: " << variant;
     }
   }
 
