@@ -1048,6 +1048,11 @@ class PrepareOdexForXposedHelper {
 
   // Checks whether the given .odex file has Xposed information, and compiles them if not.
   void ProcessOdex(std::string odex_file) {
+    // Ignore empty files. Magisk modules might use them to shadow existing files.
+    if (GetFileSizeBytes(odex_file) == 0) {
+      return;
+    }
+
     std::unique_ptr<File> file(OS::OpenFileForReading(odex_file.c_str()));
     if (file.get() == nullptr) {
       PXLOG(ERROR) << "Failed to open oat " << odex_file << " for reading";
