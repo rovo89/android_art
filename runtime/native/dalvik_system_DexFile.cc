@@ -471,6 +471,48 @@ static jint DexFile_getDexOptNeeded(JNIEnv* env,
                          newProfile == JNI_TRUE);
 }
 
+static jstring DexFile_getOatFileCompilerFilter(JNIEnv* env,
+                                                jclass,
+                                                jstring javaFilename,
+                                                jstring javaInstructionSet) {
+  ScopedUtfChars filename(env, javaFilename);
+  if (env->ExceptionCheck()) {
+    return nullptr;
+  }
+
+  ScopedUtfChars instruction_set(env, javaInstructionSet);
+  if (env->ExceptionCheck()) {
+    return nullptr;
+  }
+
+  const InstructionSet target_instruction_set = GetInstructionSetFromString(
+      instruction_set.c_str());
+  if (target_instruction_set == kNone) {
+    ScopedLocalRef<jclass> iae(env, env->FindClass("java/lang/IllegalArgumentException"));
+    std::string message(StringPrintf("Instruction set %s is invalid.", instruction_set.c_str()));
+    env->ThrowNew(iae.get(), message.c_str());
+    return nullptr;
+  }
+
+  OatFileAssistant oat_file_assistant(filename.c_str(),
+                                      target_instruction_set,
+                                      false /* profile_changed */,
+                                      false /* load_executable */);
+
+  if (!oat_file_assistant.OatFileExists()) {
+    ScopedLocalRef<jclass> fnfe(env, env->FindClass("java/io/FileNotFoundException"));
+    const std::string* oat_filename = oat_file_assistant.OatFileName();
+    env->ThrowNew(fnfe.get(), oat_filename != nullptr ? oat_filename->c_str() : nullptr);
+    return nullptr;
+  }
+
+  CompilerFilter::Filter filter = oat_file_assistant.OatFileCompilerFilter();
+
+  // Create a new string object and return.
+  std::string filter_str = CompilerFilter::NameOfFilter(filter);
+  return env->NewStringUTF(filter_str.c_str());
+}
+
 // public API
 static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
   ScopedUtfChars filename_utf(env, javaFilename);
@@ -618,6 +660,8 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, isBackedByOatFile, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(DexFile, getDexFileStatus,
                 "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"),
+  NATIVE_METHOD(DexFile, getOatFileCompilerFilter,
+                "?(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, getDexFileOutputPath,
                 "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;")
 };
