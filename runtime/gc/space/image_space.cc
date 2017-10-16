@@ -1589,8 +1589,14 @@ void ImageSpace::ExtractMultiImageLocations(const std::string& input_image_file_
   // Apply pattern to images[1] .. images[n].
   for (size_t i = 1; i < images.size(); ++i) {
     const std::string& image = images[i];
-    CHECK_GT(image.length(), old_prefix_length);
-    std::string suffix = image.substr(old_prefix_length);
+    int correction = 0;
+    if (StartsWith(image, "/system/app/miui/out/")) {
+      correction = strlen("/system/app/miui") - strlen("/system/framework");
+    } else if (StartsWith(image, "/system/app/miuisystem/out/")) {
+      correction = strlen("/system/app/miuisystem") - strlen("/system/framework");
+    }
+    CHECK_GT(image.length(), old_prefix_length + correction);
+    std::string suffix = image.substr(old_prefix_length + correction);
     image_file_names->push_back(new_prefix + suffix);
   }
 }
