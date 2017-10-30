@@ -973,7 +973,7 @@ class PrepareOdexForXposedHelper {
     for (gc::space::ImageSpace* image_space : boot_image_spaces) {
       OatFile* oat_file = const_cast<OatFile*>(image_space->GetOatFile());
       if (IsSamsungROM()) {
-        chown(oat_file->GetOatXposedFilename().c_str(), 0, 0);
+        UNUSED(chown(oat_file->GetOatXposedFilename().c_str(), 0, 0));
       }
       if (oat_file->IsExecutable()) {
         if (!oat_file->InitOatXposedFile(&error_msg)) {
@@ -1103,7 +1103,7 @@ class PrepareOdexForXposedHelper {
         unlink(oat_file->GetOatXposedFilename().c_str());
       }
     } else if (IsSamsungROM()) {
-      chown(oat_file->GetOatXposedFilename().c_str(), 0, 0);
+      UNUSED(chown(oat_file->GetOatXposedFilename().c_str(), 0, 0));
     }
   }
 

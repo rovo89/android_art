@@ -1456,7 +1456,13 @@ bool OatFile::InitOatXposedFile(std::string* error_msg) {
   if (xposed_begin_ != nullptr) {
     oat_xposed_file.reset(new OatXposedFile(GetLocation(), xposed_begin_, xposed_end_));
   } else {
-    oat_xposed_file.reset(OatXposedFile::OpenFromFile(GetOatXposedFilename().c_str(), error_msg));
+    std::string oat_xposed_filename = GetOatXposedFilename(false);
+    if (!oat_xposed_filename.empty()) {
+      oat_xposed_file.reset(OatXposedFile::OpenFromFile(oat_xposed_filename.c_str(), error_msg));
+    } else {
+      *error_msg = "Dalvik cache does not exist";
+      return false;
+    }
   }
 
   if (oat_xposed_file.get() == nullptr
@@ -1508,10 +1514,21 @@ static const std::string GetCanonicalPath(std::string path) {
   return buf.get();
 }
 
-const std::string OatFile::GetOatXposedFilename() const {
-  std::string cache_location = GetDalvikCache(
-      GetInstructionSetString(GetOatHeader().GetInstructionSet()), false);
-  CHECK(!cache_location.empty()) << "Dalvik cache does not exist";
+const std::string OatFile::GetOatXposedFilename(const bool abort_on_error) const {
+  bool have_android_data = false;
+  bool dalvik_cache_exists = false;
+  bool is_global_cache = false;
+  std::string cache_location;
+  GetDalvikCache(GetInstructionSetString(kRuntimeISA), false, &cache_location,
+                 &have_android_data, &dalvik_cache_exists, &is_global_cache);
+  if (!dalvik_cache_exists) {
+    if (abort_on_error) {
+      LOG(FATAL) << "Dalvik cache does not exist";
+      UNREACHABLE();
+    } else {
+      return "";
+    }
+  }
 
   std::string cache_file = GetCanonicalPath(location_);
   std::replace(cache_file.begin(), cache_file.end(), '/', '@');
