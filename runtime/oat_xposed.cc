@@ -4,7 +4,6 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 
-#include "base/bit_vector.h"
 #include "base/stringprintf.h"
 #include "mem_map.h"
 #include "oat_file.h"
