@@ -1299,21 +1299,21 @@ void CodeGenerator::CreateSystemArrayCopyLocationSummary(HInvoke* invoke) {
 }
 
 void CodeGenerator::AddCalledMethod(const DexFile& dex_file, uint32_t dex_method_index) {
-   // Exclude some classes/methods which are called a lot, but shouldn't be hooked anyway.
-   const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_index);
-   const char* clazz = dex_file.GetMethodDeclaringClassDescriptor(method_id);
-   if (strcmp(clazz, "Ljava/lang/Object;") == 0) {
-     return;
-   } else if (strcmp(clazz, "Ljava/lang/String;") == 0) {
-     const char* method = dex_file.GetMethodName(method_id);
-     if (strcmp(method, "hashCode") == 0 || strcmp(method, "length") == 0
-         || strcmp(method, "charAt") == 0 || strcmp(method, "equals") == 0) {
-       return;
-     }
-   }
+  // Exclude some classes/methods which are called a lot, but shouldn't be hooked anyway.
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_index);
+  const char* clazz = dex_file.GetMethodDeclaringClassDescriptor(method_id);
+  if (strcmp(clazz, "Ljava/lang/Object;") == 0) {
+    return;
+  } else if (strcmp(clazz, "Ljava/lang/String;") == 0) {
+    const char* method = dex_file.GetMethodName(method_id);
+    if (strcmp(method, "hashCode") == 0 || strcmp(method, "length") == 0
+        || strcmp(method, "charAt") == 0 || strcmp(method, "equals") == 0) {
+      return;
+    }
+  }
 
-   called_methods_.insert(dex_file.GetMethodHash(dex_method_index));
- }
+  called_methods_.insert(dex_file.GetMethodHash(dex_method_index));
+}
 
 void CodeGenerator::ComputeCalledMethods() {
   DCHECK(block_order_ != nullptr);

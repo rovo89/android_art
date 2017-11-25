@@ -6,7 +6,6 @@
 
 #include "base/array_slice.h"
 #include "base/logging.h"
-#include "base/logging.h"
 #include "base/macros.h"
 
 namespace art {

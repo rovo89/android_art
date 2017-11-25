@@ -1062,7 +1062,7 @@ class PrepareOdexForXposedHelper {
     }
     DIR* c_dir = opendir(dir.c_str());
     if (c_dir == nullptr) {
-      PLOG(ERROR | LOG_XPOSED) << "Unable to open " << dir << " to prepare apps for Xposed";
+      PXLOG(ERROR) << "Unable to open " << dir << " to prepare apps for Xposed";
       return;
     }
     for (struct dirent* de = readdir(c_dir); de != nullptr; de = readdir(c_dir)) {
