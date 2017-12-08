@@ -573,13 +573,14 @@ bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> param
   return true;
 }
 
-static void StackReplaceMethod(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static void StackReplaceMethod(Thread* thread, void* arg)
+    EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
   struct StackReplaceMethodVisitor FINAL : public StackVisitor {
     StackReplaceMethodVisitor(Thread* thread_in, ArtMethod* search, ArtMethod* replace)
         : StackVisitor(thread_in, nullptr, StackVisitor::StackWalkKind::kSkipInlinedFrames),
           search_(search), replace_(replace) {};
 
-    bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    bool VisitFrame() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
       if (GetMethod() == search_) {
         SetMethod(replace_);
       }
