@@ -608,6 +608,18 @@ std::string StackVisitor::DescribeLocation() const {
   return result;
 }
 
+void StackVisitor::SetMethod(ArtMethod* method) {
+  DCHECK(GetMethod() != nullptr);
+  if (cur_shadow_frame_ != nullptr) {
+    cur_shadow_frame_->SetMethod(method);
+  } else {
+    DCHECK(cur_quick_frame_ != nullptr);
+    CHECK(!IsInInlinedFrame() || method->IsXposedOriginalMethod())
+        << "We do not support setting inlined method's ArtMethod!";
+    *cur_quick_frame_ = method;
+  }
+}
+
 static instrumentation::InstrumentationStackFrame& GetInstrumentationStackFrame(Thread* thread,
                                                                                 uint32_t depth) {
   CHECK_LT(depth, thread->GetInstrumentationStack()->size());

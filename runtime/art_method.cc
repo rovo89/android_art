@@ -525,13 +525,13 @@ void ArtMethod::InvalidateCompiledCode() {
 }
 
 static void StackReplaceMethodAndInstallInstrumentation(Thread* thread, void* arg)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES(Locks::mutator_lock_) {
   struct StackReplaceMethodVisitor FINAL : public StackVisitor {
     StackReplaceMethodVisitor(Thread* thread_in, ArtMethod* search, ArtMethod* replace)
         : StackVisitor(thread_in, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFramesNoResolve),
           search_(search), replace_(replace) {};
 
-    bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
+    bool VisitFrame() REQUIRES(Locks::mutator_lock_) {
       if (GetMethod() == search_) {
         SetMethod(replace_);
       }
