@@ -331,7 +331,9 @@ class ShadowFrame {
     return method_;
   }
 
-  void SetMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void SetMethod(ArtMethod* method) REQUIRES(Locks::mutator_lock_) {
+    DCHECK(method != nullptr);
+    DCHECK(method_ != nullptr);
     method_ = method;
   }
 
@@ -598,13 +600,9 @@ class StackVisitor {
 
   ArtMethod* GetMethod() const SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void SetMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
-    if (cur_shadow_frame_ != nullptr) {
-      cur_shadow_frame_->SetMethod(method);
-    } else if (cur_quick_frame_ != nullptr) {
-      *cur_quick_frame_ = method;
-    }
-  }
+  // Sets this stack frame's method pointer. This requires a full lock of the MutatorLock. This
+  // doesn't work with inlined methods.
+  void SetMethod(ArtMethod* method) REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* GetOuterMethod() const {
     return *GetCurrentQuickFrame();
