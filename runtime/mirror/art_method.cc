@@ -399,13 +399,14 @@ void ArtMethod::UnregisterNative(Thread* self) {
   RegisterNative(self, GetJniDlsymLookupStub(), false);
 }
 
-static void StackReplaceMethod(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static void StackReplaceMethod(Thread* thread, void* arg)
+    EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
   struct StackReplaceMethodVisitor FINAL : public StackVisitor {
     StackReplaceMethodVisitor(Thread* thread_in, ArtMethod* search, ArtMethod* replace)
         : StackVisitor(thread_in, nullptr),
           search_(search), replace_(replace) {};
 
-    bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    bool VisitFrame() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
       if (GetMethod() == search_) {
         SetMethod(replace_);
       }
