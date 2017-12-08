@@ -314,8 +314,9 @@ class ShadowFrame {
 
   ThrowLocation GetCurrentLocationForThrow() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetMethod(mirror::ArtMethod* method) {
+  void SetMethod(mirror::ArtMethod* method) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(method != nullptr);
+    DCHECK(method_ != nullptr);
     method_ = method;
   }
 
@@ -523,10 +524,12 @@ class StackVisitor {
     }
   }
 
-  void SetMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetMethod(mirror::ArtMethod* method) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(GetMethod() != nullptr);
     if (cur_shadow_frame_ != nullptr) {
       cur_shadow_frame_->SetMethod(method);
-    } else if (cur_quick_frame_ != nullptr) {
+    } else {
+      DCHECK(cur_quick_frame_ != nullptr);
       cur_quick_frame_->Assign(method);
     }
   }
