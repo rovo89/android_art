@@ -680,6 +680,9 @@ class ClassLinker {
       REQUIRES(!hooked_methods_lock_)
       REQUIRES(!dex_lock_);
 
+  bool ShouldIgnoreAotCode(Thread* self, const DexFile& dex_file, uint32_t dex_method_idx) const
+      REQUIRES(!hooked_methods_lock_);
+
   struct DexCacheData {
     // Weak root to the DexCache. Note: Do not decode this unnecessarily or else class unloading may
     // not work properly.
