@@ -293,7 +293,7 @@ class QuickArgumentVisitor {
   // 'this' object is the 1st argument. They also have the same frame layout as the
   // kRefAndArgs runtime method. Since 'this' is a reference, it is located in the
   // 1st GPR.
-  static mirror::Object* GetProxyThisObject(ArtMethod** sp)
+  static StackReference<mirror::Object>* GetProxyThisObjectReference(ArtMethod** sp)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     CHECK((*sp)->IsProxyOrHookedMethod());
     CHECK_GT(kNumQuickGprArgs, 0u);
@@ -301,7 +301,7 @@ class QuickArgumentVisitor {
     size_t this_arg_offset = kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset +
         GprIndexToGprOffset(kThisGprIndex);
     uint8_t* this_arg_address = reinterpret_cast<uint8_t*>(sp) + this_arg_offset;
-    return reinterpret_cast<StackReference<mirror::Object>*>(this_arg_address)->AsMirrorPtr();
+    return reinterpret_cast<StackReference<mirror::Object>*>(this_arg_address);
   }
 
   static ArtMethod* GetCallingMethod(ArtMethod** sp) SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -589,7 +589,12 @@ class QuickArgumentVisitor {
 // allows to use the QuickArgumentVisitor constants without moving all the code in its own module.
 extern "C" mirror::Object* artQuickGetProxyThisObject(ArtMethod** sp)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  return QuickArgumentVisitor::GetProxyThisObject(sp);
+  return QuickArgumentVisitor::GetProxyThisObjectReference(sp)->AsMirrorPtr();
+}
+
+extern "C" StackReference<mirror::Object>* artQuickGetProxyThisObjectReference(ArtMethod** sp)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  return QuickArgumentVisitor::GetProxyThisObjectReference(sp);
 }
 
 // Visits arguments on the stack placing them into the shadow frame.
