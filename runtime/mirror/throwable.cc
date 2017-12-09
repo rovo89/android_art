@@ -89,8 +89,13 @@ std::string Throwable::Dump() {
     } else {
       for (int32_t i = 0; i < depth; ++i) {
         mirror::ArtMethod* method = down_cast<ArtMethod*>(method_trace->Get(i));
-        uint32_t dex_pc = pc_trace->Get(i);
-        int32_t line_number = method->GetLineNumFromDexPC(dex_pc);
+        int32_t line_number;
+        if (UNLIKELY(method->IsProxyMethod())) {
+          line_number = -1;
+        } else {
+          uint32_t dex_pc = pc_trace->Get(i);
+          line_number = method->GetLineNumFromDexPC(dex_pc);
+        }
         const char* source_file = method->GetDeclaringClassSourceFile();
         result += StringPrintf("  at %s (%s:%d)\n", PrettyMethod(method, true).c_str(),
                                source_file, line_number);
