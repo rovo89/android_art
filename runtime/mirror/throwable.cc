@@ -109,8 +109,13 @@ std::string Throwable::Dump() {
       auto ptr_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
       for (int32_t i = 0; i < depth; ++i) {
         ArtMethod* method = method_trace->GetElementPtrSize<ArtMethod*>(i, ptr_size);
-        uintptr_t dex_pc = method_trace->GetElementPtrSize<uintptr_t>(i + depth, ptr_size);
-        int32_t line_number = method->GetLineNumFromDexPC(dex_pc);
+        int32_t line_number;
+        if (UNLIKELY(method->IsProxyMethod())) {
+          line_number = -1;
+        } else {
+          uintptr_t dex_pc = method_trace->GetElementPtrSize<uintptr_t>(i + depth, ptr_size);
+          line_number = method->GetLineNumFromDexPC(dex_pc);
+        }
         const char* source_file = method->GetDeclaringClassSourceFile();
         result += StringPrintf("  at %s (%s:%d)\n", PrettyMethod(method, true).c_str(),
                                source_file, line_number);
