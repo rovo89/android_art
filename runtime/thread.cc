@@ -2674,6 +2674,9 @@ bool Thread::HoldsLock(mirror::Object* object) const {
   return object->GetLockOwnerThreadId() == GetThreadId();
 }
 
+extern "C" StackReference<mirror::Object>* artQuickGetProxyThisObjectReference(ArtMethod** sp)
+    SHARED_REQUIRES(Locks::mutator_lock_);
+
 // RootVisitor parameters are: (const Object* obj, size_t vreg, const StackVisitor* visitor).
 template <typename RootVisitor>
 class ReferenceMapVisitor : public StackVisitor {
@@ -2801,6 +2804,16 @@ class ReferenceMapVisitor : public StackVisitor {
           if (*ref_addr != nullptr) {
             visitor_(ref_addr, -1, this);
           }
+        }
+      }
+    } else if (!m->IsStatic() && !m->IsRuntimeMethod() && m->IsProxyOrHookedMethod()) {
+      auto* ref_addr = artQuickGetProxyThisObjectReference(cur_quick_frame);
+      mirror::Object* ref = ref_addr->AsMirrorPtr();
+      if (ref != nullptr) {
+        mirror::Object* new_ref = ref;
+        visitor_(&new_ref, -1, this);
+        if (ref != new_ref) {
+          ref_addr->Assign(new_ref);
         }
       }
     }
