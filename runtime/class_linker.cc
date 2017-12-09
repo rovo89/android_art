@@ -902,6 +902,33 @@ class SetInterpreterEntrypointArtMethodVisitor : public ArtMethodVisitor {
   DISALLOW_COPY_AND_ASSIGN(SetInterpreterEntrypointArtMethodVisitor);
 };
 
+// Check whether methods need to be invalidated and sets flags accordingly.
+class SetIgnoreAotCodeArtMethodVisitor : public ArtMethodVisitor {
+ public:
+  explicit SetIgnoreAotCodeArtMethodVisitor(Thread* self, ClassLinker* class_linker, size_t image_pointer_size)
+    : self_(self), class_linker_(class_linker), image_pointer_size_(image_pointer_size) {}
+
+  void Visit(ArtMethod* method) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (method->IsNative() || method->IsRuntimeMethod() || method->IsResolutionMethod()) {
+        return;
+    }
+    const DexFile& dex_file = *method->GetDexFile();
+    uint32_t dex_method_idx = method->GetDexMethodIndex();
+    if (class_linker_->ShouldIgnoreAotCode(self_, dex_file, dex_method_idx)) {
+      method->SetIgnoreAotCode();
+      method->SetEntryPointFromQuickCompiledCodePtrSize(GetQuickToInterpreterBridge(),
+                                                        image_pointer_size_);
+    }
+  }
+
+ private:
+  Thread* const self_;
+  ClassLinker* const class_linker_;
+  const size_t image_pointer_size_;
+
+  DISALLOW_COPY_AND_ASSIGN(SetIgnoreAotCodeArtMethodVisitor);
+};
+
 struct TrampolineCheckData {
   const void* quick_resolution_trampoline;
   const void* quick_imt_conflict_trampoline;
@@ -1741,6 +1768,12 @@ bool ClassLinker::AddImageSpace(
   // Set entry point to interpreter if in InterpretOnly mode.
   if (!runtime->IsAotCompiler() && runtime->GetInstrumentation()->InterpretOnly()) {
     SetInterpreterEntrypointArtMethodVisitor visitor(image_pointer_size_);
+    header.VisitPackedArtMethods(&visitor, space->Begin(), image_pointer_size_);
+  }
+
+  // Set IgnoreAotCode flag for methods which call hooked methods.
+  if (!runtime->IsAotCompiler()) {
+    SetIgnoreAotCodeArtMethodVisitor visitor(self, this, image_pointer_size_);
     header.VisitPackedArtMethods(&visitor, space->Begin(), image_pointer_size_);
   }
 
@@ -3045,6 +3078,31 @@ void ClassLinker::InvalidateCallersForMethod(Thread* self, ArtMethod* method) {
   }
 }
 
+bool ClassLinker::ShouldIgnoreAotCode(Thread* self, const DexFile& dex_file, uint32_t dex_method_idx) const {
+  const OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
+  if (oat_dex_file == nullptr) {
+    // The method isn't compiled, so we don't care.
+    return false;
+  }
+
+  const OatXposedDexFile* oat_xposed_dex_file = oat_dex_file->GetOatXposedDexFile();
+  if (oat_xposed_dex_file == nullptr) {
+    // We should have Xposed information at this point. If not, better play safe.
+    return true;
+  }
+
+  ArraySlice<const uint32_t> called_methods = oat_xposed_dex_file->GetCalledMethods(dex_method_idx);
+  if (called_methods.size() != 0) {
+    ReaderMutexLock mu(self, hooked_methods_lock_);
+    for (uint32_t hash : called_methods) {
+      if (std::binary_search(hooked_methods_hashes_.begin(), hooked_methods_hashes_.end(), hash)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void ClassLinker::SetupClass(const DexFile& dex_file,
                              const DexFile::ClassDef& dex_class_def,
                              Handle<mirror::Class> klass,
@@ -3311,23 +3369,8 @@ void ClassLinker::LoadMethod(Thread* self,
     }
   }
 
-  const OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
-  if (oat_dex_file != nullptr) {
-    const OatXposedDexFile* oat_xposed_dex_file = oat_dex_file->GetOatXposedDexFile();
-    if (oat_xposed_dex_file != nullptr) {
-      ArraySlice<const uint32_t> called_methods = oat_xposed_dex_file->GetCalledMethods(dex_method_idx);
-      if (called_methods.size() != 0) {
-        ReaderMutexLock mu(self, hooked_methods_lock_);
-        for (uint32_t hash : called_methods) {
-          if (std::binary_search(hooked_methods_hashes_.begin(), hooked_methods_hashes_.end(), hash)) {
-            access_flags |= kAccIgnoreAotCode;
-          }
-        }
-      }
-    } else if (LIKELY((access_flags & kAccNative) == 0)) {
-      // We should have Xposed information at this point. If not, better play safe.
-      access_flags |= kAccIgnoreAotCode;
-    }
+  if ((access_flags & kAccNative) == 0 && ShouldIgnoreAotCode(self, dex_file, dex_method_idx)) {
+    access_flags |= kAccIgnoreAotCode;
   }
 
   dst->SetAccessFlags(access_flags);
