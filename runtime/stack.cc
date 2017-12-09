@@ -874,7 +874,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
               << " native=" << method->IsNative()
               << std::noboolalpha
               << " entrypoints=" << method->GetEntryPointFromQuickCompiledCode()
-              << "," << method->GetEntryPointFromJni()
+              << "," << (method->IsNative() ? method->GetEntryPointFromJni() : nullptr)
               << " next=" << *cur_quick_frame_;
         }
 

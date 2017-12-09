@@ -204,7 +204,7 @@ class GetMethodsVisitor : public ClassVisitor {
       return true;
     }
     for (ArtMethod& method : klass->GetMethods(sizeof(void*))) {
-      if (!method.IsNative()) {
+      if (!method.IsNative() && !method.IsXposedHookedMethod()) {
         if (method.GetCounter() >= kStartupMethodSamples ||
             method.GetProfilingInfo(sizeof(void*)) != nullptr) {
           // Have samples, add to profile.
