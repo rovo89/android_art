@@ -49,6 +49,8 @@ enum GcCause {
   kGcCauseClassLinker,
   // Not a real GC cause, used to implement exclusion between code cache metadata and GC.
   kGcCauseJitCodeCache,
+  // Xposed cause, used to guard method hooking.
+  kGcCauseXposed,
 };
 
 const char* PrettyCause(GcCause cause);

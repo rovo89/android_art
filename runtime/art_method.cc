@@ -26,6 +26,7 @@
 #include "dex_instruction.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
+#include "gc/scoped_gc_critical_section.h"
 #include "interpreter/interpreter.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
@@ -583,6 +584,9 @@ void ArtMethod::EnableXposedHook(ScopedObjectAccess& soa, jobject additional_inf
 
   ScopedThreadSuspension sts(soa.Self(), kSuspended);
   jit::ScopedJitSuspend sjs;
+  gc::ScopedGCCriticalSection gcs(soa.Self(),
+                                  gc::kGcCauseXposed,
+                                  gc::kCollectorTypeXposed);
   ScopedSuspendAll ssa(__FUNCTION__);
 
   cl->InvalidateCallersForMethod(soa.Self(), this);
