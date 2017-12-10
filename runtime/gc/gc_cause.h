@@ -47,6 +47,8 @@ enum GcCause {
   kGcCauseHomogeneousSpaceCompact,
   // Class linker cause, used to guard filling art methods with special values.
   kGcCauseClassLinker,
+  // Xposed cause, used to guard method hooking.
+  kGcCauseXposed,
 };
 
 const char* PrettyCause(GcCause cause);
