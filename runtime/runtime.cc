@@ -110,6 +110,7 @@
 #include "native/libcore_util_CharsetUtils.h"
 #include "native/org_apache_harmony_dalvik_ddmc_DdmServer.h"
 #include "native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.h"
+#include "native/samsung.h"
 #include "native/sun_misc_Unsafe.h"
 #include "native_bridge_art_interface.h"
 #include "oat_file.h"
@@ -1235,6 +1236,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   register_libcore_util_CharsetUtils(env);
   register_org_apache_harmony_dalvik_ddmc_DdmServer(env);
   register_org_apache_harmony_dalvik_ddmc_DdmVmInternal(env);
+  register_samsung_native_methods(env);
   register_sun_misc_Unsafe(env);
 }
 

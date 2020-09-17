@@ -324,6 +324,9 @@ static inline constexpr bool ValidPointerSize(size_t pointer_size) {
   return pointer_size == 4 || pointer_size == 8;
 }
 
+
+bool IsSamsungROM();
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_

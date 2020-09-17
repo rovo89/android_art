@@ -245,7 +245,7 @@ bool OatFileAssistant::HasOriginalDexFiles() {
   // has_original_dex_files_ is initialized. We don't care about the result of
   // GetRequiredDexChecksum.
   GetRequiredDexChecksum();
-  return has_original_dex_files_;
+  return has_original_dex_files_ || EndsWith(OdexFileName()->c_str(), ".xz");
 }
 
 const std::string* OatFileAssistant::OdexFileName() {
@@ -260,13 +260,18 @@ const std::string* OatFileAssistant::OdexFileName() {
       // If we can't figure out the odex file, we treat it as if the odex
       // file was inaccessible.
       LOG(WARNING) << "Failed to determine odex file name: " << error_msg;
+    } else if (!OS::FileExists(cached_odex_file_name_.c_str())) {
+      std::string filename (cached_odex_file_name_ + ".xz");
+      if (OS::FileExists(filename.c_str())) {
+        cached_odex_file_name_ = filename;
+      }
     }
   }
   return cached_odex_file_name_found_ ? &cached_odex_file_name_ : nullptr;
 }
 
 bool OatFileAssistant::OdexFileExists() {
-  return GetOdexFile() != nullptr;
+  return GetOdexFile() != nullptr || EndsWith(OdexFileName()->c_str(), ".xz");
 }
 
 OatFileAssistant::OatStatus OatFileAssistant::OdexFileStatus() {

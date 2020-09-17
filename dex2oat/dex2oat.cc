@@ -79,6 +79,9 @@
 #ifdef HAVE_ANDROID_OS
 #include "cutils/properties.h"
 #endif
+#include "xz_config.h"
+#include "xz.h"
+#include "xz_private.h"
 
 namespace art {
 
@@ -1325,7 +1328,7 @@ class Dex2Oat FINAL {
         }
         ATRACE_END();
       } else {
-        size_t failure_count = OpenDexFiles(dex_filenames_, dex_locations_, &opened_dex_files_);
+        size_t failure_count = OpenDexFiles(dex_filenames_, dex_locations_, &opened_dex_files_, swap_fd_);
         if (failure_count > 0) {
           LOG(ERROR) << "Failed to open some dex files: " << failure_count;
           return false;
@@ -1673,9 +1676,116 @@ class Dex2Oat FINAL {
   }
 
  private:
+  static File* InflateXZ(const std::string& filename, int out_fd, std::string* err) {
+    if (out_fd == -1) {
+      *err = "No swap file available";
+      return nullptr;
+    }
+
+    struct xz_buf b;
+    struct xz_dec *dec;
+    uint8_t xz_out[BUFSIZ];
+    enum xz_ret ret;
+    std::string uncompressed;
+
+    std::ifstream t(filename.c_str());
+    std::ostringstream in_contents;
+    in_contents << t.rdbuf();
+    std::string input_str = in_contents.str();
+
+    b.in = (const uint8_t*) input_str.c_str();
+    b.in_pos = 0;
+    b.in_size = input_str.length();
+    b.out = xz_out;
+    b.out_pos = 0;
+    b.out_size = BUFSIZ;
+
+    xz_crc32_init();
+
+    xz_crc64_init();
+
+    dec = xz_dec_init(XZ_DYNALLOC, 1 << 26);
+    if(dec == NULL) {
+       LOG(WARNING) << "xz_dec_init FAILED!";
+       return nullptr;
+    }
+
+    while (b.in_pos != b.in_size) {
+       ret = xz_dec_run(dec, &b);
+       uncompressed.append((const char*) xz_out, b.out_pos);
+       b.out_pos = 0;
+
+       if (ret == XZ_OK)
+         continue;
+
+       if (ret == XZ_STREAM_END) {
+
+         xz_dec_end(dec);
+
+         std::unique_ptr<File> out_file_ptr(new File(out_fd, false));
+
+         if (!out_file_ptr->WriteFully(uncompressed.c_str(), uncompressed.length())) {
+           *err = StringPrintf("Could not write to fd=%d", out_fd);
+           return nullptr;
+         }
+
+         if (out_file_ptr->Flush() != 0) {
+           *err = StringPrintf("Could not flush swap file fd=%d", out_fd);
+           return nullptr;
+         }
+
+         out_file_ptr->DisableAutoClose();
+         return out_file_ptr.release();
+       }
+
+       if (ret == XZ_UNSUPPORTED_CHECK) {
+         LOG(WARNING) << "Unsupported check; not verifying file integrity";
+         continue;
+       }
+
+       if (ret == XZ_MEM_ERROR) {
+         LOG(ERROR) << "Memory allocation failed";
+         break;
+       }
+
+       if (ret == XZ_MEMLIMIT_ERROR) {
+         LOG(ERROR) << "Memory usage limit reached";
+         break;
+       }
+
+       if (ret == XZ_FORMAT_ERROR) {
+         LOG(ERROR) << "XZ file format error";
+         break;
+       }
+
+       if (ret == XZ_OPTIONS_ERROR) {
+         LOG(ERROR) << "Unsupported options in the .xz headers";
+         break;
+       }
+
+       if (ret == XZ_DATA_ERROR) {
+         LOG(ERROR) << "File data corrupt";
+         break;
+       }
+
+       if (ret == XZ_BUF_ERROR) {
+         LOG(ERROR) << "File buffer corrupt";
+         break;
+       } else {
+         LOG(ERROR) << "XZ Bug!";
+         break;
+       }
+    }
+
+    *err = StringPrintf("Could not uncompress file=%s", filename.c_str());
+    xz_dec_end(dec);
+    return nullptr;
+  }
+
   static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
                              const std::vector<const char*>& dex_locations,
-                             std::vector<std::unique_ptr<const DexFile>>* dex_files) {
+                             std::vector<std::unique_ptr<const DexFile>>* dex_files,
+                             int& swap_fd) {
     DCHECK(dex_files != nullptr) << "OpenDexFiles out-param is nullptr";
     size_t failure_count = 0;
     for (size_t i = 0; i < dex_filenames.size(); i++) {
@@ -1687,7 +1797,42 @@ class Dex2Oat FINAL {
         LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
         continue;
       }
-      if (!DexFile::Open(dex_filename, dex_location, &error_msg, dex_files)) {
+      std::unique_ptr<File> file;
+      if (EndsWith(dex_filename, ".xz")) {
+        file.reset(InflateXZ(dex_filename, swap_fd, &error_msg));
+        if (file.get() == nullptr) {
+          LOG(WARNING) << "Failed to inflate " << dex_filename << "': " << error_msg;
+          ++failure_count;
+          continue;
+        }
+        swap_fd = -1;
+      }
+      if (file.get() != nullptr) {
+        std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(), PROT_READ | PROT_WRITE, MAP_PRIVATE, &error_msg));
+        if (elf_file.get() == nullptr) {
+          LOG(WARNING) << "Failed to open ELF file from '" << dex_filename << "': " << error_msg;
+          ++failure_count;
+          continue;
+        }
+        const OatFile* oat_file = OatFile::OpenWithElfFile(elf_file.release(), dex_filename, nullptr, &error_msg);
+        if (oat_file == nullptr) {
+          LOG(WARNING) << "Failed to open oat file from '" << dex_filename << "': " << error_msg;
+          ++failure_count;
+          continue;
+        } else {
+          for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
+            CHECK(oat_dex_file != nullptr);
+            std::unique_ptr<const DexFile> dex_file(oat_dex_file->OpenDexFile(&error_msg));
+            if (dex_file.get() != nullptr) {
+              dex_files->push_back(std::move(dex_file));
+            } else {
+              LOG(WARNING) << "Failed to open dex file '" << oat_dex_file->GetDexFileLocation()
+                  << "' from file '" << dex_filename << "': " << error_msg;
+              ++failure_count;
+            }
+          }
+        }
+      } else if (!DexFile::Open(dex_filename, dex_location, &error_msg, dex_files)) {
         LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "': " << error_msg;
         ++failure_count;
       }
